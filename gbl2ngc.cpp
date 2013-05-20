@@ -1030,125 +1030,79 @@ void export_gcode(Polygon_set_2 &polygon_set)
   int pwh_count=0;
   int first;
   vert_it vit;
-  double radius = 0.005;
-  double err_bound = 0.000001;
-  Offset_polygon_with_holes_2 offset;
 
   std::list< Polygon_with_holes_2 > pwh_list;
   std::list< Polygon_with_holes_2 >::iterator pwh_it;
 
-  //gPolygonSet.polygons_with_holes( std::back_inserter(pwh_list) ) ;
   polygon_set.polygons_with_holes( std::back_inserter(pwh_list) ) ;
-
-  //std::cout << "f100\n";
-  //std::cout << "g1 z0.1\n";
 
   fprintf(gOutStream, "f%i\n", gFeedRate);
   fprintf(gOutStream, "g1 z%g", gZSafe);
 
   for (pwh_it = pwh_list.begin(); pwh_it != pwh_list.end(); ++pwh_it)
   {
-    offset = approximated_offset_2( *pwh_it, radius, err_bound );
+    fprintf(gOutStream, "\n( offset outer boundary of polygon with hole %i )\n", pwh_count);
 
-    Offset_polygon_with_holes_2::Hole_iterator hit;
-    Offset_polygon_2::Curve_iterator cit;
-
-    //std::cout << "\n( offset outer boundary )\n";
-    fprintf(gOutStream, "\n( offset out boundary %i )\n", pwh_count);
-
+    // display outer boundary
     first = 1;
-    for (cit  = offset.outer_boundary().curves_begin();
-         cit != offset.outer_boundary().curves_end();
-         ++cit)
+    Polygon_2 ob = (*pwh_it).outer_boundary();
+    vert_it vit;
+    for (vit = ob.vertices_begin(); vit != ob.vertices_end(); ++vit)
     {
-      if ( (*cit).is_linear() ||
-           (*cit).is_circular() )
+      Point_2 p = (*vit);
+      if (first)
       {
-        Offset_point_2 p = (*cit).source();
+        fprintf(gOutStream, "g0 x%g y%g\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+        fprintf(gOutStream, "g1 z%g\n", gZCut);
+        first = 0;
+      }
+      else
+      {
+        fprintf(gOutStream, "g1 x%g y%g\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+      }
+    }
+
+    // display first point again (to close loop)
+    Point_2 p = *(ob.vertices_begin());
+    fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+
+    fprintf(gOutStream, "g1 z%g\n", gZSafe);
+
+    // display holes
+    int hole_count=0;
+    Polygon_with_holes_2::Hole_const_iterator hit;
+    for (hit  = (*pwh_it).holes_begin();
+         hit != (*pwh_it).holes_end();
+         ++hit)
+    {
+      fprintf(gOutStream, "\n( offset hole %i of polygon with hole %i )\n", hole_count , pwh_count );
+
+      Polygon_2 ib = *hit;
+
+      for (vit  = ib.vertices_begin(), first = 1;
+           vit != ib.vertices_end();
+           ++vit)
+      {
+        Point_2 p = *vit;
         if (first)
         {
-          //std::cout << "g0 x" << CGAL::to_double(p.x()) << " y" << CGAL::to_double(p.y()) << "\n";
-          fprintf(gOutStream, "g0 x%g y%g\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-          //std::cout << "g1 z0.0\n";
+          fprintf(gOutStream, "g0 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
           fprintf(gOutStream, "g1 z%g\n", gZCut);
           first = 0;
         }
         else
         {
-          //std::cout << "g1 x" << CGAL::to_double(p.x()) << " y" << CGAL::to_double(p.y()) << "\n";
-          fprintf(gOutStream, "g1 x%g y%g\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+          fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
         }
-      }
-    }
-
-    // display first point again (to close loop)
-    for (cit  = offset.outer_boundary().curves_begin();
-         cit != offset.outer_boundary().curves_end();
-         ++cit)
-    {
-      if ( (*cit).is_linear() || 
-           (*cit).is_circular() )
-      {
-        Offset_point_2 p = (*cit).source();
-        //std::cout << "g1 x" << CGAL::to_double(p.x()) << " y" << CGAL::to_double(p.y()) << "\n";
-        fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-        break;
-      }
-    }
-
-    //std::cout << "g1 z0.1\n";
-    fprintf(gOutStream, "g1 z%g\n", gZSafe);
-
-    int hole_count=0;
-    for (hit = offset.holes_begin(); hit != offset.holes_end(); ++hit)
-    {
-
-      first = 1;
-      //std::cout << "\n( offset hole )\n";
-      fprintf(gOutStream, "\n( offset hole %i of polygon with hole %i )\n", hole_count , pwh_count );
-
-      for (cit = (*hit).curves_begin();
-           cit != (*hit).curves_end();
-           ++cit)
-      {
-        if ( (*cit).is_linear() ||
-             (*cit).is_circular() )
-        {
-          Offset_point_2 p = (*cit).source();
-          if (first)
-          {
-            //std::cout << "g0 x" << CGAL::to_double(p.x()) << " y" << CGAL::to_double(p.y()) << "\n";
-            fprintf(gOutStream, "g0 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-            //std::cout << "g1 z0.0\n";
-            fprintf(gOutStream, "g1 z%g\n", gZCut);
-            first = 0;
-          }
-          else
-          {
-            //std::cout << "g1 x" << CGAL::to_double(p.x()) << " y" << CGAL::to_double(p.y()) << "\n";
-            fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-          }
-        }
-
-        hole_count++;
       }
 
       // display first point again to close loop
-      for (cit = (*hit).curves_begin();
-           cit != (*hit).curves_end();
-           ++cit)
-      {
-        if ( (*cit).is_linear() || 
-             (*cit).is_circular() )
-        {
-          Offset_point_2 p = (*cit).source();
-          //std::cout << "g1 x" << CGAL::to_double(p.x()) << " y" << CGAL::to_double(p.y()) << "\n";
-          fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-          break;
-        }
-      }
+      Point_2 p = *(ib.vertices_begin());
+      fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
 
-      //std::cout << "g1 z0.1\n";
+      hole_count++;
+
+      // bring back up to safe distance after we're done cutting the hole
       fprintf(gOutStream, "g1 z%g\n", gZSafe);
     }
 
