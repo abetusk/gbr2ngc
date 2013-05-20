@@ -1,0 +1,5 @@
+*~
+*.swp
+gbl2ngc
+test_gerber_interpreter
+gerber_interpreter.o
