@@ -187,7 +187,11 @@ int realize_apertures(gerber_state_t *gs)
   int i, j, k;
   double r, c, theta, a;
   double x, y;
+  double x_len, y_len;
   int segments;
+
+  int n_vert;
+  double rot_deg;
 
   for ( aperture = gs->aperture_head ;
         aperture ;
@@ -226,10 +230,76 @@ int realize_apertures(gerber_state_t *gs)
         ap.m_outer_boundary.push_back( Point_2( -x,  y ) );
         break;
       case 2:  // obround
-        printf("obround not implemented\n");
+
+        x_len = aperture->crop[0];
+        y_len = aperture->crop[1];
+
+        if (x_len < y_len)
+        {
+          r = x_len / 2.0;
+
+          // start at the top right
+          for (int i=0; i <= (segments/2); i++)
+          {
+            a = 2.0 * M_PI * (double)i / (double)segments ;
+            ap.m_outer_boundary.push_back( Point_2( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
+          }
+
+          // then the bottom
+          for (int i = (segments/2); i <= segments; i++)
+          {
+            a = 2.0 * M_PI * (double)i / (double)segments ;
+            ap.m_outer_boundary.push_back( Point_2( r*cos(a), r*sin(a) - ((y_len/2.0) - r) ) );
+          }
+
+        }
+        else if (y_len < x_len)
+        {
+          r = y_len / 2.0;
+
+          // start at bottom right
+          for (int i=0; i <= (segments/2); i++)
+          {
+            a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
+            ap.m_outer_boundary.push_back( Point_2( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
+          }
+
+          // then the left
+          for (int i=(segments/2); i <= segments; i++)
+          {
+            a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
+            ap.m_outer_boundary.push_back( Point_2( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
+          }
+
+        }
+        else  // circle
+        {
+          r = x_len / 2.0;
+          for (int i=0; i<segments; i++)
+          {
+            a = 2.0 * M_PI * (double)i / (double)segments ;
+            ap.m_outer_boundary.push_back( Point_2( r*cos( a ), r*sin( a ) ) );
+          }
+        }
+
         break;
       case 3:  // polygon
-        printf("polygon not implemented\n");
+
+        r = aperture->crop[0];
+        n_vert = (int)aperture->crop[1];
+        rot_deg = aperture->crop[2];
+
+        if ((n_vert < 3) || (n_vert > 12))
+        {
+          printf("ERROR! Number of polygon vertices out of range\n");
+        }
+
+        for (int i=0; i<n_vert; i++)
+        {
+          a = (2.0 * M_PI * (double)i / (double)n_vert) + (rot_deg * M_PI / 180.0);
+          ap.m_outer_boundary.push_back( Point_2( r*cos( a ), r*sin( a ) ) );
+        }
+
         break;
       default: break;
     }
@@ -576,11 +646,12 @@ int construct_contour_region( std::vector< Polygon_with_holes_2 > &pwh_vec,
 
 //-----------------------------------------
 
-// construct the final polygon offset of the joined polygons
-// from the parsed gerber file.
+// construct the final polygon set (before offsetting) 
+//   of the joined polygons from the parsed gerber file.
 //
 void join_polygon_set(gerber_state_t *gs)
 {
+
   int i, j, k;
   contour_list_ll_t *contour_list;
   contour_ll_t      *contour, *prev_contour;
@@ -603,7 +674,6 @@ void join_polygon_set(gerber_state_t *gs)
 
     while (contour)
     {
-
       if (!prev_contour)
       {
         prev_contour = contour;
@@ -621,10 +691,12 @@ void join_polygon_set(gerber_state_t *gs)
         point_list.push_back( Point_2( gAperture[ name ].m_outer_boundary[i].x() + contour->x,
                                        gAperture[ name ].m_outer_boundary[i].y() + contour->y ) );
 
+
       std::vector<Point_2> res_point;
       Polygon_2 poly;
 
       CGAL::ch_graham_andrew( point_list.begin(), point_list.end(), std::back_inserter(res_point) );
+
       for (i=0; i < res_point.size(); i++)
         poly.push_back( res_point[i] );
 
@@ -636,10 +708,12 @@ void join_polygon_set(gerber_state_t *gs)
       contour = contour->next;
 
     }
+
   }
 
   gPolygonSet.join(temp_poly_vec.begin(), temp_poly_vec.end() ,
                    temp_pwh_vec.begin(), temp_pwh_vec.end() );
+
 
   //DEBUG
   //dump_polygon_set( gPolygonSet );
@@ -651,12 +725,9 @@ void join_polygon_set(gerber_state_t *gs)
 void linearize_polygon_offset_vector( Polygon_set_2 &polygon_set, 
                                       std::vector< Offset_polygon_with_holes_2 > &offset_vec)
 {
-
   int v;
   Offset_polygon_with_holes_2::Hole_iterator hit;
   Offset_polygon_2::Curve_iterator cit;
-
-  //std::cout << "\n#offset outer boundary\n";
 
   for (v=0; v<offset_vec.size(); v++)
   {
@@ -664,10 +735,12 @@ void linearize_polygon_offset_vector( Polygon_set_2 &polygon_set,
     Polygon_2 outer_boundary;
     std::list< Polygon_2 > hole_list;
 
+
     for (cit  = offset_vec[v].outer_boundary().curves_begin();
          cit != offset_vec[v].outer_boundary().curves_end();
          ++cit)
     {
+
       if ( (*cit).is_linear() ||
            (*cit).is_circular() )
       {
@@ -676,8 +749,10 @@ void linearize_polygon_offset_vector( Polygon_set_2 &polygon_set,
         Offset_point_2 op = (*cit).source();
         //Point_2 p ( op.x(), op.y() );
         Point_2 p ( CGAL::to_double(op.x()), CGAL::to_double(op.y()) );
+
+
         outer_boundary.push_back(p);
-        //std::cout << "#ob " << CGAL::to_double(p.x()) << " " << CGAL::to_double(p.y()) << "\n";
+
       }
     }
 
@@ -697,8 +772,10 @@ void linearize_polygon_offset_vector( Polygon_set_2 &polygon_set,
           Offset_point_2 op = (*cit).source();
           //Point_2 p ( op.x(), op.y() );
           Point_2 p ( CGAL::to_double(op.x()), CGAL::to_double(op.y()) );
+
+
           hole.push_back(p);
-          //std::cout << "#ho " << CGAL::to_double(p.x()) << " " << CGAL::to_double(p.y()) << "\n";
+
         }
       }
 
@@ -1408,9 +1485,13 @@ int main(int argc, char **argv)
 
   if (gRadius > eps)
   {
+
     construct_polygon_offset( gOffsetPolygonVector, gPolygonSet );
+
     linearize_polygon_offset_vector( polygon_set, gOffsetPolygonVector );
+
     export_gcode( polygon_set );
+
   }
   else 
   {
