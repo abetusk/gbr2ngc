@@ -500,7 +500,7 @@ int create_hole_map( HolePosMap &hole_map,
         //
         if ( (range.start > 0) || (range.end < (p.size()-2)) )  
         {
-          fprintf(stderr, "ERROR: possible duplicate point? (%g,%g)\n", p[i].x, p[i].y);
+          fprintf(stderr, "ERROR: possible duplicate point? (%f,%f)\n", p[i].x, p[i].y);
           return -1;
         }
 
@@ -532,7 +532,7 @@ void debug_print_p_vec( std::vector< Gerber_point_2 > &p,
 
   for (i=0; i<p.size(); i++)
   {
-    printf("#[%i] %g %g", i, p[i].x, p[i].y);
+    printf("#[%i] %f %f", i, p[i].x, p[i].y);
     hole_map_it = hole_map.find(p[i]);
     if ( hole_map_it != hole_map.end() )
     {
@@ -1114,7 +1114,7 @@ void export_gcode(Polygon_set_2 &polygon_set)
   polygon_set.polygons_with_holes( std::back_inserter(pwh_list) ) ;
 
   fprintf(gOutStream, "f%i\n", gFeedRate);
-  fprintf(gOutStream, "g1 z%g", gZSafe);
+  fprintf(gOutStream, "g1 z%f", gZSafe);
 
   for (pwh_it = pwh_list.begin(); pwh_it != pwh_list.end(); ++pwh_it)
   {
@@ -1129,21 +1129,21 @@ void export_gcode(Polygon_set_2 &polygon_set)
       Point_2 p = (*vit);
       if (first)
       {
-        fprintf(gOutStream, "g0 x%g y%g\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-        fprintf(gOutStream, "g1 z%g\n", gZCut);
+        fprintf(gOutStream, "g0 x%f y%f\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+        fprintf(gOutStream, "g1 z%f\n", gZCut);
         first = 0;
       }
       else
       {
-        fprintf(gOutStream, "g1 x%g y%g\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+        fprintf(gOutStream, "g1 x%f y%f\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
       }
     }
 
     // display first point again (to close loop)
     Point_2 p = *(ob.vertices_begin());
-    fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+    fprintf(gOutStream, "g1 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
 
-    fprintf(gOutStream, "g1 z%g\n", gZSafe);
+    fprintf(gOutStream, "g1 z%f\n", gZSafe);
 
     // display holes
     int hole_count=0;
@@ -1163,24 +1163,24 @@ void export_gcode(Polygon_set_2 &polygon_set)
         Point_2 p = *vit;
         if (first)
         {
-          fprintf(gOutStream, "g0 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
-          fprintf(gOutStream, "g1 z%g\n", gZCut);
+          fprintf(gOutStream, "g0 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+          fprintf(gOutStream, "g1 z%f\n", gZCut);
           first = 0;
         }
         else
         {
-          fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+          fprintf(gOutStream, "g1 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
         }
       }
 
       // display first point again to close loop
       Point_2 p = *(ib.vertices_begin());
-      fprintf(gOutStream, "g1 x%g y%g\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+      fprintf(gOutStream, "g1 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
 
       hole_count++;
 
       // bring back up to safe distance after we're done cutting the hole
-      fprintf(gOutStream, "g1 z%g\n", gZSafe);
+      fprintf(gOutStream, "g1 z%f\n", gZSafe);
     }
 
     pwh_count++;
@@ -1434,7 +1434,7 @@ int main(int argc, char **argv)
 
   if (gVerboseFlag)
   {
-    fprintf(gOutStream, "( radius %g )\n", gRadius);
+    fprintf(gOutStream, "( radius %f )\n", gRadius);
   }
 
   if (gInputFilename)
