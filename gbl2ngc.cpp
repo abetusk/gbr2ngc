@@ -683,6 +683,15 @@ void join_polygon_set(gerber_state_t *gs)
       std::vector<Point_2> point_list;
       int name = contour->d_name;
 
+      // An informative example:
+      // Consider drawing a line with rounded corners from position prev_contour->[xy] to contour->[xy].
+      // This is done by first drawing a (linearized) circle (in general, an aperture) at prev_countour,
+      // then drawing another circle at countour.  After those two are formed, take the convex hull
+      // of the two (this is the ch_graham_andrew call).  Now we have a "line" with width, which is 
+      // really a polygon that we've constructed.
+      // After all these polygoin segments have been constructed, do a bit join at the end to eliminate
+      // overlap.
+      //
       for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++)
         point_list.push_back( Point_2( gAperture[ name ].m_outer_boundary[i].x() + prev_contour->x,
                                        gAperture[ name ].m_outer_boundary[i].y() + prev_contour->y ) );
@@ -784,6 +793,76 @@ void linearize_polygon_offset_vector( Polygon_set_2 &polygon_set,
 
 
     polygon_set.insert( Polygon_with_holes_2( outer_boundary, hole_list.begin(), hole_list.end() ) );
+
+  }
+
+}
+
+//---------------
+
+void linearize_polygon_offset_vector2( std::vector< Polygon_with_holes_2 > &pwh_vector, 
+                                      std::vector< Offset_polygon_with_holes_2 > &offset_vec)
+{
+  int v;
+  Offset_polygon_with_holes_2::Hole_iterator hit;
+  Offset_polygon_2::Curve_iterator cit;
+
+  for (v=0; v<offset_vec.size(); v++)
+  {
+    Polygon_with_holes_2 pwh;
+    Polygon_2 outer_boundary;
+    std::list< Polygon_2 > hole_list;
+
+
+    for (cit  = offset_vec[v].outer_boundary().curves_begin();
+         cit != offset_vec[v].outer_boundary().curves_end();
+         ++cit)
+    {
+
+      if ( (*cit).is_linear() ||
+           (*cit).is_circular() )
+      {
+        //Point_2 p = (*cit).source();
+        //Point_2 p ( (*cit).source().x(), (*cit).source().y() );
+        Offset_point_2 op = (*cit).source();
+        //Point_2 p ( op.x(), op.y() );
+        Point_2 p ( CGAL::to_double(op.x()), CGAL::to_double(op.y()) );
+
+
+        outer_boundary.push_back(p);
+
+      }
+    }
+
+    for (hit = offset_vec[v].holes_begin(); hit != offset_vec[v].holes_end(); ++hit)
+    {
+      Polygon_2 hole;
+
+      //std::cout << "\n#offset hole\n";
+      for (cit = (*hit).curves_begin();
+           cit != (*hit).curves_end();
+           ++cit)
+      {
+        if ( (*cit).is_linear() ||
+             (*cit).is_circular() )
+        {
+          //Point_2 p = (*cit).source();
+          Offset_point_2 op = (*cit).source();
+          //Point_2 p ( op.x(), op.y() );
+          Point_2 p ( CGAL::to_double(op.x()), CGAL::to_double(op.y()) );
+
+
+          hole.push_back(p);
+
+        }
+      }
+
+      hole_list.push_back(hole);
+    }
+
+
+    //polygon_set.insert( Polygon_with_holes_2( outer_boundary, hole_list.begin(), hole_list.end() ) );
+    pwh_vector.push_back( Polygon_with_holes_2( outer_boundary, hole_list.begin(), hole_list.end() ) ); 
 
   }
 
@@ -936,6 +1015,35 @@ void print_linearized_offset_polygon_with_holes2( int count, Offset_polygon_with
 
 //------------------------------------------
 
+int check_polygon_set_ok(Polygon_set_2 &polygon_set)
+{
+
+  std::list< Polygon_with_holes_2 > pwh_list;
+  std::list< Polygon_with_holes_2 >::iterator pwh_it;
+
+  polygon_set.polygons_with_holes( std::back_inserter(pwh_list) ) ;
+
+  for (pwh_it = pwh_list.begin(); pwh_it != pwh_list.end(); ++pwh_it)
+  {
+    Polygon_with_holes_2 pwh = *pwh_it;
+
+    Polygon_2 ob = pwh.outer_boundary();
+    if (!ob.is_simple()) return 0;
+
+    Polygon_with_holes_2::Hole_const_iterator hit;
+    for (hit = pwh.holes_begin(); hit != pwh.holes_end(); ++hit)
+    {
+      Polygon_2 ib = *hit;
+
+      if (!ib.is_simple()) return 0;
+    }
+    
+  }
+
+
+  return 1;
+}
+
 // Offset the joined polygons
 // as they appear in gPolygonSet.
 //
@@ -960,9 +1068,6 @@ void construct_polygon_offset( std::vector< Offset_polygon_with_holes_2 > &pwh_v
     //gOffsetPolygonVector.push_back( offset );
     pwh_vector.push_back( offset );
   }
-
-  //dump_offset_polygon_vector( gOffsetPolygonVector );
-  //exit(0);
 
 }
 
@@ -1188,6 +1293,107 @@ void export_gcode(Polygon_set_2 &polygon_set)
 
 }
 
+//-----------------------
+
+// print out gcode of the offset of the joined polygons
+// as they appear in gPolygonSet.
+//
+// vector version
+//
+void export_gcode2( std::vector< Polygon_with_holes_2 > &pwh_vector )
+{
+  int i, j, k;
+  int pwh_count=0;
+  int first;
+  vert_it vit;
+
+  std::list< Polygon_with_holes_2 > pwh_list;
+  std::list< Polygon_with_holes_2 >::iterator pwh_it;
+
+  //polygon_set.polygons_with_holes( std::back_inserter(pwh_list) ) ;
+
+  fprintf(gOutStream, "f%i\n", gFeedRate);
+  fprintf(gOutStream, "g1 z%f", gZSafe);
+
+  for (i=0; i<pwh_vector.size(); i++)
+  //for (pwh_it = pwh_list.begin(); pwh_it != pwh_list.end(); ++pwh_it)
+  {
+
+    fprintf(gOutStream, "\n( offset outer boundary of polygon with hole %i )\n", pwh_count);
+
+    // display outer boundary
+    first = 1;
+    //Polygon_2 ob = (*pwh_it).outer_boundary();
+    Polygon_2 ob = (pwh_vector[i]).outer_boundary();
+    vert_it vit;
+    for (vit = ob.vertices_begin(); vit != ob.vertices_end(); ++vit)
+    {
+      Point_2 p = (*vit);
+      if (first)
+      {
+        fprintf(gOutStream, "g0 x%f y%f\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+        fprintf(gOutStream, "g1 z%f\n", gZCut);
+        first = 0;
+      }
+      else
+      {
+        fprintf(gOutStream, "g1 x%f y%f\n" , CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+      }
+    }
+
+    // display first point again (to close loop)
+    Point_2 p = *(ob.vertices_begin());
+    fprintf(gOutStream, "g1 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+
+    fprintf(gOutStream, "g1 z%f\n", gZSafe);
+
+    // display holes
+    int hole_count=0;
+    Polygon_with_holes_2::Hole_const_iterator hit;
+    for ( hit = (pwh_vector[i]).holes_begin();
+          hit != (pwh_vector[i]).holes_end();
+          ++hit )
+    //for (hit  = (*pwh_it).holes_begin();
+    //     hit != (*pwh_it).holes_end();
+    //     ++hit)
+    {
+      fprintf(gOutStream, "\n( offset hole %i of polygon with hole %i )\n", hole_count , pwh_count );
+
+      Polygon_2 ib = *hit;
+
+      for (vit  = ib.vertices_begin(), first = 1;
+           vit != ib.vertices_end();
+           ++vit)
+      {
+        Point_2 p = *vit;
+        if (first)
+        {
+          fprintf(gOutStream, "g0 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+          fprintf(gOutStream, "g1 z%f\n", gZCut);
+          first = 0;
+        }
+        else
+        {
+          fprintf(gOutStream, "g1 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+        }
+      }
+
+      // display first point again to close loop
+      Point_2 p = *(ib.vertices_begin());
+      fprintf(gOutStream, "g1 x%f y%f\n", CGAL::to_double(p.x()) , CGAL::to_double(p.y()) );
+
+      hole_count++;
+
+      // bring back up to safe distance after we're done cutting the hole
+      fprintf(gOutStream, "g1 z%f\n", gZSafe);
+    }
+
+    pwh_count++;
+  }
+
+}
+
+
 //------------------------------------------
 
 void dump_polygon_set(Polygon_set_2 &polygon_set)
@@ -1364,6 +1570,7 @@ int main(int argc, char **argv)
   gerber_state_t gs;
   Offset_polygon_with_holes_2 offset;
   Polygon_set_2 polygon_set;
+  std::vector< Polygon_with_holes_2 > pwh_vector;
 
   extern char *optarg;
   extern int optind;
@@ -1483,14 +1690,21 @@ int main(int argc, char **argv)
 
   fprintf(gOutStream, "g90\n");
 
+  // if offsetting is enabled...
+  //
   if (gRadius > eps)
   {
 
+    //k = check_polygon_set_ok( gPolygonSet );
+    //printf("check %i\n", k); fflush(stdout);
+
     construct_polygon_offset( gOffsetPolygonVector, gPolygonSet );
 
-    linearize_polygon_offset_vector( polygon_set, gOffsetPolygonVector );
+    //linearize_polygon_offset_vector( polygon_set, gOffsetPolygonVector );
+    linearize_polygon_offset_vector2( pwh_vector, gOffsetPolygonVector );
 
-    export_gcode( polygon_set );
+    //export_gcode2( polygon_set );
+    export_gcode2( pwh_vector );
 
   }
   else 
