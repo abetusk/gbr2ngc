@@ -14,20 +14,15 @@ TODO
 ----
 
   - scanline milling strategy 
-  - outline milling strategy (zen garden milling)
+  - outline milling strategy (zen garden milling) speedup.  Currently _very_ slow
   
-KNOWN BUGS
-----------
+KNOWN ISSUES
+------------
 
-Things fail or get wonky if the offsetting is too thick.   Right now it 
-will segfault, with CGAL throwing some sort of error, if the tool radius
-puts the polygon offset in a bad state (overlapping regions, etc.).
-I'll have to work on it to make sure it catches these errors gracefully.
+  - Outline milling is so very slow.  On my system for the example gerber provided, it takes upwards of 15 minutes to render.
+  - In fact, the whole thing is pretty slow.  10s (on my system) to just do the outline seems execessive.
+  - I think the offsetting is pretty wonky, as in it creates self intersections that
+    make CGAL bork if used improperly.  Should I give warnings to users about self intersections?
+    what should I do about them in general?
 
-Update 2013-09-16:
-I've decided that this should be the users responsibility.  The segfault
-was being caused when the PolygonSet was being constructed with intersections.
-Instead of using a PolygonSet, I use a stl vector to hole the disjoint polygons
-(with holes) and the offset each individually.  This means the segfault is avoided,
-but now there might be some self intersections.
 
