@@ -18,39 +18,39 @@
 * Dated May 20th 2013
 */
 
+#include "gbl2ngc.hpp"
 
-#include "gerber_interpreter.h"
+int gVerboseFlag = 0;
+int gMetricUnits = 0;
+char *gInputFilename = NULL;
+char *gOutputFilename = NULL;
+int gFeedRate = 10;
+int gSeekRate = 100;
 
-#define N_LINEBUF 4099
+int gScanLineVertical = 0;
+int gScanLineHorizontal = 0;
+int gScanLineZenGarden = 0;
 
-//int line_no=0;
+double gZSafe = 0.1;
+double gZZero = 0.0;
+double gZCut = -0.05;
 
-//------------------------
+FILE *gOutStream = stdout;
+FILE *gInpStream = stdin;
 
-int main(int argc, char **argv)
-{
-  int i, j, k, n_line;
-  //char linebuf[N_LINEBUF], cmd[N_LINEBUF];
-  char *chp, *ts;
-  FILE *fp;
+double eps = 0.000001;
+double gRadius = 0.0;
+double gRouteRadius = -1.0;
 
-  int image_parameter_code;
-  int function_code;
+Polygon_set_2 gPolygonSet;
+Offset_polygon_set_2 gOffsetPolygonSet;
+std::vector< Offset_polygon_with_holes_2 > gOffsetPolygonVector;
 
-  gerber_state_t gs;
+Pwh_vector_2 gerber_list;
 
-  gerber_state_init(&gs);
+std::vector<int> gApertureName;
+ApertureNameMap gAperture;
 
-  if (argc!=2) { printf("provide filename\n"); exit(0); }
 
-  k = gerber_state_load_file(&gs, argv[1]);
-  if (k<0)
-  {
-    perror(argv[1]);
-  }
-  //printf("got %i\n", k);
 
-  gerber_report_state(&gs);
-  //dump_information(&gs);
 
-}

@@ -6,3 +6,7 @@ tmp
 tmp/*
 test_gerber_interpreter
 gerber_interpreter.o
+*.ngc
+src/gbl2ngc
+src/*.ngc
+src/test_gerber_interpreter
