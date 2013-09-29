@@ -4,6 +4,8 @@ gbl2ngc
 gbl2ngc_bugtrack*
 tmp
 tmp/*
+test
+test/*
 test_gerber_interpreter
 gerber_interpreter.o
 *.ngc
