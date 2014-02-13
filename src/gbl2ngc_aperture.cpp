@@ -34,17 +34,18 @@ void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, do
   for (int i=0; i<segments; i++)
   {
     a = 2.0 * M_PI * (double)i / (double)segments ;
-    ap.m_outer_boundary.push_back( Point_2( r*cos( a ), r*sin( a ) ) );
+    //ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+    ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) ) );
   }
 
 }
 
 void realize_rectangle( Aperture_realization &ap, double x, double y )
 {
-  ap.m_outer_boundary.push_back( Point_2( -x, -y ) );
-  ap.m_outer_boundary.push_back( Point_2(  x, -y ) );
-  ap.m_outer_boundary.push_back( Point_2(  x,  y ) );
-  ap.m_outer_boundary.push_back( Point_2( -x,  y ) );
+  ap.m_outer_boundary.push_back( dtoc( -x, -y ) );
+  ap.m_outer_boundary.push_back( dtoc(  x, -y ) );
+  ap.m_outer_boundary.push_back( dtoc(  x,  y ) );
+  ap.m_outer_boundary.push_back( dtoc( -x,  y ) );
 }
 
 
@@ -68,14 +69,14 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
     for (int i=0; i <= (segments/2); i++)
     {
       a = 2.0 * M_PI * (double)i / (double)segments ;
-      ap.m_outer_boundary.push_back( Point_2( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
+      ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
     }
 
     // then the bottom
     for (int i = (segments/2); i <= segments; i++)
     {
       a = 2.0 * M_PI * (double)i / (double)segments ;
-      ap.m_outer_boundary.push_back( Point_2( r*cos(a), r*sin(a) - ((y_len/2.0) - r) ) );
+      ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) - ((y_len/2.0) - r) ) );
     }
 
   }
@@ -87,14 +88,14 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
     for (int i=0; i <= (segments/2); i++)
     {
       a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
-      ap.m_outer_boundary.push_back( Point_2( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
+      ap.m_outer_boundary.push_back( dtoc( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
     }
 
     // then the left
     for (int i=(segments/2); i <= segments; i++)
     {
       a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
-      ap.m_outer_boundary.push_back( Point_2( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
+      ap.m_outer_boundary.push_back( dtoc( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
     }
 
   }
@@ -104,7 +105,7 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
     for (int i=0; i<segments; i++)
     {
       a = 2.0 * M_PI * (double)i / (double)segments ;
-      ap.m_outer_boundary.push_back( Point_2( r*cos( a ), r*sin( a ) ) );
+      ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
     }
   }
 
@@ -124,7 +125,7 @@ void realize_polygon( Aperture_realization &ap, double r, int n_vert, double rot
   for (int i=0; i<n_vert; i++)
   {
     a = (2.0 * M_PI * (double)i / (double)n_vert) + (rot_deg * M_PI / 180.0);
-    ap.m_outer_boundary.push_back( Point_2( r*cos( a ), r*sin( a ) ) );
+    ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
   }
 
 }
@@ -145,7 +146,7 @@ void realize_circle_hole( Aperture_realization &ap, double r, int min_segments =
   for (i=0; i<segments; i++)
   {
     a = -2.0 * M_PI * (double)i / (double)segments;  // counter clockwise
-    ap.m_outer_boundary.push_back( Point_2( r*cos( a ), r*sin( a ) ) );
+    ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
   }
 
 }
@@ -154,10 +155,10 @@ void realize_circle_hole( Aperture_realization &ap, double r, int min_segments =
 void realize_rectangle_hole( Aperture_realization &ap, double x, double y )
 {
 
-  ap.m_hole.push_back( Point_2( -x, -y ) );  //clockwise instead of contouer clockwise
-  ap.m_hole.push_back( Point_2( -x,  y ) );
-  ap.m_hole.push_back( Point_2(  x,  y ) );
-  ap.m_hole.push_back( Point_2(  x, -y ) );
+  ap.m_hole.push_back( dtoc( -x, -y ) );  //clockwise instead of contouer clockwise
+  ap.m_hole.push_back( dtoc( -x,  y ) );
+  ap.m_hole.push_back( dtoc(  x,  y ) );
+  ap.m_hole.push_back( dtoc(  x, -y ) );
 
 }
 

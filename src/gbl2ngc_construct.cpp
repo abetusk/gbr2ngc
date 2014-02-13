@@ -55,6 +55,7 @@ typedef std::map< Gerber_point_2, irange_2 , Gerber_point_2_cmp  > HolePosMap;
 typedef std::pair< Gerber_point_2, irange_2 > HolePosMapPair;
 
 
+
 // add a hole to the vector hole_vec from the Gerber_point_2
 // vector p.  hole_map holds the start and end of the hole points.
 // KiCAD (and others?) make the region so that there are two
@@ -74,26 +75,27 @@ typedef std::pair< Gerber_point_2, irange_2 > HolePosMapPair;
 // start and end hold the positions the starting 'a' and ending 'a'
 // point in the p vector.
 //
-void add_hole( std::vector< Polygon_2 > &hole_vec,
+void add_hole( Paths &hole_vec,
                std::vector< Gerber_point_2 > &p,
                HolePosMap &hole_map,
                int start,
                int end )
 {
   int i, j, k;
-  Polygon_2 hole_polygon;
+  Path hole_polygon;
+
   HolePosMap::iterator hole_map_it;
   irange_2 hole_range;
 
   // First point and end point are duplicated,
   // Put first point on and skip over last point.
   //
-  hole_polygon.push_back( Point_2(p[start].x, p[start].y) );
+  hole_polygon.push_back( dtoc(p[start].x, p[start].y) );
 
   for (i=start+1; i<end; i++)
   {
 
-    hole_polygon.push_back( Point_2(p[i].x, p[i].y) );
+    hole_polygon.push_back( dtoc(p[i].x, p[i].y) );
 
     hole_map_it = hole_map.find( p[i] );
     if ( hole_map_it != hole_map.end() )
@@ -117,6 +119,7 @@ void add_hole( std::vector< Polygon_2 > &hole_vec,
   hole_vec.push_back( hole_polygon );
 
 }
+
 
 
 // Copy linked list points in contour to vector p.
@@ -196,21 +199,21 @@ int create_hole_map( HolePosMap &hole_map,
 // Construct the point vector and hole map.  Create the polygon with holes
 // vector.
 //
-int construct_contour_region( std::vector< Polygon_with_holes_2 > &pwh_vec,
-                               contour_ll_t *contour )
+int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
 {
   int i, j, k;
 
   std::vector< Gerber_point_2 > p;
-  std::vector< Polygon_2 > hole_vec;
+  Paths hole_vec;
 
   HolePosMap hole_map;
   HolePosMap::iterator hole_map_it;
   irange_2 range;
   irange_2 outer_boundary_range;
 
-  Polygon_2 outer_boundary_polygon;
-  Polygon_with_holes_2 pwh;
+  Path outer_boundary_polygon;
+  Paths pwh;
+
 
   // Initially populate p vector
   //
@@ -220,7 +223,8 @@ int construct_contour_region( std::vector< Polygon_with_holes_2 > &pwh_vec,
   // holes.
   create_hole_map( hole_map, p );
 
-  outer_boundary_polygon.push_back( Point_2( p[0].x, p[0].y ) );
+  outer_boundary_polygon.push_back( dtoc( p[0].x, p[0].y ) );
+
 
   hole_map_it = hole_map.find( p[0] );
   if (hole_map_it == hole_map.end())
@@ -240,7 +244,7 @@ int construct_contour_region( std::vector< Polygon_with_holes_2 > &pwh_vec,
         i < outer_boundary_range.end ;
         i++ )
   {
-    outer_boundary_polygon.push_back( Point_2( p[i].x, p[i].y ) );
+    outer_boundary_polygon.push_back( dtoc( p[i].x, p[i].y ) );
 
     hole_map_it = hole_map.find( p[i] );
     if ( hole_map_it != hole_map.end() )
@@ -263,36 +267,62 @@ int construct_contour_region( std::vector< Polygon_with_holes_2 > &pwh_vec,
     }
   }
 
-  if (outer_boundary_polygon.is_clockwise_oriented())
-    outer_boundary_polygon.reverse_orientation();
+  if ( Area(outer_boundary_polygon) < 0.0 )
+  {
+    std::reverse( outer_boundary_polygon.begin(), outer_boundary_polygon.end() );
+  }
 
-  pwh.outer_boundary() = outer_boundary_polygon;
+  pwh.push_back( outer_boundary_polygon ); 
 
   for (i=0; i<hole_vec.size(); i++)
   {
-    if (hole_vec[i].is_counterclockwise_oriented())
-      hole_vec[i].reverse_orientation();
-
-    pwh.add_hole( hole_vec[i] );
+    if ( Area(hole_vec[i]) > 0.0)
+    {
+      std::reverse( hole_vec[i].begin(), hole_vec[i].end() );
+    }
+    pwh.push_back( hole_vec[i] );
   }
 
   pwh_vec.push_back( pwh );
 
 }
+
+
 //-----------------------------------------
+
+bool isccw( Path &p )
+{
+  int i, j, k;
+  long double a, b, c;
+  cInt dx, dy, s = 0;
+
+
+  for (i=1; i<p.size(); i++)
+  {
+    dx = p[i].X - p[0].X;
+    dy = p[i].Y - p[0].Y;
+    s += dx*dy;
+  }
+
+  if (s < 0) return true;
+  return false;
+}
 
 // construct the final polygon set (before offsetting)
 //   of the joined polygons from the parsed gerber file.
 //
-void join_polygon_set(Polygon_set_2 &polygon_set, gerber_state_t *gs)
+void join_polygon_set(Paths &result, gerber_state_t *gs)
 {
 
   int i, j, k;
+  int count = 0;
   contour_list_ll_t *contour_list;
   contour_ll_t      *contour, *prev_contour;
 
-  std::vector< Polygon_2 > temp_poly_vec;
-  std::vector< Polygon_with_holes_2 > temp_pwh_vec;
+  PathSet temp_pwh_vec;
+  IntPoint prev_pnt, cur_pnt;
+  Clipper clip;
+
 
   for (contour_list = gs->contour_list_head;
        contour_list;
@@ -307,6 +337,7 @@ void join_polygon_set(Polygon_set_2 &polygon_set, gerber_state_t *gs)
       continue;
     }
 
+
     while (contour)
     {
       if (!prev_contour)
@@ -315,8 +346,12 @@ void join_polygon_set(Polygon_set_2 &polygon_set, gerber_state_t *gs)
         continue;
       }
 
-      std::vector<Point_2> point_list;
+      Path point_list;
+      Path res_point;
       int name = contour->d_name;
+
+      prev_pnt = dtoc( prev_contour->x, prev_contour->y );
+      cur_pnt = dtoc( contour->x, contour->y );
 
       // An informative example:
       // Consider drawing a line with rounded corners from position prev_contour->[xy] to contour->[xy].
@@ -328,35 +363,38 @@ void join_polygon_set(Polygon_set_2 &polygon_set, gerber_state_t *gs)
       // overlap.
       //
       for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++)
-        point_list.push_back( Point_2( gAperture[ name ].m_outer_boundary[i].x() + prev_contour->x,
-                                       gAperture[ name ].m_outer_boundary[i].y() + prev_contour->y ) );
+        point_list.push_back( IntPoint(  gAperture[ name ].m_outer_boundary[i].X + prev_pnt.X,
+                                         gAperture[ name ].m_outer_boundary[i].Y + prev_pnt.Y  ) );
 
       for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++)
-        point_list.push_back( Point_2( gAperture[ name ].m_outer_boundary[i].x() + contour->x,
-                                       gAperture[ name ].m_outer_boundary[i].y() + contour->y ) );
+        point_list.push_back( IntPoint( gAperture[ name ].m_outer_boundary[i].X + cur_pnt.X ,
+                                        gAperture[ name ].m_outer_boundary[i].Y + cur_pnt.Y ) );
 
+      ConvexHull( point_list, res_point );
 
-      std::vector<Point_2> res_point;
-      Polygon_2 poly;
+      if (res_point[ res_point.size() - 1] == res_point[0])
+      {
+        res_point.pop_back();
+      }
 
-      CGAL::ch_graham_andrew( point_list.begin(), point_list.end(), std::back_inserter(res_point) );
+      if (Area(res_point) < 0.0)
+      {
+        std::reverse( res_point.begin(), res_point.end() );
+      }
 
-      for (i=0; i < res_point.size(); i++)
-        poly.push_back( res_point[i] );
-
-      if (poly.is_clockwise_oriented())
-        poly.reverse_orientation();
-
-      temp_poly_vec.push_back(poly);
-
+      clip.AddPath( res_point, ptSubject, true );
       contour = contour->next;
 
     }
 
   }
 
-  polygon_set.join(temp_poly_vec.begin(), temp_poly_vec.end() ,
-                   temp_pwh_vec.begin(), temp_pwh_vec.end() );
+  for (i=0; i<temp_pwh_vec.size(); i++)
+  {
+    clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
+  }
+
+  clip.Execute( ctUnion, result, pftNonZero, pftNonZero  );
 
 }
 

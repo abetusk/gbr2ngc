@@ -114,29 +114,15 @@ int check_polygon_set_ok(Polygon_set_2 &polygon_set)
 // Offset the joined polygons
 // as they appear in gPolygonSet.
 //
-void construct_polygon_offset( std::vector< Offset_polygon_with_holes_2 > &pwh_vector,
-                               Polygon_set_2 &polygon_set)
+//void construct_polygon_offset( std::vector< Offset_polygon_with_holes_2 > &pwh_vector,
+//                               Polygon_set_2 &polygon_set)
+void construct_polygon_offset( Paths &src, Paths &soln )
 {
-  int pwh_count=0;
-  vert_it vit;
-  double radius = gRadius;
-  double err_bound = 0.000001;
-  Offset_polygon_with_holes_2 offset;
 
-  std::list< Polygon_with_holes_2 > pwh_list;
-  std::list< Polygon_with_holes_2 >::iterator pwh_it;
+  ClipperOffset co;
 
-  Gps_traits_2 traits;
-
-  polygon_set.polygons_with_holes( std::back_inserter(pwh_list) ) ;
-
-  for (pwh_it = pwh_list.begin(); pwh_it != pwh_list.end(); ++pwh_it)
-  {
-    offset = approximated_offset_2( *pwh_it, radius, err_bound );
-    pwh_vector.push_back( offset );
-    pwh_count++;
-  }
-
+  cp.AddPaths( src, jtRound, etClosedPolygon);
+  co.Execute( soln, g_scalefactor * gRadius );
 }
 
 

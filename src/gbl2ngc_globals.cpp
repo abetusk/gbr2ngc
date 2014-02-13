@@ -42,11 +42,13 @@ double eps = 0.000001;
 double gRadius = 0.0;
 double gRouteRadius = -1.0;
 
+/*
 Polygon_set_2 gPolygonSet;
 Offset_polygon_set_2 gOffsetPolygonSet;
 std::vector< Offset_polygon_with_holes_2 > gOffsetPolygonVector;
 
 Pwh_vector_2 gerber_list;
+*/
 
 std::vector<int> gApertureName;
 ApertureNameMap gAperture;

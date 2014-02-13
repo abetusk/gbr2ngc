@@ -36,6 +36,8 @@ struct option gLongOption[] =
   {"inches" , no_argument       , 0, 'M'},
 //  {"scan"   , no_argument       , 0, 'H'},
 //  {"scanvert",no_argument       , 0, 'V'},
+  {"horizontal", no_argument     , 0, 'H'},
+  {"vertical", no_argument       , 0, 'V'},
   {"zengarden", no_argument     , 0, 'G'},
   {"verbose", no_argument       , 0, 'v'},
   {"help"   , no_argument       , 0, 'h'},
@@ -204,16 +206,263 @@ void cleanup(void)
 
 
 
+void construct_polygon_offset( Paths &src, Paths &soln )
+{
+
+  ClipperOffset co;
+
+  co.MiterLimit = 3.0;
+
+  //co.AddPaths( src, jtRound, etClosedPolygon);
+  co.AddPaths( src, jtMiter, etClosedPolygon);
+  co.Execute( soln, g_scalefactor * gRadius );
+}
+
+void print_paths( Paths &paths )
+{
+  int i, j, k;
+
+  for (i=0; i<paths.size(); i++)
+  {
+    for (j=0; j<paths[i].size(); j++)
+    {
+      printf("%lli %lli\n", paths[i][j].X, paths[i][j].Y );
+    }
+    printf("\n\n");
+  }
+
+}
+
+void find_min_max( Paths &src, IntPoint &minp, IntPoint &maxp)
+{
+  int i, j, n, m;
+  n = src.size();
+  for (i=0; i<n; i++)
+  {
+    m = src[i].size();
+    if ( m == 0 ) continue;
+    if (i==0) 
+    {
+      minp.X = src[i][0].X;
+      minp.Y = src[i][0].Y;
+      maxp.X = src[i][0].X;
+      maxp.Y = src[i][0].Y;
+    }
+
+    for (j=0; j<m; j++)
+    {
+      if (minp.X > src[i][j].X) minp.X = src[i][j].X;
+      if (minp.Y > src[i][j].Y) minp.Y = src[i][j].Y;
+      if (maxp.X < src[i][j].X) maxp.X = src[i][j].X;
+      if (maxp.Y < src[i][j].Y) maxp.Y = src[i][j].Y;
+    }
+  }
+
+  minp.X--;
+  minp.Y--;
+  maxp.X++;
+  maxp.Y++;
+
+}
+
+
+void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
+{
+  static int recur_count=0;
+  int i, j, n, m;
+  ClipperOffset co;
+  Paths soln;
+  Paths tpath;
+
+  // We assume at least an outer boundary.  If only
+  // the outer boundary is left, we've finished
+  if (paths.size() <= 1)
+  {
+    return;
+  }
+
+  co.MiterLimit = 3.0;
+  recur_count++;
+  if(recur_count==400)
+    return;
+
+  if (paths.size() == 0)
+    return;
+
+  co.AddPaths( paths, jtMiter, etClosedPolygon);
+  co.Execute( soln, g_scalefactor * gRadius );
+
+  do_zen_r(soln, minp, maxp);
+
+  //paths.insert( paths.end(), soln.begin(), soln.end() );
+  n = soln.size();
+  for (i=0; i<n; i++)
+  {
+    m = soln[i].size();
+    if (m <= 2 ) continue;
+
+    if ( (soln[i][0].X < minp.X) ||
+         (soln[i][0].Y < minp.Y) ||
+         (soln[i][0].X > maxp.X) ||
+         (soln[i][0].Y > maxp.Y) )
+      continue;
+
+    paths.push_back(soln[i]);
+  }
+
+}
+
+
+
+// extends outwards.  Need to do a final intersect with final (rectangle) polygon
+//
+void do_zen( Paths &src, Paths &dst )
+{
+  int i, j, n, m;
+  static int recur_count=0;
+  ClipperOffset co;
+  Paths soln;
+  Paths tpath;
+
+  IntPoint minp, maxp;
+
+  co.MiterLimit = 3.0;
+
+  recur_count++;
+  if(recur_count==400)
+    return;
+
+  if (src.size() == 0)
+    return;
+
+  find_min_max( src, minp, maxp );
+
+  co.AddPaths( src, jtMiter, etClosedPolygon);
+  co.Execute( soln, g_scalefactor * gRadius );
+
+  //print_paths( soln );
+  do_zen_r(soln, minp, maxp);
+
+  dst.insert( dst.end(), soln.begin(), soln.end() );
+}
+
+void do_horizontal( Paths &src, Paths &dst )
+{
+  int i, j, n, m;
+  Paths line_collection;
+  cInt dy, h;
+  cInt cury;
+  IntPoint minp, maxp;
+
+
+  h = 2.0 * g_scalefactor * gRadius ;
+  h++;
+
+  find_min_max( src, minp, maxp );
+
+  cury = minp.Y;
+  
+  while ( cury < maxp.Y )
+  {
+    Path line;
+    Paths soln;
+    Clipper clip;
+
+    line.push_back( IntPoint( minp.X, cury ) );
+    line.push_back( IntPoint( maxp.X, cury ) );
+    line.push_back( IntPoint( maxp.X, cury + h ) );
+    line.push_back( IntPoint( minp.X, cury + h ) );
+
+    cury += 2*h;
+
+    clip.AddPath( line, ptSubject, true );
+    clip.AddPaths( src, ptClip, true );
+    clip.Execute( ctDifference, soln, pftNonZero, pftNonZero );
+
+    /*
+    n = soln.size();
+    for (i=0; i<n; i++)
+    {
+      m = soln[i].size();
+      for (j=0; j<m; j++)
+      {
+        printf("%lli %lli\n", soln[i][j].X, soln[i][j].Y);
+      }
+      printf("\n\n");
+    }
+    */
+
+    line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
+  }
+
+  dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+  
+}
+
+
+void do_vertical( Paths &src, Paths &dst  )
+{
+  int i, j, n, m;
+  //Paths soln;
+  Paths line_collection;
+  cInt dx, w;
+  cInt curx;
+  IntPoint minp, maxp;
+
+  w = 2.0 * g_scalefactor * gRadius ;
+  w++;
+
+  find_min_max( src, minp, maxp );
+
+  curx = minp.X;
+  while ( curx < maxp.X )
+  {
+    Path line;
+    Paths soln;
+    Clipper clip;
+
+    line.push_back( IntPoint( curx, minp.Y ) );
+    line.push_back( IntPoint( curx, maxp.Y ) );
+    line.push_back( IntPoint( curx + w, maxp.Y ) );
+    line.push_back( IntPoint( curx + w, minp.Y ) );
+
+    curx += 2*w;
+
+    clip.AddPath( line, ptSubject, true );
+    clip.AddPaths( src, ptClip, true );
+    clip.Execute( ctDifference, soln, pftNonZero, pftNonZero );
+
+    /*
+    n = soln.size();
+    for (i=0; i<n; i++)
+    {
+      m = soln[i].size();
+      for (j=0; j<m; j++)
+      {
+        printf("%lli %lli\n", soln[i][j].X, soln[i][j].Y);
+      }
+      printf("\n\n");
+    }
+    */
+
+    line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
+
+  }
+  
+  dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+
+}
+
+
 int main(int argc, char **argv)
 {
   int i, j, k;
-  gerber_state_t                                gs;
-  std::vector< Offset_polygon_with_holes_2 >    offset_polygon_vector;
-  Polygon_set_2                                 polygon_set;
-  std::vector< Polygon_with_holes_2 >           pwh_vector;
-  std::vector< Polygon_with_holes_2 >           pwh_routed;
+  gerber_state_t  gs;
 
-  std::vector< Polygon_2 >                      poly_vector;
+  Paths           offset_polygons;
+
+  Paths pgn_union;
+  Paths offset;
 
   process_command_line_options(argc, argv);
 
@@ -224,60 +473,48 @@ int main(int argc, char **argv)
   if (k < 0)
   {
     perror(argv[1]);
-    exit(0);
+    exit(errno);
   }
 
   // Construct library of atomic shapes and create CGAL polygons
   //
   realize_apertures(&gs);
-  join_polygon_set(polygon_set, &gs);
+
+  join_polygon_set( pgn_union, &gs );
+
+  printf("( union path size %lu)\n", pgn_union.size());
 
   fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
+
 
   // Offsetting is enabled if the tool radius is specified
   //
   if (gRadius > eps)
   {
-
-    construct_polygon_offset( offset_polygon_vector, polygon_set );
-
-    /*
-    linearize_polygon_offset_vector( pwh_vector, offset_polygon_vector );
-
-    // Regardless of whether we're filling or not, print out contour first
-    //
-    export_pwh_vector_to_gcode( gOutStream, pwh_vector );
-    */
-
-    // trying for a safer export
-    export_offset_polygon_vector_to_gcode( gOutStream, offset_polygon_vector );
-
-    /*
-    if ( gScanLineHorizontal )
-    {
-      //scanline_horizontal_export_to_gcode( gOutStream, pwh_vector, gRouteRadius );
-      scanline_horizontal_export_offset_polygon_vector_to_gcode( gOutStream, offset_polygon_vector, gRouteRadius );
-      //generate_scanline_horizontal_test( pwh_routed, pwh_vector, gRouteRadius );
-      //export_pwh_vector_to_gcode( gOutStream, pwh_routed );
-    }
-    else if ( gScanLineVertical )
-    {
-      scanline_vertical_export_to_gcode( gOutStream, pwh_vector, gRouteRadius );
-      //scanline_vertical_export_to_gcode( gOutStream, pwh_vector, gRouteRadius );
-    }
-    else 
-    */
+    construct_polygon_offset( pgn_union, offset_polygons );
 
     if ( gScanLineZenGarden )
     {
-      //zen_export_to_gcode( gOutStream, pwh_vector, gRouteRadius, 0.00001 );
-      zen_export_polygon_set_to_gcode( gOutStream, polygon_set, gRouteRadius, 0.00001 );
-    }
+      //generate_zen_gcode( gOutStream, pgn_union );
+      do_zen( offset_polygons, offset_polygons );
 
+    }
+    else if ( gScanLineVertical )
+    {
+      do_vertical( offset_polygons, offset_polygons );
+    }
+    else if ( gScanLineHorizontal )
+    {
+      do_horizontal( offset_polygons, offset_polygons );
+    }
+    //else if ( gScanLineAngle ) { }
+
+    export_paths_to_gcode( gOutStream, offset_polygons);
   }
+
   else 
   {
-    export_polygon_set_to_gcode( gOutStream, polygon_set );
+    export_paths_to_gcode( gOutStream, pgn_union );
   }
 
   cleanup();
