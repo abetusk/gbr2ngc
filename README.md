@@ -1,7 +1,25 @@
 gbl2ngc
 =======
 
-Open source no frills gerber to gcode converter, using CGAL.  Produces an isolation routing gcode file for the given gerber file.
+Open source no frills gerber to gcode converter, using (a slightly modified) [Clipper Lib](http://www.angusj.com/delphi/clipper.php).  Produces an isolation routing gcode file for the given gerber file.
+
+gbl2ngc will convert a gerber file like this:
+
+
+![gerber example](https://github.com/abetusk/gbl2ngc/blob/master/example/gerbExample.png)
+
+
+to a gcode file like this:
+
+
+![gcode example](https://github.com/abetusk/gbl2ngc/blob/master/example/gcodeExample.png)
+
+
+to compile:
+-----------
+
+cd src
+./cmp.sh
 
 example usage:
 --------------
@@ -10,19 +28,13 @@ gbl2ngc --input example/example.gbl --radius 0.0025 --output example.ngc
 
 Current version is in an alpha state, so use at your own risk.
 
-TODO
-----
 
-  - scanline milling strategy 
-  - outline milling strategy (zen garden milling) speedup.  Currently _very_ slow
-  
-KNOWN ISSUES
-------------
+TODO:
+-----
 
-  - Outline milling is so very slow.  On my system for the example gerber provided, it takes upwards of 15 minutes to render.
-  - In fact, the whole thing is pretty slow.  10s (on my system) to just do the outline seems execessive.
-  - I think the offsetting is pretty wonky, as in it creates self intersections that
-    make CGAL bork if used improperly.  Should I give warnings to users about self intersections?
-    what should I do about them in general?
+  - allow for metric (right now it's imperial only)
+  - allow for other options in terms of seek rate, feed rate, etc.
+
+
 
 

@@ -482,7 +482,7 @@ int main(int argc, char **argv)
 
   join_polygon_set( pgn_union, &gs );
 
-  printf("( union path size %lu)\n", pgn_union.size());
+  fprintf( gOutStream, "( union path size %lu)\n", pgn_union.size());
 
   fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
 
