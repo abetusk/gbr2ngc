@@ -18,13 +18,13 @@ to a gcode file like this:
 to compile:
 -----------
 
-cd src
-./cmp.sh
+    cd src
+    ./cmp.sh
 
 example usage:
 --------------
 
-gbl2ngc --input example/example.gbl --radius 0.0025 --output example.ngc
+    gbl2ngc --input example/example.gbl --radius 0.0025 --output example.ngc
 
 Current version is in an alpha state, so use at your own risk.
 
