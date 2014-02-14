@@ -6,13 +6,13 @@ Open source no frills gerber to gcode converter, using (a slightly modified) [Cl
 gbl2ngc will convert a gerber file like this:
 
 
-![gerber example](https://github.com/abetusk/gbl2ngc/blob/master/example/gerbExample.png)
+![gerber example](https://raw2.github.com/abetusk/gbl2ngc/master/example/gerbExample.png)
 
 
 to a gcode file like this:
 
 
-![gcode example](https://github.com/abetusk/gbl2ngc/blob/master/example/gcodeExample.png)
+![gcode example](https://raw2.github.com/abetusk/gbl2ngc/master/example/gcodeExample.png)
 
 
 to compile:
