@@ -28,19 +28,25 @@ struct option gLongOption[] =
 
   {"input"  , required_argument , 0, 'i'},
   {"output" , required_argument , 0, 'o'},
+
   {"feed"   , required_argument , 0, 'f'},
   {"seek"   , required_argument , 0, 's'},
+
   {"zsafe"  , required_argument , 0, 'z'},
   {"zcut"   , required_argument , 0, 'Z'},
+
   {"metric" , no_argument       , 0, 'I'},
   {"inches" , no_argument       , 0, 'M'},
 //  {"scan"   , no_argument       , 0, 'H'},
 //  {"scanvert",no_argument       , 0, 'V'},
+
   {"horizontal", no_argument     , 0, 'H'},
   {"vertical", no_argument       , 0, 'V'},
   {"zengarden", no_argument     , 0, 'G'},
+
   {"verbose", no_argument       , 0, 'v'},
   {"help"   , no_argument       , 0, 'h'},
+
   {0, 0, 0, 0}
 };
 
@@ -49,21 +55,28 @@ char gOptionDescription[][1024] =
 {
   "radius (default 0)",
   "radius to be used for routing (default to radius above)",
+
   "input file (default stdin)",
   "output file (default stdout)",
+
   "feed rate (default 10)",
   "seek rate (default 100)",
+
   "z safe height (default 0.1 inches)",
   "z cut height (default -0.05 inches)",
+
   "units in metric",
   "units in inches (default)",
 
-//  "route out blank areas with a horizontal scan line technique",
-//  "route out blank areas with a vertical scan line technique",
+  "route out blank areas with a horizontal scan line technique",
+  "route out blank areas with a vertical scan line technique",
   "route out blank areas with a 'zen garden' technique",
 
   "verbose",
-  "help (this screen)"
+  "help (this screen)",
+
+  "n/a"
+
 };
 
 
