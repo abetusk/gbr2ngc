@@ -93,7 +93,7 @@ void show_help(void)
   {
     len = strlen(gLongOption[i].name);
 
-    printf("  --%s", gLongOption[i].name);
+    printf("  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
     if (gLongOption[i].has_arg)
     {
       printf(" %s", gLongOption[i].name);
@@ -124,7 +124,8 @@ void process_command_line_options(int argc, char **argv)
   while ((ch = getopt_long(argc, argv, "hi:r:v", gLongOption, &option_index)) > 0) switch(ch)
   {
     case 0:
-      printf("error, bad option '%s'", gLongOption[option_index].name);
+      //printf("error, bad option '%s'", gLongOption[option_index].name);
+      printf("error, bad option '%s'", optarg);
       if (optarg)
         printf(" with arg '%s'", optarg);
       printf("\n");
@@ -215,6 +216,10 @@ void cleanup(void)
 {
   if (gOutStream != stdout)
     fclose(gOutStream);
+  if (gOutputFilename)
+    free(gOutputFilename);
+  if (gInputFilename)
+    free(gInputFilename);
 }
 
 
@@ -531,6 +536,7 @@ int main(int argc, char **argv)
   }
 
   cleanup();
+  gerber_state_clear( &gs );
 
   exit(0);
 

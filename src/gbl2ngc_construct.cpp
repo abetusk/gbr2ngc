@@ -25,6 +25,7 @@ class Gerber_point_2 {
   public:
     int ix, iy;
     double x, y;
+    int jump_pos;
 };
 
 class irange_2 {
@@ -41,9 +42,9 @@ struct Gerber_point_2_cmp
 {
   bool operator()(const Gerber_point_2 &lhs, const Gerber_point_2 &rhs)
   {
-    if (lhs.x < rhs.x) return true;
-    if (lhs.x > rhs.x) return false;
-    if (lhs.y < rhs.y) return true;
+    if (lhs.ix < rhs.ix) return true;
+    if (lhs.ix > rhs.ix) return false;
+    if (lhs.iy < rhs.iy) return true;
     return false;
   }
 };
@@ -51,15 +52,18 @@ struct Gerber_point_2_cmp
 typedef std::map< Gerber_point_2, int, Gerber_point_2_cmp  > PointPosMap;
 typedef std::pair< Gerber_point_2, int > PointPosMapPair;
 
-typedef std::map< Gerber_point_2, irange_2 , Gerber_point_2_cmp  > HolePosMap;
-typedef std::pair< Gerber_point_2, irange_2 > HolePosMapPair;
+typedef std::map< Gerber_point_2, int , Gerber_point_2_cmp  > HolePosMap;
 
 
 
 // add a hole to the vector hole_vec from the Gerber_point_2
-// vector p.  hole_map holds the start and end of the hole points.
-// KiCAD (and others?) make the region so that there are two
-// pairs of overlapping points.  Here is some ASCII art to illustrate:
+// vector p.  The points are decorated with a 'jump_pos' which
+// holds the position of the first time the path comes back
+// to the same point.  The path can come back to the same
+// point more than twice, so we need to skip over the duplicate
+// points.
+//
+// Here is some ASCII art to illustrate:
 //
 //            >...     ...>
 //                \   /
@@ -77,58 +81,65 @@ typedef std::pair< Gerber_point_2, irange_2 > HolePosMapPair;
 //
 void add_hole( Paths &hole_vec,
                std::vector< Gerber_point_2 > &p,
-               HolePosMap &hole_map,
                int start,
-               int end )
+               int n )
 {
-  int i, j, k;
+  int i, ds, jp, end;
   Path hole_polygon;
 
-  HolePosMap::iterator hole_map_it;
-  irange_2 hole_range;
+  end = start+n;
 
-  // First point and end point are duplicated,
-  // Put first point on and skip over last point.
-  //
-  hole_polygon.push_back( dtoc(p[start].x, p[start].y) );
+  jp = p[start].jump_pos;
 
-  for (i=start+1; i<end; i++)
-  {
-
-    hole_polygon.push_back( dtoc(p[i].x, p[i].y) );
-
-    hole_map_it = hole_map.find( p[i] );
-    if ( hole_map_it != hole_map.end() )
-    {
-      hole_range = (*hole_map_it).second;
-
-      if (hole_range.end < 0)
-        continue;
-
-      // recursively add hole
-      //
-      add_hole( hole_vec, p, hole_map, hole_range.start+1, hole_range.end-1 );
-
-      // shoot past hole
-      //
-      i = hole_range.end;
-
-    }
+  if (jp<0) {
+    fprintf(stderr, "ERROR: jump pos MUST be > 0, is %i, exiting (start %i, n %i)\n", jp, start, n );
+    printf("ERROR: jump pos MUST be > 0, is %i, exiting (start %i, n %i)\n", jp, start, n );
+    exit(2);
   }
 
-  hole_vec.push_back( hole_polygon );
+  while ( p[jp].jump_pos >= 0 )
+  {
+    ds = p[start].jump_pos - (start+1);
+    add_hole( hole_vec, p, start+1, ds );
+    start = jp;
+    jp = p[start].jump_pos;
+  }
+
+  n = end-start;
+  hole_polygon.push_back( dtoc(p[start].x, p[start].y) );
+
+  for (i=start+1; i<(start+n); i++) 
+  {
+    hole_polygon.push_back( dtoc(p[i].x, p[i].y) );
+    if (p[i].jump_pos<0) continue;
+
+    ds = p[i].jump_pos - (i+1);
+    add_hole( hole_vec, p, i+1, ds);
+    i = p[i].jump_pos;
+
+  }
+
+  if (hole_polygon.size() > 2)
+    hole_vec.push_back( hole_polygon );
 
 }
 
 
 
-// Copy linked list points in contour to vector p.
+// Copy linked list points in contour to vector p, removing contiguougs
+// duplicates.
 //
 void populate_gerber_point_vector_from_contour( std::vector< Gerber_point_2 > &p,
                                                 contour_ll_t *contour)
 {
+  int first=1;
+  Gerber_point_2 prev_pnt;
   Gerber_point_2 dpnt;
 
+  // Get rid of points that are duplicated next to each other.
+  // It does no good to have them and it just makes things more
+  // complicated downstream to work around them.
+  //
   while (contour)
   {
     dpnt.ix = int(contour->x * 10000.0);
@@ -136,7 +147,22 @@ void populate_gerber_point_vector_from_contour( std::vector< Gerber_point_2 > &p
     dpnt.x = contour->x;
     dpnt.y = contour->y;
 
-    p.push_back( dpnt );
+    if (first) {
+      p.push_back( dpnt );
+    }
+    else if ( ( prev_pnt.ix == dpnt.ix ) 
+           && ( prev_pnt.iy == dpnt.iy ) ) 
+    {
+      // duplicate
+    }
+    else
+    {
+      p.push_back( dpnt );
+    }
+
+    prev_pnt = dpnt;
+    first = 0;
+
     contour = contour->next;
   }
 
@@ -146,49 +172,35 @@ void populate_gerber_point_vector_from_contour( std::vector< Gerber_point_2 > &p
 // Create the start and end positions of the holes in the vector p.
 // Store in hole_map.
 //
-int create_hole_map( HolePosMap &hole_map,
-                     std::vector< Gerber_point_2 > &p )
+int gerber_point_2_decorate_with_jump_pos( std::vector< Gerber_point_2 > &p )
 {
+
   int i, j, k;
-  HolePosMap::iterator hole_map_it;
   irange_2 range;
+  HolePosMap hole_map;
 
   for (i=0; i<p.size(); i++)
   {
+    p[i].jump_pos = -1;
+
     // if found in p_map, add it to our map
     //
-    hole_map_it = hole_map.find( p[i] );
-    if ( hole_map_it != hole_map.end() )
+    if ( hole_map.find( p[i] ) != hole_map.end() )
     {
-      range = hole_map[ p[i] ];
+      k = hole_map[ p[i] ];
+      p[ k ].jump_pos = i;
 
-      if (range.end >= 0)
-      {
-        // special case:
-        // last point is duplicated, so ignore if that's the duplicate point
-        // If it's out of range, we have a duplicate point?
-        //
-        if ( (range.start > 0) || (range.end < (p.size()-2)) )
-        {
-          fprintf(stderr, "ERROR: possible duplicate point? (%f,%f)\n", p[i].x, p[i].y);
-          return -1;
-        }
-
-        continue;
-      }
-
-      hole_map[ p[i] ].end = i;
+      hole_map[ p[i] ] = i;
     }
     else   // otherwise add it
     {
-      range.start = i;
-      range.end = -1;
-
-      hole_map.insert( HolePosMapPair( p[i], range ) );
+      hole_map[ p[i] ] = i;
     }
+
   }
 
   return 0;
+
 }
 
 
@@ -202,18 +214,14 @@ int create_hole_map( HolePosMap &hole_map,
 int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
 {
   int i, j, k;
+  int jp, ds;
+  int start=0;
 
   std::vector< Gerber_point_2 > p;
   Paths hole_vec;
 
-  HolePosMap hole_map;
-  HolePosMap::iterator hole_map_it;
-  irange_2 range;
-  irange_2 outer_boundary_range;
-
   Path outer_boundary_polygon;
   Paths pwh;
-
 
   // Initially populate p vector
   //
@@ -221,68 +229,40 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
 
   // Find the start and end regions for each of the
   // holes.
-  create_hole_map( hole_map, p );
+  gerber_point_2_decorate_with_jump_pos( p );
 
-  outer_boundary_polygon.push_back( dtoc( p[0].x, p[0].y ) );
+  if (p.size()==0) return -1;
 
-
-  hole_map_it = hole_map.find( p[0] );
-  if (hole_map_it == hole_map.end())
+  int n = p.size();
+  for (i=0; i<n; i++) 
   {
-    printf("ERROR, first point must connect back\n");
-    return -1;
-  }
-  outer_boundary_range = (*hole_map_it).second;
 
-  // Treat first point as a special case
-  // the last point is duplicated so we need to make
-  // sure not to add it to our outer boundary again.
-  // Might want to make sure that no duplicate holes get added
-  // anyway...
-  //
-  for ( i = outer_boundary_range.start+1 ;
-        i < outer_boundary_range.end ;
-        i++ )
-  {
     outer_boundary_polygon.push_back( dtoc( p[i].x, p[i].y ) );
+    if (p[i].jump_pos < 0) continue;
 
-    hole_map_it = hole_map.find( p[i] );
-    if ( hole_map_it != hole_map.end() )
-    {
-      range = (*hole_map_it).second;
+    // Special case when the boundary end ties back to the beginning
+    // without any jumps to holes.
+    //
+    if (p[i].jump_pos == (n-1)) continue;
 
-      // check for a valid hole, if not, go on
-      //
-      if ( range.end < 0 )
-        continue;
+    ds = p[i].jump_pos - (i+1);
+    add_hole( hole_vec, p, i+1, ds );
+    i += ds;
 
-      // hole start is one past this duplicate point
-      // hole end is one before the other position of the duplicate point
-      //
-      add_hole( hole_vec, p, hole_map, range.start + 1, range.end - 1);
-
-      // shoot past hole
-      //
-      i = range.end;
-    }
   }
 
+  // Make sure orientation is correct for outer boundary and holes inside.
+  //
   if ( Area(outer_boundary_polygon) < 0.0 )
-  {
     std::reverse( outer_boundary_polygon.begin(), outer_boundary_polygon.end() );
-  }
-
   pwh.push_back( outer_boundary_polygon ); 
 
   for (i=0; i<hole_vec.size(); i++)
   {
     if ( Area(hole_vec[i]) > 0.0)
-    {
       std::reverse( hole_vec[i].begin(), hole_vec[i].end() );
-    }
     pwh.push_back( hole_vec[i] );
   }
-
   pwh_vec.push_back( pwh );
 
 }
