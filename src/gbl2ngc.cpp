@@ -45,6 +45,7 @@ struct option gLongOption[] =
   {"zengarden", no_argument     , 0, 'G'},
 
   {"verbose", no_argument       , 0, 'v'},
+  {"version", no_argument       , 0, 'N'},
   {"help"   , no_argument       , 0, 'h'},
 
   {0, 0, 0, 0}
@@ -73,6 +74,7 @@ char gOptionDescription[][1024] =
   "route out blank areas with a 'zen garden' technique",
 
   "verbose",
+  "display version information",
   "help (this screen)",
 
   "n/a"
@@ -87,7 +89,7 @@ void show_help(void)
   int len;
 
   printf("a gerber to gcode converter\n");
-  printf("version %s\n", GBL2NGC_VERSION);
+  printf("Version %s\n", GBL2NGC_VERSION);
 
   for (i=0; gLongOption[i].name; i++)
   {
@@ -121,7 +123,7 @@ void process_command_line_options(int argc, char **argv)
 
   gRouteRadius = -1.0;
 
-  while ((ch = getopt_long(argc, argv, "hi:r:v", gLongOption, &option_index)) > 0) switch(ch)
+  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNh", gLongOption, &option_index)) > 0) switch(ch)
   {
     case 0:
       //printf("error, bad option '%s'", gLongOption[option_index].name);
@@ -130,6 +132,7 @@ void process_command_line_options(int argc, char **argv)
         printf(" with arg '%s'", optarg);
       printf("\n");
       break;
+    case 'N':
     case 'h':
       show_help();
       exit(0);
