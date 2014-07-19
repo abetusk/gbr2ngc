@@ -57,7 +57,7 @@ char gOptionDescription[][1024] =
   "radius (default 0)",
   "radius to be used for routing (default to radius above)",
 
-  "input file (default stdin)",
+  "input file",
   "output file (default stdout)",
 
   "feed rate (default 10)",

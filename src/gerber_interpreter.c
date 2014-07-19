@@ -1331,8 +1331,14 @@ int gerber_state_load_file(gerber_state_t *gs, char *fn)
   FILE *fp;
   char linebuf[GERBER_STATE_LINEBUF];
 
-  if ( !(fp = fopen(fn, "r")) ) 
+  if (strncmp(fn, "-", 2) == 0) 
+  {
+    fp = stdin;
+  } 
+  else if ( !(fp = fopen(fn, "r")) )  
+  {
     return -1;
+  }
 
   gs->line_no = 0;
   while (!feof(fp))
@@ -1343,7 +1349,11 @@ int gerber_state_load_file(gerber_state_t *gs, char *fn)
 
     gerber_state_interpret_line(gs, linebuf);
   }
-  fclose(fp);
+
+  if (fp != stdin)
+  {
+    fclose(fp);
+  }
 
   gerber_state_post_process(gs);
 
