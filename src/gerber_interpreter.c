@@ -235,7 +235,7 @@ void parse_error(char *s, int line_no, char *l)
     printf("PARSE ERROR: %s at line %i '%s'\n", s, line_no, l);
   else
     printf("PARSE ERROR: %s at line %i\n", s, line_no, l);
-  exit(0);
+  exit(2);
 }
 
 //------------------------
