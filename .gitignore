@@ -12,3 +12,4 @@ gerber_interpreter.o
 src/gbl2ngc
 src/*.ngc
 src/test_gerber_interpreter
+scratch
