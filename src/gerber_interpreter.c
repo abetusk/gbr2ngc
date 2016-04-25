@@ -669,7 +669,8 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
   int i, j, k;
   char *chp, ch, *tbuf;
   int max_buf, pos=0;
-  max_buf = fs_int + fs_real + 2;
+  int real_processed_count=0;
+  max_buf = fs_int + fs_real + 3;
 
   tbuf = (char *)malloc(sizeof(char)*(max_buf));
 
@@ -683,13 +684,18 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
 
   if (gs->fs_omit_leading_zero)  // that is, trailing zeros manditory
   {
+
     tbuf[max_buf-1] = '\0';
     pos = max_buf-2;
     for (i=0; i<fs_real; i++)
+    {
+      if ((!isdigit(chp[-i-1])) || (chp[-i-1] == '-') || (chp[-i-1] == '+')) { break; }
       tbuf[pos--] = chp[-i-1];
+      real_processed_count++;
+    }
 
     tbuf[pos--] = '.';
-    chp -= fs_real+1;
+    chp -= real_processed_count+1;
 
     while (chp >= s)
     {
@@ -697,7 +703,11 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
       if (pos < 0) parse_error("coordinate format exceeded", gs->line_no, NULL);
     }
 
-    while (pos>=0) tbuf[pos--] = ' ';
+    while (pos>=0) {
+
+      tbuf[pos--] = ' ';
+    }
+
   }
   else
   {
@@ -868,7 +878,9 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
 
   }
 
+
   // handle region
+  //
   if (gs->region)
   {
 
@@ -906,6 +918,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
 
       if (gs->contour_head)
       {
+
         contour_list_nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
         contour_list_nod->n = 1;
         contour_list_nod->next = NULL;
@@ -943,7 +956,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
   {
     add_flash(gs, gs->cur_x, gs->cur_y, gs->current_aperture);
   }
-
 
 }
 
@@ -1358,6 +1370,4 @@ int gerber_state_load_file(gerber_state_t *gs, char *fn)
   gerber_state_post_process(gs);
 
   return 0;
-
 }
-

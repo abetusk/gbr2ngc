@@ -364,7 +364,6 @@ void join_polygon_set(Paths &result, gerber_state_t *gs)
 
       clip.AddPath( res_point, ptSubject, true );
       contour = contour->next;
-
     }
 
   }
@@ -375,7 +374,4 @@ void join_polygon_set(Paths &result, gerber_state_t *gs)
   }
 
   clip.Execute( ctUnion, result, pftNonZero, pftNonZero  );
-
 }
-
-

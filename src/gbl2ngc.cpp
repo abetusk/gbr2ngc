@@ -35,8 +35,8 @@ struct option gLongOption[] =
   {"zsafe"  , required_argument , 0, 'z'},
   {"zcut"   , required_argument , 0, 'Z'},
 
-  {"metric" , no_argument       , 0, 'I'},
-  {"inches" , no_argument       , 0, 'M'},
+  {"metric" , no_argument       , 0, 'M'},
+  {"inches" , no_argument       , 0, 'I'},
 //  {"scan"   , no_argument       , 0, 'H'},
 //  {"scanvert",no_argument       , 0, 'V'},
 
@@ -478,9 +478,9 @@ void do_vertical( Paths &src, Paths &dst  )
 int main(int argc, char **argv)
 {
   int i, j, k;
-  gerber_state_t  gs;
+  gerber_state_t gs;
 
-  Paths           offset_polygons;
+  Paths offset_polygons;
 
   Paths pgn_union;
   Paths offset;
@@ -497,7 +497,7 @@ int main(int argc, char **argv)
     exit(errno);
   }
 
-  // Construct library of atomic shapes and create CGAL polygons
+  // Construct library of atomic shapes and create polygons
   //
   realize_apertures(&gs);
 
@@ -542,5 +542,4 @@ int main(int argc, char **argv)
   gerber_state_clear( &gs );
 
   exit(0);
-
 }
