@@ -107,7 +107,7 @@ void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm,
     }
 
     // go back to start
-    // 
+    //
     if (gHumanReadable) {
       fprintf(ofp, "g1 x%f y%f\n", f(ctod( paths[i][0].X )), f(ctod( paths[i][0].Y )) );
       fprintf(ofp, "g1 z%f\n", gZSafe);
@@ -160,7 +160,7 @@ void export_paths_to_gcode( FILE *ofp, Paths &paths)
     }
 
     // go back to start
-    // 
+    //
     fprintf(ofp, "g1 x%f y%f\n", ctod( paths[i][0].X ), ctod( paths[i][0].Y ) );
     fprintf(ofp, "g1 z%f\n", gZSafe);
 
