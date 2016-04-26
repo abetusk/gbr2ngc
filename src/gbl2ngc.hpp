@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.0.3"
+#define GBL2NGC_VERSION "0.4.0"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -86,10 +86,14 @@ typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 
 extern int gVerboseFlag;
 extern int gMetricUnits;
+extern int gUnitsDefault;
 extern char *gInputFilename;
 extern char *gOutputFilename;
 extern int gFeedRate;
 extern int gSeekRate;
+
+extern int gShowComments;
+extern int gHumanReadable;
 
 extern int gScanLineVertical;
 extern int gScanLineHorizontal;
@@ -125,5 +129,6 @@ void join_polygon_set(Paths &result, gerber_state_t *gs);
 //----- export functions
 
 void export_paths_to_gcode( FILE *ofp, Paths &paths);
+void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in);
 
 #endif

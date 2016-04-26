@@ -22,10 +22,14 @@
 
 int gVerboseFlag = 0;
 int gMetricUnits = 0;
+int gUnitsDefault = 1;
 char *gInputFilename = NULL;
 char *gOutputFilename = NULL;
 int gFeedRate = 10;
 int gSeekRate = 100;
+
+int gShowComments = 1;
+int gHumanReadable = 1;
 
 int gScanLineVertical = 0;
 int gScanLineHorizontal = 0;

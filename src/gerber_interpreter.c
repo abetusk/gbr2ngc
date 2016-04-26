@@ -43,15 +43,18 @@ void gerber_state_init(gerber_state_t *gs)
   gs->pos_init = 0;
   gs->is_init = 0;
 
-  gs->units = -1;
+  gs->units_metric = -1;
   gs->polarity = -1;
   gs->eof = 0;
   gs->line_no = 0;
 
   gs->current_aperture = -1;
 
-  gs->units_str[0] = strdup("mm");
-  gs->units_str[1] = strdup("inches");
+  //gs->units_str[0] = strdup("mm");
+  //gs->units_str[1] = strdup("inches");
+
+  gs->units_str[0] = strdup("inches");
+  gs->units_str[1] = strdup("mm");
 
   gs->fs_omit_zero[0] = strdup("omit trailing");
   gs->fs_omit_zero[1] = strdup("omit leading");
@@ -141,7 +144,7 @@ void gerber_report_state(gerber_state_t *gs)
   printf("  fs_init: %i\n", gs->fs_init);
   printf("  is_init: %i\n", gs->is_init);
 
-  printf("  units: %i (%s)\n", gs->units, gs->units_str[gs->units]);
+  printf("  units: %i (%s)\n", gs->units_metric, gs->units_str[gs->units_metric]);
   printf("  polarity: %i\n", gs->polarity);
   printf("  eof: %i\n", gs->eof);
 
@@ -182,12 +185,12 @@ void gerber_report_state(gerber_state_t *gs)
 
 //------------------------
 
-#define GERBER_STATE_INCHES 1
-#define GERBER_STATE_MM 2
+//#define GERBER_STATE_INCHES 1
+//#define GERBER_STATE_MM 2
 
-void gerber_state_set_units(gerber_state_t *gs, int units)
+void gerber_state_set_units(gerber_state_t *gs, int units_metric)
 {
-  gs->units = units;
+  gs->units_metric = units_metric;
   gs->unit_init = 1;
 }
 
@@ -510,8 +513,8 @@ void parse_mo(gerber_state_t *gs, char *linebuf)
   //printf("# mo '%s'\n", linebuf);
 
   chp = linebuf+3;
-  if      ( (chp[0] == 'I') && (chp[1] = 'N') ) gs->units = 1;
-  else if ( (chp[0] == 'M') && (chp[1] = 'N') ) gs->units = 0;
+  if      ( (chp[0] == 'I') && (chp[1] = 'N') ) gs->units_metric = 0;
+  else if ( (chp[0] == 'M') && (chp[1] = 'N') ) gs->units_metric = 1;
   else parse_error("bad MO format", gs->line_no, linebuf);
 
   gs->unit_init = 1;
@@ -1110,14 +1113,14 @@ void parse_g55(gerber_state_t *gs, char *linebuf) {
 
 // deprecated untis to inches
 void parse_g70(gerber_state_t *gs, char *linebuf) { 
-  gs->units = 1;
+  gs->units_metric = 0;
 }
 
 //------------------------
 
 // deprecated untis to mm
 void parse_g71(gerber_state_t *gs, char *linebuf) { 
-  gs->units = 0;
+  gs->units_metric = 1;
 }
 
 //------------------------

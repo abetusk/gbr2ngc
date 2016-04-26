@@ -148,7 +148,8 @@ typedef struct gerber_state_type
   int is_init;
 
   char *units_str[2];
-  int units;  // 0 - metric, 1 - inches
+  //int units;  // 0 - metric, 1 - inches
+  int units_metric;  // 1 - metric, 0 - inches
 
   int polarity;
   int eof;
@@ -180,8 +181,8 @@ typedef struct gerber_state_type
 
 int gerber_state_make_aperture_realizations(gerber_state_t *gs);
 
-#define GERBER_STATE_INCHES 1
-#define GERBER_STATE_MM 2
+//#define GERBER_STATE_INCHES 1
+//#define GERBER_STATE_MM 2
 
 
 

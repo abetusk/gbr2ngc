@@ -40,6 +40,9 @@ struct option gLongOption[] =
 //  {"scan"   , no_argument       , 0, 'H'},
 //  {"scanvert",no_argument       , 0, 'V'},
 
+  {"no-comment", no_argument      , 0, 'C'},
+  {"machine-readable", no_argument      , 0, 'R'},
+
   {"horizontal", no_argument     , 0, 'H'},
   {"vertical", no_argument       , 0, 'V'},
   {"zengarden", no_argument     , 0, 'G'},
@@ -68,6 +71,9 @@ char gOptionDescription[][1024] =
 
   "units in metric",
   "units in inches (default)",
+
+  "do not show comments",
+  "machine readable (uppercase, no spaces in gcode)",
 
   "route out blank areas with a horizontal scan line technique",
   "route out blank areas with a vertical scan line technique",
@@ -123,7 +129,7 @@ void process_command_line_options(int argc, char **argv)
 
   gRouteRadius = -1.0;
 
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNh", gLongOption, &option_index)) > 0) switch(ch)
+  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCR", gLongOption, &option_index)) > 0) switch(ch)
   {
     case 0:
       //printf("error, bad option '%s'", gLongOption[option_index].name);
@@ -136,6 +142,12 @@ void process_command_line_options(int argc, char **argv)
     case 'h':
       show_help();
       exit(0);
+      break;
+    case 'C':
+      gShowComments = 0;
+      break;
+    case 'R':
+      gHumanReadable = 0;
       break;
     case 'r':
       gRadius = atof(optarg);
@@ -163,9 +175,11 @@ void process_command_line_options(int argc, char **argv)
       break;
     case 'I':
       gMetricUnits = 0;
+      gUnitsDefault = 0;
       break;
     case 'M':
       gMetricUnits = 1;
+      gUnitsDefault = 0;
       break;
 
     case 'H':
@@ -503,9 +517,24 @@ int main(int argc, char **argv)
 
   join_polygon_set( pgn_union, &gs );
 
-  fprintf( gOutStream, "( union path size %lu)\n", pgn_union.size());
+  if (gShowComments) {
+    fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
+  }
 
-  fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
+  // If units haven't been specified on the command line,
+  // inherit units from the Gerber file.
+  //
+  if (gUnitsDefault) {
+    gMetricUnits = gs.units_metric;
+  }
+
+  // G20 - inch
+  // G21 - mm
+  if (gHumanReadable) {
+    fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
+  } else {
+    fprintf( gOutStream, "%s\nG90\n", ( gMetricUnits ? "G21" : "G20" ) );
+  }
 
 
   // Offsetting is enabled if the tool radius is specified
@@ -530,12 +559,14 @@ int main(int argc, char **argv)
     }
     //else if ( gScanLineAngle ) { }
 
-    export_paths_to_gcode( gOutStream, offset_polygons);
+    //export_paths_to_gcode(gOutStream, offset_polygons, gs.units);
+    export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
   }
 
   else 
   {
-    export_paths_to_gcode( gOutStream, pgn_union );
+    //export_paths_to_gcode(gOutStream, pgn_union, gs.units);
+    export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
   }
 
   cleanup();
