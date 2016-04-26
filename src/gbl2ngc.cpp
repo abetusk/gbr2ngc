@@ -94,7 +94,7 @@ void show_help(void)
   int i, j, k;
   int len;
 
-  printf("a gerber to gcode converter\n");
+  printf("\ngbl2ngc: A gerber to gcode converter\n");
   printf("Version %s\n", GBL2NGC_VERSION);
 
   for (i=0; gLongOption[i].name; i++)
@@ -115,6 +115,7 @@ void show_help(void)
 
     printf("%s\n", gOptionDescription[i]);
   }
+  printf("\n");
 
 }
 
@@ -210,15 +211,23 @@ void process_command_line_options(int argc, char **argv)
     if (!(gOutStream = fopen(gOutputFilename, "w")))
     {
       perror(gOutputFilename);
-      exit(0);
+      exit(1);
     }
   }
 
   if (!gInputFilename)
   {
-    printf("must provide input file\n");
+    fprintf(stderr, "ERROR: Must provide input file\n");
     show_help();
-    exit(0);
+    exit(1);
+  }
+
+
+  if ( ((gScanLineHorizontal + gScanLineVertical + gScanLineZenGarden)>0) &&
+       (gRadius < eps) ) {
+    fprintf(stderr, "ERROR: Radius (-r) must be specified for scan line option (-H, -V or -G)\n");
+    show_help();
+    exit(1);
   }
 
   if (gVerboseFlag)
