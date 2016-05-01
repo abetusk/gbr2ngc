@@ -48,7 +48,7 @@ struct option gLongOption[] =
   {"vertical", no_argument       , 0, 'V'},
   {"zengarden", no_argument     , 0, 'G'},
 
-  {"invertfill", no_argument       , &gInvertFlag, '.' },
+  {"invertfill", no_argument       , &gInvertFlag, 1},
 
   {"verbose", no_argument       , 0, 'v'},
   {"version", no_argument       , 0, 'N'},
@@ -142,17 +142,11 @@ void process_command_line_options(int argc, char **argv)
 
   gFillRadius = -1.0;
 
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:", gLongOption, &option_index)) > 0) switch(ch)
+  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:", gLongOption, &option_index)) >= 0) switch(ch)
   {
     case 0:
-
-      printf(">>> %i\n", gInvertFlag);
-
-      //printf("error, bad option '%s'", gLongOption[option_index].name);
-      printf("error, bad option '%s'", optarg);
-      if (optarg)
-        printf(" with arg '%s'", optarg);
-      printf("\n");
+      // long option
+      //
       break;
     case 'N':
     case 'h':
@@ -217,7 +211,7 @@ void process_command_line_options(int argc, char **argv)
     default:
       printf("bad option\n");
       show_help();
-      exit(0);
+      exit(1);
       break;
   }
 
@@ -242,8 +236,8 @@ void process_command_line_options(int argc, char **argv)
 
 
   if ( ((gScanLineHorizontal + gScanLineVertical + gScanLineZenGarden)>0) &&
-       (gRadius < eps) ) {
-    fprintf(stderr, "ERROR: Radius (-r) must be specified for scan line option (-H, -V or -G)\n");
+       ((gRadius < eps) && (gFillRadius < eps)) ) {
+    fprintf(stderr, "ERROR: Radius (-r) or fill radius (-F) must be specified for fill options (-H, -V or -G)\n");
     show_help();
     exit(1);
   }
@@ -338,6 +332,7 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
 
   // We assume at least an outer boundary.  If only
   // the outer boundary is left, we've finished
+  //
   if (paths.size() <= 1)
   {
     return;
@@ -352,12 +347,10 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
     return;
 
   co.AddPaths( paths, jtMiter, etClosedPolygon);
-  //co.Execute( soln, g_scalefactor * gRadius );
-  co.Execute( soln, g_scalefactor * gFillRadius );
+  co.Execute( soln, 2.0 * g_scalefactor * gFillRadius );
 
   do_zen_r(soln, minp, maxp);
 
-  //paths.insert( paths.end(), soln.begin(), soln.end() );
   n = soln.size();
   for (i=0; i<n; i++)
   {
@@ -401,10 +394,8 @@ void do_zen( Paths &src, Paths &dst )
   find_min_max( src, minp, maxp );
 
   co.AddPaths( src, jtMiter, etClosedPolygon);
-  //co.Execute( soln, g_scalefactor * gRadius );
-  co.Execute( soln, g_scalefactor * gFillRadius );
+  co.Execute( soln, 2.0 * g_scalefactor * gFillRadius );
 
-  //print_paths( soln );
   do_zen_r(soln, minp, maxp);
 
   dst.insert( dst.end(), soln.begin(), soln.end() );
@@ -419,8 +410,7 @@ void do_horizontal( Paths &src, Paths &dst )
   IntPoint minp, maxp;
 
 
-  //h = 2.0 * g_scalefactor * gRadius ;
-  h = 2.0 * g_scalefactor * gFillRadius ;
+  h = 2.0 * g_scalefactor * gFillRadius;
   h++;
 
   find_min_max( src, minp, maxp );
@@ -444,37 +434,21 @@ void do_horizontal( Paths &src, Paths &dst )
     clip.AddPaths( src, ptClip, true );
     clip.Execute( ctDifference, soln, pftNonZero, pftNonZero );
 
-    /*
-    n = soln.size();
-    for (i=0; i<n; i++)
-    {
-      m = soln[i].size();
-      for (j=0; j<m; j++)
-      {
-        printf("%lli %lli\n", soln[i][j].X, soln[i][j].Y);
-      }
-      printf("\n\n");
-    }
-    */
-
     line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
   }
 
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
-  
 }
 
 
 void do_vertical( Paths &src, Paths &dst  )
 {
   int i, j, n, m;
-  //Paths soln;
   Paths line_collection;
   cInt dx, w;
   cInt curx;
   IntPoint minp, maxp;
 
-  //w = 2.0 * g_scalefactor * gRadius ;
   w = 2.0 * g_scalefactor * gFillRadius ;
   w++;
 
@@ -498,24 +472,41 @@ void do_vertical( Paths &src, Paths &dst  )
     clip.AddPaths( src, ptClip, true );
     clip.Execute( ctDifference, soln, pftNonZero, pftNonZero );
 
-    /*
-    n = soln.size();
-    for (i=0; i<n; i++)
-    {
-      m = soln[i].size();
-      for (j=0; j<m; j++)
-      {
-        printf("%lli %lli\n", soln[i][j].X, soln[i][j].Y);
-      }
-      printf("\n\n");
-    }
-    */
-
     line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
-
   }
   
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+}
+
+void invert(Paths &src, Paths &dst) {
+  int i, j, k;
+  ClipperOffset co;
+  Clipper clip_stencil;
+
+  Paths stencil;
+  Paths oot;
+  Path p;
+
+  // Construct outline stencil
+  //
+  for (i=0; i<src.size(); i++) {
+    p = src[i];
+    if (Area(p) < 0.0) { std::reverse(p.begin(), p.end()); }
+    clip_stencil.AddPath(p, ptSubject, true);
+  }
+  clip_stencil.Execute(ctUnion, stencil, pftNonZero, pftNonZero);
+
+  for (i=0; i<stencil.size(); i++) {
+    dst.push_back(stencil[i]);
+  }
+
+  // Reverse all paths for the inversion
+  //
+  for (i=0; i<src.size(); i++) {
+    p = src[i];
+    std::reverse(p.begin(), p.end());
+    dst.push_back(p);
+  }
 
 }
 
@@ -567,36 +558,34 @@ int main(int argc, char **argv)
     fprintf( gOutStream, "%s\nG90\n", ( gMetricUnits ? "G21" : "G20" ) );
   }
 
-
   // Offsetting is enabled if the tool radius is specified
   //
-  if (gRadius > eps)
+  if ((gRadius > eps) || (gFillRadius > eps))
   {
     construct_polygon_offset( pgn_union, offset_polygons );
 
-    if ( gScanLineZenGarden )
-    {
-      //generate_zen_gcode( gOutStream, pgn_union );
-      do_zen( offset_polygons, offset_polygons );
+    if (gInvertFlag) {
+      Paths inverted_polygons;
+
+      if (gShowComments) { printf("( inverted selection )\n"); }
+
+      invert(offset_polygons, inverted_polygons);
+      if      ( gScanLineZenGarden )  { do_zen( inverted_polygons, offset_polygons); }
+      else if ( gScanLineVertical )   { do_vertical( inverted_polygons, offset_polygons); }
+      else if ( gScanLineHorizontal ) { do_horizontal( inverted_polygons, offset_polygons); }
+
+    } else {
+
+      if      ( gScanLineZenGarden )  { do_zen( offset_polygons, offset_polygons ); }
+      else if ( gScanLineVertical )   { do_vertical( offset_polygons, offset_polygons ); }
+      else if ( gScanLineHorizontal ) { do_horizontal( offset_polygons, offset_polygons ); }
 
     }
-    else if ( gScanLineVertical )
-    {
-      do_vertical( offset_polygons, offset_polygons );
-    }
-    else if ( gScanLineHorizontal )
-    {
-      do_horizontal( offset_polygons, offset_polygons );
-    }
-    //else if ( gScanLineAngle ) { }
 
-    //export_paths_to_gcode(gOutStream, offset_polygons, gs.units);
     export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
   }
-
   else 
   {
-    //export_paths_to_gcode(gOutStream, pgn_union, gs.units);
     export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
   }
 
