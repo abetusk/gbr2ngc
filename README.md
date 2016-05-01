@@ -32,7 +32,7 @@ Current version is in an alpha state, so use at your own risk.
 TODO:
 -----
 
-  - allow for metric (right now it's imperial only)
+  - ~allow for metric (right now it's imperial only)~
   - allow for other options in terms of seek rate, feed rate, etc.
   - optimizing air drill paths
 
