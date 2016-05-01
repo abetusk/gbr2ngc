@@ -49,6 +49,7 @@ struct option gLongOption[] =
   {"zengarden", no_argument     , 0, 'G'},
 
   {"invertfill", no_argument       , &gInvertFlag, 1},
+  {"simple-infill", no_argument       , &gSimpleInfill, 1},
 
   {"verbose", no_argument       , 0, 'v'},
   {"version", no_argument       , 0, 'N'},
@@ -83,7 +84,8 @@ char gOptionDescription[][1024] =
   "route out blank areas with a vertical scan line technique",
   "route out blank areas with a 'zen garden' technique",
 
-  "invert the fill pattern",
+  "invert the fill pattern (experimental)",
+  "infill copper polygons with pattern (currently only -H and -V supported)",
 
   "verbose",
   "display version information",
@@ -234,10 +236,21 @@ void process_command_line_options(int argc, char **argv)
     exit(1);
   }
 
-
   if ( ((gScanLineHorizontal + gScanLineVertical + gScanLineZenGarden)>0) &&
        ((gRadius < eps) && (gFillRadius < eps)) ) {
     fprintf(stderr, "ERROR: Radius (-r) or fill radius (-F) must be specified for fill options (-H, -V or -G)\n");
+    show_help();
+    exit(1);
+  }
+
+  if ((gSimpleInfill>0) && (gRadius >= eps)) {
+    fprintf(stderr, "ERROR: Cannot specify offset radius (-r) for simple infills (-H or -V)\n");
+    show_help();
+    exit(1);
+  }
+
+  if ((gSimpleInfill>0) && (gScanLineZenGarden>0)) {
+    fprintf(stderr, "ERROR: Currently simple infills do not support the zen garden fill pattern, please use -H or -V\n");
     show_help();
     exit(1);
   }
@@ -289,15 +302,53 @@ void print_paths( Paths &paths )
 
 }
 
-void find_min_max( Paths &src, IntPoint &minp, IntPoint &maxp)
+void find_min_max_path(Path &src, IntPoint &minp, IntPoint &maxp)
+{
+  int j, m;
+  m = src.size();
+
+  minp.X = 0;
+  minp.Y = 0;
+  maxp.X = 0;
+  maxp.Y = 0;
+
+  for (j=0; j<m; j++)
+  {
+    if (j==0)
+    {
+      minp.X = src[0].X;
+      minp.Y = src[0].Y;
+      maxp.X = src[0].X;
+      maxp.Y = src[0].Y;
+    }
+
+    if (minp.X > src[j].X) minp.X = src[j].X;
+    if (minp.Y > src[j].Y) minp.Y = src[j].Y;
+    if (maxp.X < src[j].X) maxp.X = src[j].X;
+    if (maxp.Y < src[j].Y) maxp.Y = src[j].Y;
+  }
+
+  minp.X--;
+  minp.Y--;
+  maxp.X++;
+  maxp.Y++;
+}
+
+void find_min_max(Paths &src, IntPoint &minp, IntPoint &maxp)
 {
   int i, j, n, m;
+
+  minp.X = 0;
+  minp.Y = 0;
+  maxp.X = 0;
+  maxp.Y = 0;
+
   n = src.size();
   for (i=0; i<n; i++)
   {
     m = src[i].size();
     if ( m == 0 ) continue;
-    if (i==0) 
+    if (i==0)
     {
       minp.X = src[i][0].X;
       minp.Y = src[i][0].Y;
@@ -325,10 +376,12 @@ void find_min_max( Paths &src, IntPoint &minp, IntPoint &maxp)
 void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
 {
   static int recur_count=0;
-  int i, j, n, m;
+  int i, j, k, n, m;
   ClipperOffset co;
   Paths soln;
   Paths tpath;
+
+  IntPoint minpathp, maxpathp;
 
   // We assume at least an outer boundary.  If only
   // the outer boundary is left, we've finished
@@ -357,11 +410,23 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
     m = soln[i].size();
     if (m <= 2 ) continue;
 
+
+    for (k=0; k<soln[i].size(); k++) {
+      if ( (soln[i][k].X < minp.X) ||
+           (soln[i][k].Y < minp.Y) ||
+           (soln[i][k].X > maxp.X) ||
+           (soln[i][k].Y > maxp.Y) )
+        break;
+    }
+    if (k<soln[i].size()) { continue; }
+
+    /*
     if ( (soln[i][0].X < minp.X) ||
          (soln[i][0].Y < minp.Y) ||
          (soln[i][0].X > maxp.X) ||
          (soln[i][0].Y > maxp.Y) )
       continue;
+      */
 
     paths.push_back(soln[i]);
   }
@@ -416,7 +481,7 @@ void do_horizontal( Paths &src, Paths &dst )
   find_min_max( src, minp, maxp );
 
   cury = minp.Y;
-  
+
   while ( cury < maxp.Y )
   {
     Path line;
@@ -438,6 +503,48 @@ void do_horizontal( Paths &src, Paths &dst )
   }
 
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+}
+
+void do_horizontal_infill( Paths &src, Paths &dst )
+{
+  int i, j, n, m;
+  Paths line_collection;
+  cInt dy, h;
+  cInt cury;
+  IntPoint minp, maxp;
+
+
+  h = 2.0 * g_scalefactor * gFillRadius;
+  h++;
+
+  find_min_max( src, minp, maxp );
+
+  cury = minp.Y;
+
+  while ( cury < maxp.Y )
+  {
+    Path line;
+    Paths soln;
+    Clipper clip;
+
+    line.push_back( IntPoint( minp.X, cury ) );
+    line.push_back( IntPoint( maxp.X, cury ) );
+    line.push_back( IntPoint( maxp.X, cury + h ) );
+    line.push_back( IntPoint( minp.X, cury + h ) );
+
+    cury += 2*h;
+
+    clip.AddPaths( src, ptSubject, true );
+    clip.AddPath( line, ptClip, true );
+    clip.Execute( ctIntersection, soln, pftNonZero, pftNonZero );
+
+    line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
+  }
+
+  dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+
+  dst.insert( dst.end(), src.begin(), src.end());
+
 }
 
 
@@ -474,8 +581,47 @@ void do_vertical( Paths &src, Paths &dst  )
 
     line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
   }
-  
+
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+}
+
+void do_vertical_infill( Paths &src, Paths &dst  )
+{
+  int i, j, n, m;
+  Paths line_collection;
+  cInt dx, w;
+  cInt curx;
+  IntPoint minp, maxp;
+
+  w = 2.0 * g_scalefactor * gFillRadius ;
+  w++;
+
+  find_min_max( src, minp, maxp );
+
+  curx = minp.X;
+  while ( curx < maxp.X )
+  {
+    Path line;
+    Paths soln;
+    Clipper clip;
+
+    line.push_back( IntPoint( curx, minp.Y ) );
+    line.push_back( IntPoint( curx, maxp.Y ) );
+    line.push_back( IntPoint( curx + w, maxp.Y ) );
+    line.push_back( IntPoint( curx + w, minp.Y ) );
+
+    curx += 2*w;
+
+    clip.AddPaths( src, ptSubject, true );
+    clip.AddPath( line, ptClip, true );
+    clip.Execute( ctIntersection, soln, pftNonZero, pftNonZero );
+
+    line_collection.insert( line_collection.end(), soln.begin(), soln.end() );
+  }
+
+  dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
+
+  dst.insert( dst.end(), src.begin(), src.end());
 }
 
 void invert(Paths &src, Paths &dst) {
@@ -539,6 +685,8 @@ int main(int argc, char **argv)
 
   join_polygon_set( pgn_union, &gs );
 
+
+
   if (gShowComments) {
     fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
   }
@@ -558,16 +706,31 @@ int main(int argc, char **argv)
     fprintf( gOutStream, "%s\nG90\n", ( gMetricUnits ? "G21" : "G20" ) );
   }
 
+  if ((gSimpleInfill>0) && (gFillRadius > eps))
+  {
+    Paths fin_polygons;
+
+    //if      ( gScanLineZenGarden )  { do_zen( inverted_polygons, offset_polygons); }
+    if      ( gScanLineVertical )   { do_vertical_infill( pgn_union, fin_polygons); }
+    else if ( gScanLineHorizontal ) { do_horizontal_infill( pgn_union, fin_polygons); }
+    else { //error
+      fprintf(stderr, "unsupported command (for simple-infill)\n");
+      exit(1);
+    }
+
+    export_paths_to_gcode_unit(gOutStream, fin_polygons, gs.units_metric, gMetricUnits);
+  }
+
   // Offsetting is enabled if the tool radius is specified
   //
-  if ((gRadius > eps) || (gFillRadius > eps))
+  else if ((gRadius > eps) || (gFillRadius > eps))
   {
     construct_polygon_offset( pgn_union, offset_polygons );
 
     if (gInvertFlag) {
       Paths inverted_polygons;
 
-      if (gShowComments) { printf("( inverted selection )\n"); }
+      if (gShowComments) { fprintf( gOutStream, "( inverted selection radius %f, fill radius %f )\n", gRadius, gFillRadius ); }
 
       invert(offset_polygons, inverted_polygons);
       if      ( gScanLineZenGarden )  { do_zen( inverted_polygons, offset_polygons); }
@@ -584,7 +747,7 @@ int main(int argc, char **argv)
 
     export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
   }
-  else 
+  else
   {
     export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
   }
