@@ -44,7 +44,9 @@ FILE *gInpStream = stdin;
 
 double eps = 0.000001;
 double gRadius = 0.0;
-double gRouteRadius = -1.0;
+double gFillRadius = -1.0;
+
+int gInvertFlag = 0;
 
 /*
 Polygon_set_2 gPolygonSet;

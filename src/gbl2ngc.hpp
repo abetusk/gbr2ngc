@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.5.0"
+#define GBL2NGC_VERSION "0.6.0"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -108,7 +108,9 @@ extern FILE *gInpStream;
 
 extern double eps;
 extern double gRadius;
-extern double gRouteRadius;
+extern double gFillRadius;
+
+extern int gInvertFlag;
 
 
 extern std::vector<int> gApertureName;

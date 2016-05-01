@@ -24,7 +24,8 @@
 struct option gLongOption[] =
 {
   {"radius" , required_argument , 0, 'r'},
-  {"routeradius" , required_argument , 0, 'R'},
+  //{"routeradius" , required_argument , 0, 'R'},
+  {"fillradius" , required_argument , 0, 'F'},
 
   {"input"  , required_argument , 0, 'i'},
   {"output" , required_argument , 0, 'o'},
@@ -47,6 +48,8 @@ struct option gLongOption[] =
   {"vertical", no_argument       , 0, 'V'},
   {"zengarden", no_argument     , 0, 'G'},
 
+  {"invertfill", no_argument       , &gInvertFlag, '.' },
+
   {"verbose", no_argument       , 0, 'v'},
   {"version", no_argument       , 0, 'N'},
   {"help"   , no_argument       , 0, 'h'},
@@ -58,7 +61,8 @@ struct option gLongOption[] =
 char gOptionDescription[][1024] =
 {
   "radius (default 0)",
-  "radius to be used for routing (default to radius above)",
+  //"radius to be used for routing (default to radius above)",
+  "radius to be used for fill pattern (default to radius above)",
 
   "input file",
   "output file (default stdout)",
@@ -78,6 +82,8 @@ char gOptionDescription[][1024] =
   "route out blank areas with a horizontal scan line technique",
   "route out blank areas with a vertical scan line technique",
   "route out blank areas with a 'zen garden' technique",
+
+  "invert the fill pattern",
 
   "verbose",
   "display version information",
@@ -101,7 +107,13 @@ void show_help(void)
   {
     len = strlen(gLongOption[i].name);
 
-    printf("  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
+    if (gLongOption[i].val == '.') {
+      printf("  --%s", gLongOption[i].name);
+      len -= 4;
+    } else {
+      printf("  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
+    }
+
     if (gLongOption[i].has_arg)
     {
       printf(" %s", gLongOption[i].name);
@@ -128,11 +140,14 @@ void process_command_line_options(int argc, char **argv)
 
   char ch;
 
-  gRouteRadius = -1.0;
+  gFillRadius = -1.0;
 
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCR", gLongOption, &option_index)) > 0) switch(ch)
+  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:", gLongOption, &option_index)) > 0) switch(ch)
   {
     case 0:
+
+      printf(">>> %i\n", gInvertFlag);
+
       //printf("error, bad option '%s'", gLongOption[option_index].name);
       printf("error, bad option '%s'", optarg);
       if (optarg)
@@ -153,8 +168,11 @@ void process_command_line_options(int argc, char **argv)
     case 'r':
       gRadius = atof(optarg);
       break;
+    case 'F':
+      gFillRadius = atof(optarg);
+      break;
     case '$':
-      gRouteRadius = atof(optarg);
+      gFillRadius = atof(optarg);
       break;
     case 's':
       gSeekRate = atoi(optarg);
@@ -203,8 +221,8 @@ void process_command_line_options(int argc, char **argv)
       break;
   }
 
-  if (gRouteRadius <= 0.0)
-    gRouteRadius = gRadius;
+  if (gFillRadius <= 0.0)
+    gFillRadius = gRadius;
 
   if (gOutputFilename)
   {
@@ -334,7 +352,8 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
     return;
 
   co.AddPaths( paths, jtMiter, etClosedPolygon);
-  co.Execute( soln, g_scalefactor * gRadius );
+  //co.Execute( soln, g_scalefactor * gRadius );
+  co.Execute( soln, g_scalefactor * gFillRadius );
 
   do_zen_r(soln, minp, maxp);
 
@@ -382,7 +401,8 @@ void do_zen( Paths &src, Paths &dst )
   find_min_max( src, minp, maxp );
 
   co.AddPaths( src, jtMiter, etClosedPolygon);
-  co.Execute( soln, g_scalefactor * gRadius );
+  //co.Execute( soln, g_scalefactor * gRadius );
+  co.Execute( soln, g_scalefactor * gFillRadius );
 
   //print_paths( soln );
   do_zen_r(soln, minp, maxp);
@@ -399,7 +419,8 @@ void do_horizontal( Paths &src, Paths &dst )
   IntPoint minp, maxp;
 
 
-  h = 2.0 * g_scalefactor * gRadius ;
+  //h = 2.0 * g_scalefactor * gRadius ;
+  h = 2.0 * g_scalefactor * gFillRadius ;
   h++;
 
   find_min_max( src, minp, maxp );
@@ -453,7 +474,8 @@ void do_vertical( Paths &src, Paths &dst  )
   cInt curx;
   IntPoint minp, maxp;
 
-  w = 2.0 * g_scalefactor * gRadius ;
+  //w = 2.0 * g_scalefactor * gRadius ;
+  w = 2.0 * g_scalefactor * gFillRadius ;
   w++;
 
   find_min_max( src, minp, maxp );

@@ -8,5 +8,5 @@ gcc -g test_gerber_interpreter.c gerber_interpreter.o -o test_gerber_interpreter
 
 #g++ -O2 -o gbl2ngc $CPP_FILES  gerber_interpreter.o -I./cpp -L. -L./cpp -lpolyclipping -lstdc++  -lboost_thread
 g++ -O2 -o gbl2ngc $CPP_FILES  gerber_interpreter.o clipper.cpp -lstdc++  -lboost_thread
-#g++ -g -o gbl2ngc $CPP_FILES  gerber_interpreter.o clipper.cpp -lstdc++  -lboost_thread
+g++ -g -o gbl2ngc_debug $CPP_FILES  gerber_interpreter.o clipper.cpp -lstdc++  -lboost_thread
 
