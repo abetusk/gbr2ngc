@@ -107,7 +107,7 @@ void show_help(void)
   {
     len = strlen(gLongOption[i].name);
 
-    if (gLongOption[i].val == '.') {
+    if (gLongOption[i].flag != 0) {
       printf("  --%s", gLongOption[i].name);
       len -= 4;
     } else {
