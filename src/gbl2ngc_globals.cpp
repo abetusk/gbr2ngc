@@ -48,6 +48,7 @@ double gFillRadius = -1.0;
 
 int gInvertFlag = 0;
 int gSimpleInfill = 0;
+int gDrawOutline = 1;
 
 /*
 Polygon_set_2 gPolygonSet;

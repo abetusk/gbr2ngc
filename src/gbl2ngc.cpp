@@ -50,6 +50,7 @@ struct option gLongOption[] =
 
   {"invertfill", no_argument       , &gInvertFlag, 1},
   {"simple-infill", no_argument       , &gSimpleInfill, 1},
+  {"no-outline", no_argument       , &gDrawOutline, 0},
 
   {"verbose", no_argument       , 0, 'v'},
   {"version", no_argument       , 0, 'N'},
@@ -86,6 +87,7 @@ char gOptionDescription[][1024] =
 
   "invert the fill pattern (experimental)",
   "infill copper polygons with pattern (currently only -H and -V supported)",
+  "draw outline when doing infill",
 
   "verbose",
   "display version information",
@@ -543,7 +545,9 @@ void do_horizontal_infill( Paths &src, Paths &dst )
 
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
 
-  dst.insert( dst.end(), src.begin(), src.end());
+  if (gDrawOutline) {
+    dst.insert( dst.end(), src.begin(), src.end());
+  }
 
 }
 
@@ -621,7 +625,9 @@ void do_vertical_infill( Paths &src, Paths &dst  )
 
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
 
-  dst.insert( dst.end(), src.begin(), src.end());
+  if (gDrawOutline) {
+    dst.insert( dst.end(), src.begin(), src.end());
+  }
 }
 
 void invert(Paths &src, Paths &dst) {

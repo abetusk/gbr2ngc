@@ -112,6 +112,7 @@ extern double gFillRadius;
 
 extern int gInvertFlag;
 extern int gSimpleInfill;
+extern int gDrawOutline;
 
 
 extern std::vector<int> gApertureName;
