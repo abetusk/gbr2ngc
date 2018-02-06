@@ -4611,10 +4611,12 @@ void OffsetPaths(const Paths &in_polys, Paths &out_polys,
 //ClipperLib namespace
 // signe, then use 'cross_sign' below.
 //
+/*
 static Int128 cross( const IntPoint &O, const IntPoint &A, const IntPoint &B )
 {
   return Int128Mul( A.X - O.X, B.Y - O.Y ) - Int128Mul( A.Y - O.Y, B.X - O.X );
 }
+*/
 
 
 /*

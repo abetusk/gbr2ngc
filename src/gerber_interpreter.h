@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 typedef struct point_link_double_2_type {
   double x, y;
@@ -235,5 +236,6 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf);
 
 int gerber_state_load_file(gerber_state_t *gs, char *fn);
 
+void gerber_report_state(gerber_state_t *gs);
 
 #endif

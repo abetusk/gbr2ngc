@@ -40,7 +40,7 @@ typedef struct dpoint_2_type {
 
 struct Gerber_point_2_cmp
 {
-  bool operator()(const Gerber_point_2 &lhs, const Gerber_point_2 &rhs)
+  bool operator()(const Gerber_point_2 &lhs, const Gerber_point_2 &rhs) const
   {
     if (lhs.ix < rhs.ix) return true;
     if (lhs.ix > rhs.ix) return false;
@@ -175,8 +175,8 @@ void populate_gerber_point_vector_from_contour( std::vector< Gerber_point_2 > &p
 int gerber_point_2_decorate_with_jump_pos( std::vector< Gerber_point_2 > &p )
 {
 
-  int i, j, k;
-  irange_2 range;
+  unsigned int i;
+  int k;
   HolePosMap hole_map;
 
   for (i=0; i<p.size(); i++)
@@ -213,9 +213,8 @@ int gerber_point_2_decorate_with_jump_pos( std::vector< Gerber_point_2 > &p )
 //
 int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
 {
-  int i, j, k;
-  int jp, ds;
-  int start=0;
+  int i;
+  int ds;
 
   std::vector< Gerber_point_2 > p;
   Paths hole_vec;
@@ -257,7 +256,7 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
     std::reverse( outer_boundary_polygon.begin(), outer_boundary_polygon.end() );
   pwh.push_back( outer_boundary_polygon ); 
 
-  for (i=0; i<hole_vec.size(); i++)
+  for (i=0; i<(int)hole_vec.size(); i++)
   {
     if ( Area(hole_vec[i]) > 0.0)
       std::reverse( hole_vec[i].begin(), hole_vec[i].end() );
@@ -265,6 +264,7 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
   }
   pwh_vec.push_back( pwh );
 
+  return 0;
 }
 
 
@@ -272,10 +272,8 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour )
 
 bool isccw( Path &p )
 {
-  int i, j, k;
-  long double a, b, c;
+  unsigned int i;
   cInt dx, dy, s = 0;
-
 
   for (i=1; i<p.size(); i++)
   {
@@ -294,8 +292,7 @@ bool isccw( Path &p )
 void join_polygon_set(Paths &result, gerber_state_t *gs)
 {
 
-  int i, j, k;
-  int count = 0;
+  unsigned int i;
   contour_list_ll_t *contour_list;
   contour_ll_t      *contour, *prev_contour;
 

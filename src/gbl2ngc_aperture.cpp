@@ -31,7 +31,7 @@ void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, do
   if (segments < min_segments)
     segments = min_segments;
 
-  for (int i=0; i<segments; i++)
+  for (i=0; i<segments; i++)
   {
     a = 2.0 * M_PI * (double)i / (double)segments ;
     //ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
@@ -52,8 +52,12 @@ void realize_rectangle( Aperture_realization &ap, double x, double y )
 void realize_obround( Aperture_realization &ap, double x_len, double y_len, int min_segments = 8, double min_segment_length = 0.01 )
 {
   int i, segments;
-  double theta, a, r, z;
-  double c = 2.0 * M_PI * r;
+  double theta, a, r;
+  //double c = 2.0 * M_PI * r;
+  double c;
+
+  r = ( (fabs(x_len) < fabs(y_len)) ? x_len : y_len );
+  c = 2.0 * M_PI * r;
 
   theta = 2.0 * asin( min_segment_length / (2.0*r) );
   segments = (int)(c / theta);
@@ -66,7 +70,7 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
     r = x_len / 2.0;
 
     // start at the top right
-    for (int i=0; i <= (segments/2); i++)
+    for (i=0; i <= (segments/2); i++)
     {
       a = 2.0 * M_PI * (double)i / (double)segments ;
       ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
@@ -85,14 +89,14 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
     r = y_len / 2.0;
 
     // start at bottom right
-    for (int i=0; i <= (segments/2); i++)
+    for (i=0; i <= (segments/2); i++)
     {
       a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
       ap.m_outer_boundary.push_back( dtoc( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
     }
 
     // then the left
-    for (int i=(segments/2); i <= segments; i++)
+    for (i=(segments/2); i <= segments; i++)
     {
       a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
       ap.m_outer_boundary.push_back( dtoc( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
@@ -102,7 +106,7 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
   else  // circle
   {
     r = x_len / 2.0;
-    for (int i=0; i<segments; i++)
+    for (i=0; i<segments; i++)
     {
       a = 2.0 * M_PI * (double)i / (double)segments ;
       ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
@@ -122,7 +126,7 @@ void realize_polygon( Aperture_realization &ap, double r, int n_vert, double rot
     printf("ERROR! Number of polygon vertices out of range\n");
   }
 
-  for (int i=0; i<n_vert; i++)
+  for (i=0; i<n_vert; i++)
   {
     a = (2.0 * M_PI * (double)i / (double)n_vert) + (rot_deg * M_PI / 180.0);
     ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
@@ -229,6 +233,7 @@ int realize_apertures(gerber_state_t *gs)
 
   }
 
+  return 0;
 }
 
 

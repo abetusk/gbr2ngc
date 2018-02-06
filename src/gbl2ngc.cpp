@@ -101,7 +101,7 @@ char gOptionDescription[][1024] =
 
 void show_help(void)
 {
-  int i, j, k;
+  int i, j;
   int len;
 
   printf("\ngbl2ngc: A gerber to gcode converter\n");
@@ -139,7 +139,7 @@ void process_command_line_options(int argc, char **argv)
 {
 
   extern char *optarg;
-  extern int optind;
+  //extern int optind;
   int option_index;
 
   char ch;
@@ -291,7 +291,7 @@ void construct_polygon_offset( Paths &src, Paths &soln )
 
 void print_paths( Paths &paths )
 {
-  int i, j, k;
+  unsigned int i, j;
 
   for (i=0; i<paths.size(); i++)
   {
@@ -378,7 +378,8 @@ void find_min_max(Paths &src, IntPoint &minp, IntPoint &maxp)
 void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
 {
   static int recur_count=0;
-  int i, j, k, n, m;
+  int i, n, m;
+  unsigned int k;
   ClipperOffset co;
   Paths soln;
   Paths tpath;
@@ -441,7 +442,6 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
 //
 void do_zen( Paths &src, Paths &dst )
 {
-  int i, j, n, m;
   static int recur_count=0;
   ClipperOffset co;
   Paths soln;
@@ -470,12 +470,10 @@ void do_zen( Paths &src, Paths &dst )
 
 void do_horizontal( Paths &src, Paths &dst )
 {
-  int i, j, n, m;
   Paths line_collection;
-  cInt dy, h;
+  cInt h;
   cInt cury;
   IntPoint minp, maxp;
-
 
   h = 2.0 * g_scalefactor * gFillRadius;
   h++;
@@ -509,9 +507,8 @@ void do_horizontal( Paths &src, Paths &dst )
 
 void do_horizontal_infill( Paths &src, Paths &dst )
 {
-  int i, j, n, m;
   Paths line_collection;
-  cInt dy, h;
+  cInt h;
   cInt cury;
   IntPoint minp, maxp;
 
@@ -554,9 +551,8 @@ void do_horizontal_infill( Paths &src, Paths &dst )
 
 void do_vertical( Paths &src, Paths &dst  )
 {
-  int i, j, n, m;
   Paths line_collection;
-  cInt dx, w;
+  cInt w;
   cInt curx;
   IntPoint minp, maxp;
 
@@ -591,9 +587,8 @@ void do_vertical( Paths &src, Paths &dst  )
 
 void do_vertical_infill( Paths &src, Paths &dst  )
 {
-  int i, j, n, m;
   Paths line_collection;
-  cInt dx, w;
+  cInt w;
   cInt curx;
   IntPoint minp, maxp;
 
@@ -631,7 +626,7 @@ void do_vertical_infill( Paths &src, Paths &dst  )
 }
 
 void invert(Paths &src, Paths &dst) {
-  int i, j, k;
+  unsigned int i;
   ClipperOffset co;
   Clipper clip_stencil;
 
@@ -665,7 +660,7 @@ void invert(Paths &src, Paths &dst) {
 
 int main(int argc, char **argv)
 {
-  int i, j, k;
+  int k;
   gerber_state_t gs;
 
   Paths offset_polygons;
