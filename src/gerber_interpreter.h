@@ -148,6 +148,8 @@ typedef struct gerber_state_type
   int unit_init, pos_init;
   int is_init;
 
+  int quadrent_mode;
+
   char *units_str[2];
   //int units;  // 0 - metric, 1 - inches
   int units_metric;  // 1 - metric, 0 - inches

@@ -33,6 +33,12 @@ int (*function_code_handler[13])(gerber_state_t *, char *);
 
 //------------------------
 
+enum {
+  QUADRENT_MODE_NONE = 0,
+  QUADRENT_MODE_SINGLE,
+  QUADRENT_MODE_MULTI,
+} quadrent_mode_enum;
+
 void gerber_state_init(gerber_state_t *gs)
 {
   gs->g_state = -1;
@@ -47,6 +53,8 @@ void gerber_state_init(gerber_state_t *gs)
   gs->polarity = -1;
   gs->eof = 0;
   gs->line_no = 0;
+
+  gs->quadrent_mode = -1;
 
   gs->current_aperture = -1;
 
@@ -341,7 +349,6 @@ enum {
 
   FC_M02,
 
-
   FC_G54, FC_G55, FC_G70, FC_G71, FC_G90, FC_G91, FC_M00, FC_M01
 } FUNCTION_CODE;
 
@@ -405,13 +412,22 @@ enum {
   IMG_PARAM_LP,       // Level Polarity
   IMG_PARAM_SR,       // Step and Repeat
  
+  // Attributes
+  //
+  IMG_PARAM_TF,       // File attributes
+  IMG_PARAM_TO,       // Object attribute
+  IMG_PARAM_TA,       // Aperture attribute
+  IMG_PARAM_TD,       // Delete aperture attribute
+  IMG_PARAM_DR,       // Set region D-code
 
   // Depricated Parameters
+  //
   IMG_PARAM_AS,       // Axis Select
   IMG_PARAM_MI,       // Mirror Image
   IMG_PARAM_OF,       // OFfset 
   IMG_PARAM_IR,       // Image Rotation
-  IMG_PARAM_SF        // Scale Factor
+  IMG_PARAM_SF,       // Scale Factor
+
 } IMG_PARAM;
 
 int get_image_parameter_code(char *linebuf)
@@ -432,6 +448,12 @@ int get_image_parameter_code(char *linebuf)
   if ( pos[0] && (pos[0] == 'O') && (pos[1] == 'F') ) return IMG_PARAM_SR;
   if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'R') ) return IMG_PARAM_SR;
   if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'F') ) return IMG_PARAM_SR;
+
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'F') ) return IMG_PARAM_TF;
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'O') ) return IMG_PARAM_TO;
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'A') ) return IMG_PARAM_TA;
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'D') ) return IMG_PARAM_TD;
+  if ( pos[0] && (pos[0] == 'D') && (pos[1] == 'R') ) return IMG_PARAM_DR;
   return -1;
 }
 
@@ -629,6 +651,35 @@ void parse_lp(gerber_state_t *gs, char *linebuf)
 void parse_sr(gerber_state_t *gs, char *linebuf)
 {
   //printf("# sr '%s'\n", linebuf);
+}
+
+// File attributes
+//
+// not strictly an image parameter, I guess,
+// but easier to include in the grouping than
+// not.
+//
+void parse_tf(gerber_state_t *gs, char *linebuf) {
+}
+
+// Object attribute
+//
+void parse_to(gerber_state_t *gs, char *linebuf) {
+}
+
+// Aperture attributes
+//
+void parse_ta(gerber_state_t *gs, char *linebuf) {
+}
+
+// Delete aperture attribute
+//
+void parse_td(gerber_state_t *gs, char *linebuf) {
+}
+
+// Set region D-code
+//
+void parse_dr(gerber_state_t *gs, char *linebuf) {
 }
 
 
@@ -1022,19 +1073,23 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
 
 //------------------------
 
+// clockwise circular interpolation
+//
 void parse_g02(gerber_state_t *gs, char *linebuf) { 
   parse_error("unsuported g02", gs->line_no, NULL);
 }
 
 //------------------------
 
+// counter-clockwise circular interpolation
+//
 void parse_g03(gerber_state_t *gs, char *linebuf) { 
   parse_error("unsuported g03", gs->line_no, NULL);
 }
 
 //------------------------
 
-// coment
+// comment
 void parse_g04(gerber_state_t *gs, char *linebuf) { 
   //parse_error("unsuported g04", line_no, NULL);
 }
@@ -1081,13 +1136,15 @@ void parse_g37(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 void parse_g74(gerber_state_t *gs, char *linebuf) { 
-  parse_error("unsuported g74", gs->line_no, NULL);
+  //parse_error("unsuported g74", gs->line_no, NULL);
+  gs->quadrent_mode = QUADRENT_MODE_SINGLE;
 }
 
 //------------------------
 
 void parse_g75(gerber_state_t *gs, char *linebuf) { 
-  parse_error("unsuported g75", gs->line_no, NULL);
+  //parse_error("unsuported g75", gs->line_no, NULL);
+  gs->quadrent_mode = QUADRENT_MODE_MULTI;
 }
 
 //------------------------
@@ -1285,6 +1342,11 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
       case IMG_PARAM_LN: parse_ln(gs, linebuf); break;
       case IMG_PARAM_LP: parse_lp(gs, linebuf); break;
       case IMG_PARAM_SR: parse_sr(gs, linebuf); break;
+      case IMG_PARAM_TF: parse_tf(gs, linebuf); break;
+      case IMG_PARAM_TO: parse_to(gs, linebuf); break;
+      case IMG_PARAM_TA: parse_ta(gs, linebuf); break;
+      case IMG_PARAM_TD: parse_td(gs, linebuf); break;
+      case IMG_PARAM_DR: parse_dr(gs, linebuf); break;
       default:
         parse_error("unknown image parameter code", gs->line_no, linebuf);
         break;
