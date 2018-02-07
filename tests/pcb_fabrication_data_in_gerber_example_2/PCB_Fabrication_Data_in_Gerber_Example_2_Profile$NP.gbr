@@ -1,0 +1,21 @@
+G04 Gerber PCB Fabrication Data in Gerber – Example 2, created by Karel Tavernier, Filip Vermeire and Thomas Weyn*
+G04 Ucamco copyright*
+%TF.GenerationSoftware,Ucamco,UcamX,1.1.0-1400509*%
+%TF.CreationDate,2014-07-14T00:00;00+01:00*%
+%FSLAX25Y25*%
+%MOMM*%
+%TF.FileFunction,Profile,NP*%
+%TF.FilePolarity,Positive*%
+%TF.Part,Single*%
+%TF.SameCoordinates*%
+%TA.AperFunction,Profile*%
+%ADD10C,0.100000*%
+G01*
+%LPD*%
+D10*
+X0Y8750000D02*
+X9500000D01*
+Y0D01*
+X0D01*
+Y8750000D01*
+M02*
