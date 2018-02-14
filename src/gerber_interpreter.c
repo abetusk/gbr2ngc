@@ -718,8 +718,7 @@ void parse_d10p(gerber_state_t *gs, char *linebuf) {
 
 //------------------------
 
-char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_real, char *s)
-{
+char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_real, char *s) {
   int i, j, k;
   char *chp, ch, *tbuf;
   int max_buf, pos=0;
@@ -736,48 +735,49 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
   k = (int)(chp - s);
   if (k >= max_buf) parse_error("invalid coordinate", gs->line_no, NULL);
 
-  if (gs->fs_omit_leading_zero)  // that is, trailing zeros manditory
-  {
+  // that is, trailing zeros manditory
+  //
+  if (gs->fs_omit_leading_zero) {
 
     tbuf[max_buf-1] = '\0';
     pos = max_buf-2;
-    for (i=0; i<fs_real; i++)
-    {
+    for (i=0; i<fs_real; i++) {
       if ((!isdigit(chp[-i-1])) || (chp[-i-1] == '-') || (chp[-i-1] == '+')) { break; }
       tbuf[pos--] = chp[-i-1];
       real_processed_count++;
     }
 
+    // fill in leading zeros, if any
+    //
+    for (; i<fs_real; i++) {
+      tbuf[pos--] = '0';
+    }
+
     tbuf[pos--] = '.';
     chp -= real_processed_count+1;
 
-    while (chp >= s)
-    {
+    while (chp >= s) {
       tbuf[pos--] = *chp--;
       if (pos < 0) parse_error("coordinate format exceeded", gs->line_no, NULL);
     }
 
     while (pos>=0) {
-
       tbuf[pos--] = ' ';
     }
 
-  }
-  else
-  {
+  } else {
+
     chp = s;
     if (*chp == '+') chp++;
     if (*chp == '-') tbuf[pos++] = '-';
 
-    for (i=0; i<fs_int; i++)
-    {
+    for (i=0; i<fs_int; i++) {
       if (!isdigit(*chp)) parse_error("expected number", gs->line_no, NULL);
       tbuf[pos++] = *chp++;
     }
     tbuf[pos++] = '.';
 
-    while (*chp && (isdigit(*chp)))
-    {
+    while (*chp && (isdigit(*chp))) {
       tbuf[pos++] = *chp++;
       if (pos >= (max_buf-1)) parse_error("coordinate format exceeded", gs->line_no, NULL);
     }
@@ -786,8 +786,9 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
 
   errno = 0;
   *val = strtod(tbuf, NULL);
-  if ((*val == 0.0) && errno)
+  if ((*val == 0.0) && errno) {
     parse_error("bad conversion", gs->line_no, NULL);
+  }
 
   free(tbuf);
   return s + k;
@@ -931,6 +932,10 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
       parse_error("unknown token when parsing data block", gs->line_no, NULL);
 
   }
+
+  //DEBUG
+  //printf(">>> fs %i %i\n", gs->fs_x_int, gs->fs_y_real);
+  //printf(">>> %f %f\n", (float)gs->cur_x, (float)gs->cur_y);
 
 
   // handle region
