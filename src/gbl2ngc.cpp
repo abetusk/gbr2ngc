@@ -48,6 +48,8 @@ struct option gLongOption[] =
   {"vertical", no_argument       , 0, 'V'},
   {"zengarden", no_argument     , 0, 'G'},
 
+  {"print-polygon", no_argument     , 0, 'P'},
+
   {"invertfill", no_argument       , &gInvertFlag, 1},
   {"simple-infill", no_argument       , &gSimpleInfill, 1},
   {"no-outline", no_argument       , &gDrawOutline, 0},
@@ -85,9 +87,12 @@ char gOptionDescription[][1024] =
   "route out blank areas with a vertical scan line technique",
   "route out blank areas with a 'zen garden' technique",
 
+  "print polygon regions only (for debugging)",
+
   "invert the fill pattern (experimental)",
   "infill copper polygons with pattern (currently only -H and -V supported)",
   "draw outline when doing infill",
+
 
   "verbose",
   "display version information",
@@ -97,7 +102,7 @@ char gOptionDescription[][1024] =
 
 };
 
-
+int gPrintPolygon = 0;
 
 void show_help(void)
 {
@@ -146,7 +151,7 @@ void process_command_line_options(int argc, char **argv)
 
   gFillRadius = -1.0;
 
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:", gLongOption, &option_index)) >= 0) switch(ch)
+  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) switch(ch)
   {
     case 0:
       // long option
@@ -207,6 +212,10 @@ void process_command_line_options(int argc, char **argv)
       break;
     case 'G':
       gScanLineZenGarden = 1;
+      break;
+
+    case 'P':
+      gPrintPolygon = 1;
       break;
 
     case 'v':
@@ -683,6 +692,11 @@ int main(int argc, char **argv)
   // Construct library of atomic shapes and create polygons
   //
   realize_apertures(&gs);
+
+  if (gPrintPolygon) {
+    print_polygon_set(&gs);
+    exit(0);
+  }
 
   join_polygon_set( pgn_union, &gs );
 
