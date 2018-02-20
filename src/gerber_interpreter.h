@@ -27,6 +27,9 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "tesexpr.h"
+#include "string_ll.h"
+
 typedef struct point_link_double_2_type {
   double x, y;
   struct point_link_double_2_type *next;
@@ -136,6 +139,49 @@ typedef struct aperture_data_block_type
   struct aperture_data_block_type *next;
 } aperture_data_block_t;
 
+enum GERBER_READ_STATE {
+  GRS_NONE = 0,
+
+  GRS_AD,
+  GRS_AD_INIT,
+  GRS_AD_MODIFIER,
+
+  GRS_AM,
+  GRS_AM_INIT,
+  GRS_AM_COMMENT,
+  GRS_AM_MACRO,
+  GRS_AM_MODIFIER,
+  GRS_AM_VAR,
+} ;
+
+enum AM_ENUM_TYPE {
+  AM_ENUM_NAME,
+  AM_ENUM_COMMENT,
+  AM_ENUM_VAR,
+  AM_ENUM_CIRCLE,
+  AM_ENUM_VECTOR_LINE,
+  AM_ENUM_CENTER_LINE,
+  AM_ENUM_OUTLINE,
+  AM_ENUM_POLYGON,
+  AM_ENUM_MOIRE,
+  AM_ENUM_THERMAL,
+};
+
+typedef struct am_ll_node_type {
+  int type;
+  char *name;
+  char *comment;
+  char *varname;
+  char **eval_line;
+  int n_eval_line;
+  struct am_ll_node_type *next;
+} am_ll_node_t;
+
+typedef struct am_ll_type {
+  int n;
+  am_ll_node_t *head, *last;
+} am_ll_t;
+
 // current state of the gerber interpreter
 //
 typedef struct gerber_state_type
@@ -175,6 +221,11 @@ typedef struct gerber_state_type
 
   contour_ll_t *contour_head, *contour_cur;
   contour_list_ll_t *contour_list_head, *contour_list_cur;
+
+  am_ll_t am;
+
+  string_ll_t string_ll_buf;
+  int gerber_read_state;
 
   //aperture_realization_t *aperture_realization;
 

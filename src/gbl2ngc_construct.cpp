@@ -204,7 +204,6 @@ int gerber_point_2_decorate_with_jump_pos( std::vector< Gerber_point_2 > &p ) {
 //
 int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour ) {
   int i, ds;
-  bool res;
 
   std::vector< Gerber_point_2 > p;
 
@@ -247,7 +246,7 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour ) {
   // region.
   //
   clip.AddPaths( pwh, ptSubject, true );
-  res = clip.Execute( ctUnion, soln, pftEvenOdd, pftEvenOdd );
+  clip.Execute( ctUnion, soln, pftEvenOdd, pftEvenOdd );
 
   pwh_vec.push_back( soln );
 

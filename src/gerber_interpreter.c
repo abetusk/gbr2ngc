@@ -79,6 +79,13 @@ void gerber_state_init(gerber_state_t *gs)
 
   gs->contour_head = gs->contour_cur = NULL;
   gs->contour_list_head = gs->contour_list_cur = NULL;
+
+  gs->am.head = NULL;
+  gs->am.last = NULL;
+  gs->am.n = 0;
+
+  string_ll_init(&(gs->string_ll_buf));
+  gs->gerber_read_state = GRS_NONE;
 }
 
 //------------------------
@@ -316,21 +323,16 @@ int default_function_code_handler(gerber_state_t *gs, char *buf)
   printf("default_function_code_handler: '%s'\n", buf);
 }
 
-int munch_line(char *linebuf, int n, FILE *fp)
-{
+int munch_line(char *linebuf, int n, FILE *fp) {
   char *chp;
 
   if (!fgets(linebuf, n, fp)) return 0;
 
   chp = linebuf;
-  while ( *linebuf )
-  {
-    while ( *linebuf && isspace( *linebuf ) )
-      linebuf++;
-    if (!*linebuf)
-      *chp = *linebuf;
-    else
-      *chp++ = *linebuf++;
+  while ( *linebuf ) {
+    while ( *linebuf && isspace( *linebuf ) ) { linebuf++; }
+    if (!*linebuf) { *chp = *linebuf; }
+    else           { *chp++ = *linebuf++; }
   }
 
   return 1;
@@ -544,18 +546,32 @@ void parse_mo(gerber_state_t *gs, char *linebuf)
 
 //------------------------
 
-void parse_ad(gerber_state_t *gs, char *linebuf_orig)
-{
+void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   char *linebuf;
   char *chp_beg, *chp, *s, ch;
   char aperture_code;
-  int d_code;
+  int d_code, complete=0, n=0;
 
   aperture_data_block_t *ap_db;
 
-  linebuf = strdup(linebuf_orig);
+  // handle multi line AD
+  //
+  chp = linebuf_orig;
+  n = ( (gs->gerber_read_state == GRS_AD) ? 0 : 1 );
 
-  //printf("# ad '%s'\n", linebuf);
+  string_ll_add(&(gs->string_ll_buf), linebuf_orig);
+  gs->gerber_read_state = GRS_AD;
+
+  while (chp[n]) {
+    if (chp[n] == '%') { complete=1; break; }
+    n++;
+  }
+
+  if (!complete) { return; }
+
+  linebuf = string_ll_dup_str(&(gs->string_ll_buf));
+  string_ll_free(&(gs->string_ll_buf));
+
 
   chp = linebuf + 3;
 
@@ -564,8 +580,7 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig)
 
   chp_beg = chp;
 
-  while (*chp)
-  {
+  while (*chp) {
     if ( (*chp < '0') || (*chp > '9') ) break;
     chp++;
   }
@@ -586,8 +601,7 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig)
   ap_db->next = NULL;
   ap_db->name = d_code;
 
-  switch (aperture_code)
-  {
+  switch (aperture_code) {
     case 'C':
       ap_db->type = 0;
       ap_db->crop_type = parse_nums(ap_db->crop, chp, 'X', '*', 3) - 1;
@@ -609,8 +623,7 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig)
       break;
   }
 
-  if (ap_db->crop_type < 0)
-  {
+  if (ap_db->crop_type < 0) {
     //printf(" got %i\n", ap_db->crop_type);
     parse_error("bad AD, bad aperture data", gs->line_no, linebuf);
   }
@@ -625,11 +638,409 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig)
 
 }
 
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+
+void am_node_print(am_ll_node_t *nod) {
+  int i;
+  char *typs[10] = {
+    "AM_ENUM_NAME",
+    "AM_ENUM_COMMENT",
+    "AM_ENUM_VAR",
+    "AM_ENUM_CIRCLE",
+    "AM_ENUM_VECTOR_LINE",
+    "AM_ENUM_CENTER_LINE",
+    "AM_ENUM_OUTLINE",
+    "AM_ENUM_POLYGON",
+    "AM_ENUM_MOIRE",
+    "AM_ENUM_THERMAL"
+  };
+
+  while (nod) {
+    printf("type: %i (%s)\n", nod->type, typs[nod->type]);
+    printf("  name: %s\n", nod->name ? nod->name : "" );
+    printf("  comment: %s\n", nod->comment ? nod->comment : "" );
+    printf("  varname: %s\n", nod->varname ? nod->varname : "" );
+    printf("  eval_line[%i]:\n", nod->n_eval_line);
+    for (i=0; i<nod->n_eval_line; i++) {
+      printf("    [%i] \"%s\"\n", i, nod->eval_line[i]);
+    }
+    printf("\n\n");
+    nod = nod->next;
+  }
+}
+
+void am_format_for_tesexpr(char *s) {
+  int i;
+  for (i=0; s[i]; i++) {
+    if (s[i]=='$') { s[i] = 'x'; }
+    else if ((s[i] == 'x') || (s[i] == 'X')) { s[i] = '*'; }
+  }
+}
+
+void am_fill_eval_line(am_ll_node_t *nod, int n_eval_line, char *chp, int *end_pos, int skip_field) {
+  int i, apos=0;
+
+  nod->n_eval_line = n_eval_line;
+  nod->eval_line = (char **)malloc(sizeof(char **)*(nod->n_eval_line));
+  for (i=0; i<nod->n_eval_line; i++) {
+    if ((i+skip_field-1)<0) { apos = 0; }
+    else { apos = end_pos[i+(skip_field-1)]+1; }
+
+    nod->eval_line[i] = strndup(chp + apos, end_pos[i+skip_field] - apos);
+
+    am_format_for_tesexpr(nod->eval_line[i]);
+  }
+
+}
+
+void am_ll_node_free(am_ll_node_t *nod) {
+  int i;
+  am_ll_node_t *tnod;
+
+  while (nod) {
+    tnod = nod;
+    nod = nod->next;
+
+    if (tnod->name) { free(tnod->name); }
+    if (tnod->comment) { free(tnod->comment); }
+    if (tnod->varname) { free(tnod->varname); }
+    for (i=0; i<tnod->n_eval_line; i++) {
+      free(tnod->eval_line[i]);
+    }
+    if (tnod->eval_line) { free(tnod->eval_line); }
+    free(tnod);
+  }
+
+}
+
+
+// duplicate name
+//
+am_ll_node_t *am_ll_node_create_name_n(char *name, int n) {
+  am_ll_node_t *nod;
+  char *s;
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_NAME;
+  nod->name = strndup(name, n);
+
+  return nod;
+}
+
+// duplicate whole comment, including code
+//
+am_ll_node_t * am_ll_node_create_comment_n(char *comment, int n) {
+  am_ll_node_t *nod;
+  char *s;
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_COMMENT;
+  nod->comment = strndup(comment, n);
+
+  return nod;
+}
+
+// Split the variable name with the evauluation string.
+// Format the variable string to be e.g. 'x0' and
+// replace the evaulation with the appropriate variable
+// names.
+// Go through and replace '[xX]'s with the times symbol '*'.
+//
+// eval_line holds the variable evaluation.
+//
+am_ll_node_t * am_ll_node_create_var_n(char *s, int n) {
+  am_ll_node_t *nod;
+  char *chp;
+  int idx=0;
+
+  chp = s;
+
+  if (chp[0] != '$') { return NULL; }
+  for (idx=0; chp[idx] && (chp[idx] != '=') ; idx++) ;
+  if (!chp[idx]) { return NULL; }
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+
+  nod->varname = strndup(chp, idx);
+  nod->type = AM_ENUM_VAR;
+  nod->varname[0] = 'x';
+  chp += idx+1;
+
+  for (idx=0; chp[idx] && (chp[idx] != '*'); idx++) ;
+  if (!chp[idx]) {
+    free(nod->varname);
+    free(nod);
+    return NULL;
+  }
+
+  nod->eval_line = (char **)malloc(sizeof(char *));
+  nod->n_eval_line = 1;
+  nod->eval_line[0] = strndup(chp, idx);
+  am_format_for_tesexpr(nod->eval_line[0]);
+
+  return nod;
+}
+
+// quick n dirty tokenizer
+//
+int am_parse_end_pos(char *s, int *end_pos, int n_end_pos, int n_opt_param) {
+  char *chp;
+  int i, idx, n_actual;
+
+  for (chp=s,idx=0,i=0; chp[i] && (chp[i]!='*'); i++) {
+    if (chp[i] == ',') {
+      end_pos[idx] = i;
+      idx++;
+    }
+    if (idx >= n_end_pos) { return -1; }
+  }
+  if (idx<n_end_pos) {
+    end_pos[idx] = i;
+    idx++;
+  }
+  n_actual = idx;
+
+  if (n_actual < (n_end_pos - n_opt_param - 1)) { return -2; }
+  if (n_actual > n_end_pos) { return -3; }
+
+  for (i=1; i<n_actual; i++) {
+    if ((end_pos[i] - end_pos[i-1]) <= 0) { return -4; }
+  }
+
+  return n_actual;
+}
+
+
+// Circle has 5 fields, 6 with the circle code.
+//
+// circle_code=1,exposure,diameter,center_x,center_y,reotation
+// 
+// format string for input into tesexpr.
+// eval_line holds diameter, center_x, center_y and rotation
+// (4 in total).
+//
+am_ll_node_t * am_ll_node_create_circle_n(char *s, int n) {
+   am_ll_node_t *nod;
+  int n_end_pos=6, end_pos[6], i, r;
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 1);
+  if (r<0) { return NULL; }
+
+  n_end_pos = r;
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_CIRCLE;
+  am_fill_eval_line(nod, n_end_pos-1, s, end_pos, 1);
+
+  return nod;
+}
+
+
+// vector_line_code=20,exposure,width,start_x,start_y,end_x,end_y,rotation
+//
+// eval_line holds width, start_x, start_y, end_x, end_y, rotation
+// (6 in total).
+//
+am_ll_node_t * am_ll_node_create_vector_line_n(char *s, int n) {
+  am_ll_node_t *nod;
+  int n_end_pos=8, end_pos[8], i, r;
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
+  if (r<0) { return NULL; }
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_VECTOR_LINE;
+  am_fill_eval_line(nod, 7, s, end_pos, 1);
+
+  return nod;
+}
+
+// center_line_ocde=21,exposure,width,height,center_x,center_y,rotation
+//
+// eval_line holds width,height,center_x,center_y and rotation
+// (5 in total).
+//
+am_ll_node_t * am_ll_node_create_center_line_n(char *s, int n) {
+  am_ll_node_t *nod;
+  int n_end_pos=7, end_pos[7], i, r;
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
+  if (r<0) { return NULL; }
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_CENTER_LINE;
+  am_fill_eval_line(nod, 6, s, end_pos, 1);
+
+  return nod;
+}
+
+am_ll_node_t * am_ll_node_create_outline_n(char *s, int n) {
+  am_ll_node_t *nod;
+  char *chp;
+  long int n_pair;
+  int n_end_pos=0, *end_pos=NULL, i, r;
+  int pfx_end_pos[3], idx=0;
+
+  chp = s;
+  for (i=0; chp[i] && (chp[i]!='*'); i++) {
+    if (chp[i] == ',') {
+      pfx_end_pos[idx] = i;
+      idx++;
+    }
+    if (idx>=3) { break; }
+  }
+  if (idx!=3) { return NULL; }
+  if (!chp[i]) { return NULL; }
+  if (chp[i] == '*') { return NULL; }
+
+  n_pair = strtol(chp + pfx_end_pos[1] + 1, NULL, 10);
+  if ((errno == EINVAL) || (errno==ERANGE)) { return NULL; }
+  if (n_pair < 0) { return NULL; }
+
+  n_end_pos = (int)(2*n_pair) + 3 + 3;
+  end_pos = (int *)malloc(sizeof(int)*n_end_pos);
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
+  if (r<0) { return NULL; }
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_OUTLINE;
+  am_fill_eval_line(nod, n_end_pos-1, chp, end_pos, 1);
+
+  return nod;
+}
+
+am_ll_node_t * am_ll_node_create_polygon_n(char *s, int n) {
+  am_ll_node_t *nod;
+  int n_end_pos=7, end_pos[7], i, r;
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
+  if (r<0) { return NULL; }
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_POLYGON;
+  am_fill_eval_line(nod, 6, s, end_pos, 1);
+
+  return nod;
+}
+
+am_ll_node_t * am_ll_node_create_moire_n(char *s, int n) {
+  am_ll_node_t *nod;
+  int n_end_pos=10, end_pos[10], i, r;
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
+  if (r<0) { return NULL; }
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_MOIRE;
+  am_fill_eval_line(nod, 9, s, end_pos, 1);
+
+  return nod;
+}
+
+// thermal_code=7,center_x,center_y,outer_diam,inner_diam,gap,rotation
+//
+// eval_line holds center_x,center_y,outer_diam,inner_diam,gap,rotation
+// (6 total).
+//
+am_ll_node_t * am_ll_node_create_thermal_n(char *s, int n) {
+  am_ll_node_t *nod;
+  int n_end_pos=7, end_pos[7], i, r;
+
+  r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
+  if (r<0) { return NULL; }
+
+  nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
+  memset(nod, 0, sizeof(am_ll_node_t));
+  nod->type = AM_ENUM_THERMAL;
+  am_fill_eval_line(nod, 6, s, end_pos, 1);
+
+  return nod;
+}
+
 
 // aperture macro
-void parse_am(gerber_state_t *gs, char *linebuf)
-{
-  //printf("# am '%s'\n", linebuf);
+//
+void parse_am(gerber_state_t *gs, char *linebuf) {
+  char *chp=NULL, *dup_str=NULL;
+  int i, n=0, complete=0;
+  am_ll_node_t *am_nod, *am_nod_head;
+
+  chp = linebuf;
+  n = ( (gs->gerber_read_state == GRS_AM) ? 0 : 1 );
+
+  string_ll_add(&(gs->string_ll_buf), linebuf);
+  gs->gerber_read_state = GRS_AM;
+
+  while (chp[n]) {
+    if (chp[n] == '%') { complete=1; break; }
+    n++;
+  }
+
+  if (!complete) { return; }
+
+  dup_str = string_ll_dup_str(&(gs->string_ll_buf));
+  string_ll_free(&(gs->string_ll_buf));
+
+  chp = dup_str+3;
+  for (n=0; (chp[n]) && (chp[n]!='*'); n++) ;
+  am_nod_head = am_ll_node_create_name_n(chp, n);
+  am_nod = am_nod_head;
+
+  chp += n+1;
+
+  while ((*chp) && ((*chp) != '%')) {
+
+    for (n=0; chp[n] && (chp[n]!='*'); n++);
+
+    if (!chp[n]) { goto am_parse_error; }
+
+    if      ((*chp) == '0') { am_nod->next = am_ll_node_create_comment_n(chp, n); }
+    else if ((*chp) == '$') { am_nod->next = am_ll_node_create_var_n(chp, n); }
+    else if ((*chp) == '1') { am_nod->next = am_ll_node_create_circle_n(chp, n); }
+    else if ((*chp) == '4') { am_nod->next = am_ll_node_create_outline_n(chp, n); }
+    else if ((*chp) == '5') { am_nod->next = am_ll_node_create_polygon_n(chp, n); }
+    else if ((*chp) == '6') { am_nod->next = am_ll_node_create_moire_n(chp, n); }
+    else if ((*chp) == '7') { am_nod->next = am_ll_node_create_thermal_n(chp, n); }
+
+    else if ((*chp) == '2') {
+      if (n<2) { goto am_parse_error; }
+      if      (chp[1] == '0') { am_nod->next = am_ll_node_create_vector_line_n(chp, n); }
+      else if (chp[1] == '1') { am_nod->next = am_ll_node_create_center_line_n(chp, n); }
+      else { goto am_parse_error; }
+    }
+
+    else { goto am_parse_error; }
+
+    if (!am_nod->next) { goto am_parse_error; }
+
+    chp += n+1;
+    am_nod = am_nod->next;
+  }
+
+  gs->gerber_read_state = GRS_NONE;
+  if (dup_str) { free(dup_str); }
+  return;
+
+am_parse_error:
+
+  am_ll_node_free(am_nod_head);
+  printf("PARSE ERROR: bad AM format, line_no %i\n", gs->line_no);
+  if (dup_str) { free(dup_str); }
+
+  parse_error("bad AM format", gs->line_no, linebuf);
 }
 
 //------------------------
@@ -1331,6 +1742,12 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
   int image_parameter_code;
   int function_code;
 
+  // multiline parsing
+  //
+  if      (gs->gerber_read_state == GRS_NONE) { }
+  else if (gs->gerber_read_state == GRS_AD) { parse_ad(gs, linebuf); return 0; }
+  else if (gs->gerber_read_state == GRS_AM) { parse_am(gs, linebuf); return 0; }
+
   if ( linebuf[0] == '%' )  // it's an image parameter
   {
 
@@ -1401,6 +1818,7 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
     }
   }
 
+  return 0;
 }
 
 //------------------------
