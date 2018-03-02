@@ -13,3 +13,4 @@ src/gbl2ngc
 src/*.ngc
 src/test_gerber_interpreter
 scratch
+*.o
