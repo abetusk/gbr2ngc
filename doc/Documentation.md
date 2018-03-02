@@ -40,27 +40,27 @@ Version 0.7.0
 | Command Line Option | Description |
 |--------------------|-------------|
 | [`-r radius`](#-r-radius) | Radius of the tool bit.  This will create an 'offset' polygon from the implied polygon source from the Gerber file.  (Defaults `0`). |
-| [-F fillradius`](#-F-fill-radius) | Radius of tool bit to be used for routing out the 'fill pattern'. Default to tool radius (`-r` option). |
-| [-i gerber-file`](#-i-gerber-file) | Input Gerber file |
-| [-o gcode-file`](#-o-gcode-file) | Output GCode file (Default `stdout`). |
-| [-f feed-rate`](#-f-feed-rate) | Feed rate to use (`G0` move) in output GCode file (Default to `10`). |
-| [-s seekrate`](#-s-seekrate) | Seek rate to use (`G1` move) in output GCode file (Default to `100`). |
-| [-z z-safe-height`](#-z-z-safe-height) | Height to move Z-axis when not cutting and doing rapid motion (a `G1` GCode move) (Default to `0.1 inches`). |
-| [-Z z-cut-height`](#-Z-z-cut-height) | Height to move Z-axis when cutting (slow motion, `G0` move) (Default to `-0.05 inches`). |
-| [-M`](#-M) | Use metric units in GCode file. |
-| [-I`](#-I) | Use imperial units in GCode file (Default). |
-| [-C`](#-C) | Do not provide comments in resulting GCode file. |
-| [-R`](#-R) | Make the GCode file more "machine readable" by making it uppercase with no spaces in output GCode. |
-| [-H`](#-H) | Do a routing fill, taking out unused material using a "horizontal scan line" technique. |
-| [-V`](#-V) | Do a routing fill, taking out unused material using a "vertical scan line" technique. |
-| [-G`](#-G) | Do a routing fill, taking out unused material using a "Zen Garden" technique". |
-| [-P`](#-P) | Print out the implied polygons in "gnuplot format" instead of the GCode file.  Used for debugging. |
-| [--invertfill`](#--invertfill) | Invert fill and non-fill areas |
-| [--simple-infill`](#--simple-infill) | Route out used copper material using the specified pattern (instead of routing out unused copper material) |
-| [--no-outline`](#--no-outline) | Do not route out outline when doing infill |
-| [-v`](#-v) | Verbose mode. |
-| [-N`](#-N) | Show version information. |
-| [-h`](#-h) | Show help. |
+| [`-F fillradius`](#-F-fill-radius) | Radius of tool bit to be used for routing out the 'fill pattern'. Default to tool radius (`-r` option). |
+| [`-i gerber-file`](#-i-gerber-file) | Input Gerber file |
+| [`-o gcode-file`](#-o-gcode-file) | Output GCode file (Default `stdout`). |
+| [`-f feed-rate`](#-f-feed-rate) | Feed rate to use (`G0` move) in output GCode file (Default to `10`). |
+| [`-s seekrate`](#-s-seekrate) | Seek rate to use (`G1` move) in output GCode file (Default to `100`). |
+| [`-z z-safe-height`](#-z-z-safe-height) | Height to move Z-axis when not cutting and doing rapid motion (a `G1` GCode move) (Default to `0.1 inches`). |
+| [`-Z z-cut-height`](#-Z-z-cut-height) | Height to move Z-axis when cutting (slow motion, `G0` move) (Default to `-0.05 inches`). |
+| [`-M`](#-M) | Use metric units in GCode file. |
+| [`-I`](#-I) | Use imperial units in GCode file (Default). |
+| [`-C`](#-C) | Do not provide comments in resulting GCode file. |
+| [`-R`](#-R) | Make the GCode file more "machine readable" by making it uppercase with no spaces in output GCode. |
+| [`-H`](#-H) | Do a routing fill, taking out unused material using a "horizontal scan line" technique. |
+| [`-V`](#-V) | Do a routing fill, taking out unused material using a "vertical scan line" technique. |
+| [`-G`](#-G) | Do a routing fill, taking out unused material using a "Zen Garden" technique". |
+| [`-P`](#-P) | Print out the implied polygons in "gnuplot format" instead of the GCode file.  Used for debugging. |
+| [`--invertfill`](#--invertfill) | Invert fill and non-fill areas |
+| [`--simple-infill`](#--simple-infill) | Route out used copper material using the specified pattern (instead of routing out unused copper material) |
+| [`--no-outline`](#--no-outline) | Do not route out outline when doing infill |
+| [`-v`](#-v) | Verbose mode. |
+| [`-N`](#-N) | Show version information. |
+| [`-h`](#-h) | Show help. |
 
 ## Detailed Description
 
