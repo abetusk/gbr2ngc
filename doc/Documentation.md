@@ -39,7 +39,7 @@ Version 0.7.0
 
 | Command Line Option | Description |
 |--------------------|-------------|
-| `-r radius` | Radius of the tool bit.  This will create an 'offset' polygon from the implied polygon source from the Gerber file.  (Defaults `0`). |
+| [`-r radius`](#r-radius) | Radius of the tool bit.  This will create an 'offset' polygon from the implied polygon source from the Gerber file.  (Defaults `0`). |
 | `-F fillradius` | Radius of tool bit to be used for routing out the 'fill pattern'. Default to tool radius (`-r` option). |
 | `-i gerber-file` | Input Gerber file |
 | `-o gcode-file` | Output GCode file (Default `stdout`). |
@@ -83,6 +83,8 @@ The left image is without an offset radius, the right image is with an offset ra
 ### `-F fill-radius`
 
 A different tool width can be specified when routing out unused copper regions by specifying the `fill-radius` tool radius.
+
+This option must be used with one of `-H`, `-V` or `-G` fill options or other other `infill` options.
 
 ### `-i gerber-file`
 
