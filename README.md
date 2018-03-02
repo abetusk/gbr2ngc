@@ -54,7 +54,7 @@ Version 0.7.0
   -P, --print-polygon                 print polygon regions only (for debugging)
   --invertfill                        invert the fill pattern (experimental)
   --simple-infill                     infill copper polygons with pattern (currently only -H and -V supported)
-  --no-outline                        draw outline when doing infill
+  --no-outline                        do not route out outline when doing infill
   -v, --verbose                       verbose
   -N, --version                       display version information
   -h, --help                          help (this screen)
