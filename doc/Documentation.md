@@ -72,7 +72,7 @@ the specified too radius amount.
 For example:
 
 ```
-gbl2ngc -r 0.05 -i ../example/fet.gbl
+$ gbl2ngc -r 0.05 -i ../example/fet.gbl
 ```
 
 The left image is without an offset radius, the right image is with an offset radius of `0.05`:
@@ -93,7 +93,7 @@ Specify the input Gerber file.  This option can be `-` to indicate the file shou
 Example:
 
 ```
-gbl2ngc -i ../example/fet.gbl 
+$ gbl2ngc -i ../example/fet.gbl 
 ```
 
 ### `-o gcode-file`
@@ -103,7 +103,7 @@ An optional parameter for where the output GCode should be stored.  If no option
 Example:
 
 ```
-gbl2ngc -i ../example/fet.gbl -o ../example/fet.ngc
+$ gbl2ngc -i ../example/fet.gbl -o ../example/fet.ngc
 ```
 
 ### `-f feed-rate`
