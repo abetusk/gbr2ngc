@@ -156,8 +156,7 @@ void realize_circle_hole( Aperture_realization &ap, double r, int min_segments =
 }
 
 
-void realize_rectangle_hole( Aperture_realization &ap, double x, double y )
-{
+void realize_rectangle_hole( Aperture_realization &ap, double x, double y ) {
 
   ap.m_hole.push_back( dtoc( -x, -y ) );  //clockwise instead of contouer clockwise
   ap.m_hole.push_back( dtoc( -x,  y ) );
@@ -166,6 +165,12 @@ void realize_rectangle_hole( Aperture_realization &ap, double x, double y )
 
 }
 
+// WIP
+//
+void realize_macro( Aperture_realization &ap, std::string &macro_name, std::vector< double > &macro_param) {
+
+  return;
+}
 
 // Construct polygons that will be used for the apertures.
 // Curves are linearized.  Circles have a minium of 8
@@ -176,8 +181,9 @@ int realize_apertures(gerber_state_t *gs)
   double min_segment_length = 0.01;
   int min_segments = 8;
   int base_mapping[] = {1, 2, 3, 3};
+  int i;
 
-  aperture_data_block_t *aperture;
+  aperture_data_t *aperture;
 
   for ( aperture = gs->aperture_head ;
         aperture ;
@@ -185,9 +191,16 @@ int realize_apertures(gerber_state_t *gs)
   {
     Aperture_realization ap;
 
-    ap.m_name = aperture->name;
-    ap.m_type = aperture->type;
-    ap.m_crop_type = aperture->crop_type;
+    if (aperture->type != 4) {
+      ap.m_name = aperture->name;
+      ap.m_type = aperture->type;
+      ap.m_crop_type = aperture->crop_type;
+    } else {
+      ap.m_macro_name = aperture->macro_name;
+      for (i=0; i<aperture->macro_param_count; i++) {
+        ap.m_macro_param.push_back(aperture->macro_param[i]);
+      }
+    }
 
     switch (aperture->type)
     {
@@ -205,6 +218,10 @@ int realize_apertures(gerber_state_t *gs)
 
       case 3:  // polygon
         realize_polygon( ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
+        break;
+
+      case 4:
+        realize_macro( ap, ap.m_macro_name, ap.m_macro_param );
         break;
 
       default: break;

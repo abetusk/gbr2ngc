@@ -94,7 +94,7 @@ void gerber_state_clear(gerber_state_t *gs)
 {
   contour_list_ll_t *contour_list_nod, *prev_contour_list_nod;
   contour_ll_t *contour_nod, *prev_contour_nod;
-  aperture_data_block_t *aperture_nod, *prev_aperture_nod;
+  aperture_data_t *aperture_nod, *prev_aperture_nod;
 
   if (gs->units_str[0])
     free(gs->units_str[0]);
@@ -149,7 +149,7 @@ void gerber_report_state(gerber_state_t *gs)
 {
   int i, j, k;
 
-  aperture_data_block_t *ap;
+  aperture_data_t *ap;
 
   printf("gerber state:\n");
   printf("  g_state: %i\n", gs->g_state);
@@ -546,13 +546,80 @@ void parse_mo(gerber_state_t *gs, char *linebuf)
 
 //------------------------
 
+// linebuf is allocated from parse_ad so make sure to deallocate it.
+//
+void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
+  char *chp, *s, ch;
+  long int d_code;
+  int complete=0, n=0, param_count=0;
+
+  int i;
+
+  aperture_data_t *ap_db;
+
+  chp = linebuf + 3;
+
+  if (*chp != 'D') { parse_error("bad AD format", gs->line_no, linebuf); }
+  chp++;
+
+  d_code = strtol(chp, NULL, 10);
+  if (d_code < 10) { parse_error("bad AD format, D code must be >= 10", gs->line_no, linebuf); }
+
+  while (*chp) {
+    if ( (*chp < '0') || (*chp > '9') ) break;
+    chp++;
+  }
+  if (!(*chp)) { parse_error("bad AD format, expected aperture type", gs->line_no, linebuf); }
+
+  for (n=0; chp[n] && (chp[n]!=',') && (chp[n]!='*'); n++);
+  if (!chp[n]) { parse_error("bad AD format, premature eol", gs->line_no, linebuf); }
+  if (n<2) { parse_error("bad AD format, expected aperture macro name", gs->line_no, linebuf); }
+
+
+  ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
+  memset(ap_db, 0, sizeof(aperture_data_t));
+  ap_db->next = NULL;
+  ap_db->name = d_code;
+  ap_db->macro_name = strndup(chp, n);
+  ap_db->type = 4;
+
+  chp += n;
+
+  param_count=0;
+  for (n=0; (chp[n]) && (chp[n]!='*'); n++) {
+    if ((chp[n] == 'X') || (chp[n]==',')) {
+      param_count++;
+    }
+  }
+
+  ap_db->macro_param_count = param_count;
+  if (param_count>0) {
+    ap_db->macro_param = (double *)malloc(sizeof(double)*param_count);
+    for (i=0; i<param_count; i++) {
+      ap_db->macro_param[i] = strtod(chp+1, NULL);
+      chp++;
+      while ((*chp) && ((*chp) != '*') && ((*chp) != 'X')) { chp++; }
+      if (!(*chp)) { parse_error("bad AD format, unexpcted eol while parsing macro parameters", gs->line_no, linebuf); }
+
+    }
+  }
+
+  if (!gs->aperture_head) { gs->aperture_head = ap_db; }
+  else                    { gs->aperture_cur->next = ap_db; }
+  gs->aperture_cur = ap_db;
+
+  gs->gerber_read_state = GRS_NONE;
+
+  free(linebuf);
+}
+
 void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   char *linebuf;
   char *chp_beg, *chp, *s, ch;
   char aperture_code;
   int d_code, complete=0, n=0;
 
-  aperture_data_block_t *ap_db;
+  aperture_data_t *ap_db;
 
   // handle multi line AD
   //
@@ -575,7 +642,7 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
 
   chp = linebuf + 3;
 
-  if (*chp != 'D') parse_error("bad AD format", gs->line_no, linebuf);
+  if (*chp != 'D') { parse_error("bad AD format", gs->line_no, linebuf); }
   chp++;
 
   chp_beg = chp;
@@ -584,20 +651,26 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
     if ( (*chp < '0') || (*chp > '9') ) break;
     chp++;
   }
-  if (!(*chp)) parse_error("bad AD format, expected aperture type", gs->line_no, linebuf);
+  if (!(*chp)) { parse_error("bad AD format, expected aperture type", gs->line_no, linebuf); }
 
   aperture_code = *chp;
   *chp = '\0';
   d_code = atoi(chp_beg);
-  if (d_code < 10) parse_error("bad AD format, D code must be >= 10", gs->line_no, linebuf);
+  if (d_code < 10) { parse_error("bad AD format, D code must be >= 10", gs->line_no, linebuf); }
 
   *chp = aperture_code;
-  if (!(*chp)) parse_error("bad AD format, premature eol", gs->line_no, linebuf);
+  if (!(*chp)) { parse_error("bad AD format, premature eol", gs->line_no, linebuf); }
   chp++;
-  if (*chp != ',') parse_error("bad AD format, expected ','", gs->line_no, linebuf);
+  if ((*chp) != ',') {
+    parse_extended_ad(gs, linebuf);
+    return;
+  }
+
+  //if ((*chp) != ',') parse_error("bad AD format, expected ','", gs->line_no, linebuf);
   chp++;
 
-  ap_db = (aperture_data_block_t *)malloc(sizeof(aperture_data_block_t));
+  ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
+  memset(ap_db, 0, sizeof(aperture_data_t));
   ap_db->next = NULL;
   ap_db->name = d_code;
 
@@ -628,14 +701,13 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
     parse_error("bad AD, bad aperture data", gs->line_no, linebuf);
   }
 
-  if (!gs->aperture_head)
-    gs->aperture_head = ap_db;
-  else
-    gs->aperture_cur->next = ap_db;
+  if (!gs->aperture_head) { gs->aperture_head = ap_db; }
+  else                    { gs->aperture_cur->next = ap_db; }
   gs->aperture_cur = ap_db;
 
-  free(linebuf);
+  gs->gerber_read_state = GRS_NONE;
 
+  free(linebuf);
 }
 
 // -----------------------------------------------
@@ -1160,9 +1232,7 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
 
     // fill in leading zeros, if any
     //
-    for (; i<fs_real; i++) {
-      tbuf[pos--] = '0';
-    }
+    for (; i<fs_real; i++) { tbuf[pos--] = '0'; }
 
     tbuf[pos--] = '.';
     chp -= real_processed_count+1;
@@ -1172,9 +1242,7 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
       if (pos < 0) parse_error("coordinate format exceeded", gs->line_no, NULL);
     }
 
-    while (pos>=0) {
-      tbuf[pos--] = ' ';
-    }
+    while (pos>=0) { tbuf[pos--] = ' '; }
 
   } else {
 
@@ -1642,7 +1710,7 @@ void dump_information(gerber_state_t *gs)
 
   int cur_contour_list = 0;
 
-  aperture_data_block_t *adb;
+  aperture_data_t *adb;
   contour_list_ll_t *cl;
   contour_ll_t *c;
 
@@ -1779,8 +1847,6 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
   {
 
     function_code = get_function_code(linebuf);
-
-    //if (is_function_code_depricated(function_code)) continue;
 
     switch (function_code)
     {

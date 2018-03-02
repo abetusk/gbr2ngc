@@ -122,10 +122,10 @@ typedef struct contour_list_ll_type
 
 // linked list of aperture data.
 //
-typedef struct aperture_data_block_type
+typedef struct aperture_data_type
 {
   int name;
-  int type;       // 0 - C, 1 - R, 2 - O, 3 - P
+  int type;       // 0 - C, 1 - R, 2 - O, 3 - P, 4 - extended (macro)
   int crop_type;  // 0 - solid, 1 - circle cutout, 2 - rectangle cutout
   double crop[5];
                   // c[0] - diameter of hole, c[1] either inner diam of cutout circle or x rect,, c[2] y rect
@@ -136,8 +136,12 @@ typedef struct aperture_data_block_type
                   // p[2] - degrees of rotation
                   // p[3:4] - inner cutout (same as [2:3] above)
 
-  struct aperture_data_block_type *next;
-} aperture_data_block_t;
+
+  char *macro_name;
+  int macro_param_count;
+  double *macro_param;
+  struct aperture_data_type *next;
+} aperture_data_t;
 
 enum GERBER_READ_STATE {
   GRS_NONE = 0,
@@ -217,7 +221,7 @@ typedef struct gerber_state_type
   int current_aperture;
 
 
-  aperture_data_block_t *aperture_head, *aperture_cur;
+  aperture_data_t *aperture_head, *aperture_cur;
 
   contour_ll_t *contour_head, *contour_cur;
   contour_list_ll_t *contour_list_head, *contour_list_cur;

@@ -41,6 +41,8 @@ extern "C" {
 #include <algorithm>
 #include <map>
 
+#include <string>
+#include <vector>
 
 #include "clipper.hpp"
 using namespace ClipperLib;
@@ -71,6 +73,8 @@ class Aperture_realization {
     Path m_outer_boundary;
     Path m_hole;
     
+    std::string m_macro_name;
+    std::vector< double > m_macro_param;
 
     //std::vector<Point_2> m_outer_boundary;
     //std::vector<Point_2> m_hole;
