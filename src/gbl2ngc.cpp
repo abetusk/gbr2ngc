@@ -78,7 +78,7 @@ char gOptionDescription[][1024] =
   "z cut height (default -0.05 inches)",
 
   "units in metric",
-  "units in inches (default)",
+  "units in inches",
 
   "do not show comments",
   "machine readable (uppercase, no spaces in gcode)",
@@ -91,8 +91,7 @@ char gOptionDescription[][1024] =
 
   "invert the fill pattern (experimental)",
   "infill copper polygons with pattern (currently only -H and -V supported)",
-  "draw outline when doing infill",
-
+  "do not route out outline when doing infill",
 
   "verbose",
   "display version information",
@@ -269,6 +268,10 @@ void process_command_line_options(int argc, char **argv)
   if (gVerboseFlag)
   {
     fprintf(gOutStream, "( radius %f )\n", gRadius);
+  }
+
+  if (gHumanReadable==0) {
+    gShowComments = 0;
   }
 
 }
