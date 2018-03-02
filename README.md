@@ -1,12 +1,12 @@
 gbl2ngc
 =======
 
-Open source no frills gerber to gcode converter, using (a slightly modified) [Clipper Lib](http://www.angusj.com/delphi/clipper.php).  Produces an isolation routing gcode file for the given gerber file.
+Open source no frills Gerber to gcode converter, using (a slightly modified) [Clipper Lib](http://www.angusj.com/delphi/clipper.php).  Produces an isolation routing gcode file for the given Gerber file.
 
-gbl2ngc will convert a gerber file like this:
+gbl2ngc will convert a Gerber file like this:
 
 
-![gerber example](/example/gerbExample.png)
+![Gerber example](/example/gerbExample.png)
 
 
 to a gcode file like this:
@@ -59,6 +59,8 @@ Version 0.7.0
   -N, --version                       display version information
   -h, --help                          help (this screen)
 ```
+
+See the [documentation](doc/Documentation.md) for a more detailed description of each of the options.
 
 License:
 -----
