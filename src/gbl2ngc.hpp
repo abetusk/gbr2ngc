@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.7.0"
+#define GBL2NGC_VERSION "0.8.0"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -43,6 +43,8 @@ extern "C" {
 
 #include <string>
 #include <vector>
+
+#include "jc_voronoi.h"
 
 #include "clipper.hpp"
 using namespace ClipperLib;
