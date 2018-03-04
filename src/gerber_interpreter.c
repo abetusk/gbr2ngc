@@ -80,9 +80,12 @@ void gerber_state_init(gerber_state_t *gs)
   gs->contour_head = gs->contour_cur = NULL;
   gs->contour_list_head = gs->contour_list_cur = NULL;
 
-  gs->am.head = NULL;
-  gs->am.last = NULL;
-  gs->am.n = 0;
+  gs->am_lib_head = NULL;
+  gs->am_lib_tail = NULL;
+
+  //gs->am.head = NULL;
+  //gs->am.last = NULL;
+  //gs->am.n = 0;
 
   string_ll_init(&(gs->string_ll_buf));
   gs->gerber_read_state = GRS_NONE;
@@ -546,10 +549,44 @@ void parse_mo(gerber_state_t *gs, char *linebuf)
 
 //------------------------
 
-// linebuf is allocated from parse_ad so make sure to deallocate it.
+void print_aperture_data(gerber_state_t *gs) {
+  int i;
+  aperture_data_t *a_nod;
+
+  printf("\n");
+  printf("## AD\n");
+  printf("##\n");
+
+  a_nod = gs->aperture_head;
+  while (a_nod) {
+    printf("name: %i\n", a_nod->name);
+    printf("type: %i\n", a_nod->type);
+    printf("crop_type: %i\n", a_nod->crop_type);
+    printf("crop[5]:");
+    for (i=0; i<5; i++) { printf(" %f", a_nod->crop[i]); }
+    printf("\n");
+    printf("macro_name: %s\n", a_nod->macro_name ? a_nod->macro_name : "" );
+    printf("macro_param[%i]:", a_nod->macro_param_count);
+    for (i=0; i<a_nod->macro_param_count; i++) {
+      printf(" %f", a_nod->macro_param[i]);
+    }
+    printf("\n");
+    printf("---\n\n");
+    a_nod = a_nod->next;
+  }
+}
+
+// This is an "extended" aperture definition, treat it separately from
+// normal aperture definition.
+// Here, the extened aperutre definition means there is a 'modifier set'
+// that includes the variables to be passed into the previously defined
+// aperture.
+// The modifier set is a list of numbers.
+// These numbers are variable parameters to the function.
+// The array of numbers are separated by an 'X'.
 //
 void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
-  char *chp, *s, ch;
+  char *chp, *s, ch, *chp_end=NULL;
   long int d_code;
   int complete=0, n=0, param_count=0;
 
@@ -558,6 +595,10 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   aperture_data_t *ap_db;
 
   chp = linebuf + 3;
+
+  //DEBUG
+  printf("## parse extended ad : %s\n", linebuf);
+  printf("## parse extended chp: %s\n", chp);
 
   if (*chp != 'D') { parse_error("bad AD format", gs->line_no, linebuf); }
   chp++;
@@ -575,6 +616,9 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   if (!chp[n]) { parse_error("bad AD format, premature eol", gs->line_no, linebuf); }
   if (n<2) { parse_error("bad AD format, expected aperture macro name", gs->line_no, linebuf); }
 
+  //DEBUG
+  printf("## dcode %i\n", (int)d_code);
+
 
   ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
   memset(ap_db, 0, sizeof(aperture_data_t));
@@ -585,6 +629,9 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
 
   chp += n;
 
+  //DEBUG
+  printf("## chp: %s\n", chp);
+
   param_count=0;
   for (n=0; (chp[n]) && (chp[n]!='*'); n++) {
     if ((chp[n] == 'X') || (chp[n]==',')) {
@@ -592,14 +639,31 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
     }
   }
 
+  //DEBUG
+  printf("## param_count: %i\n", param_count);
+
   ap_db->macro_param_count = param_count;
   if (param_count>0) {
     ap_db->macro_param = (double *)malloc(sizeof(double)*param_count);
+
+    chp++;
     for (i=0; i<param_count; i++) {
-      ap_db->macro_param[i] = strtod(chp+1, NULL);
-      chp++;
-      while ((*chp) && ((*chp) != '*') && ((*chp) != 'X')) { chp++; }
-      if (!(*chp)) { parse_error("bad AD format, unexpcted eol while parsing macro parameters", gs->line_no, linebuf); }
+
+      chp_end=chp;
+      while ((*chp_end) && ((*chp_end) != '*') && ((*chp_end) != 'X')) { chp_end++; }
+      if (!(*chp_end)) { parse_error("bad AD format, unexpcted eol while parsing macro parameters", gs->line_no, linebuf); }
+
+      ch = *chp_end;
+      *chp_end = '\0';
+
+
+      //DEBUG
+      printf("# converting %s\n", chp);
+
+      ap_db->macro_param[i] = strtod(chp, NULL);
+
+      *chp_end = ch;
+      chp = chp_end+1;
 
     }
   }
@@ -608,9 +672,17 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   else                    { gs->aperture_cur->next = ap_db; }
   gs->aperture_cur = ap_db;
 
-  gs->gerber_read_state = GRS_NONE;
 
-  free(linebuf);
+  //DEBUG
+  printf("## mactro_param[%i]:", ap_db->macro_param_count);
+  for (i=0; i<ap_db->macro_param_count; i++) {
+    printf(" %f", ap_db->macro_param[i]);
+  }
+  printf("\n");
+  printf("## ad end\n");
+  print_aperture_data(gs);
+
+  gs->gerber_read_state = GRS_NONE;
 }
 
 void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
@@ -663,6 +735,7 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   chp++;
   if ((*chp) != ',') {
     parse_extended_ad(gs, linebuf);
+    free(linebuf);
     return;
   }
 
@@ -736,15 +809,16 @@ void am_node_print(am_ll_node_t *nod) {
     printf("  name: %s\n", nod->name ? nod->name : "" );
     printf("  comment: %s\n", nod->comment ? nod->comment : "" );
     printf("  varname: %s\n", nod->varname ? nod->varname : "" );
-    printf("  eval_line[%i]:\n", nod->n_eval_line);
+    printf("  eval_line[%i]:", nod->n_eval_line);
     for (i=0; i<nod->n_eval_line; i++) {
-      printf("    [%i] \"%s\"\n", i, nod->eval_line[i]);
+      printf(" {$%i:\"%s\"}", i+1, nod->eval_line[i]);
     }
-    printf("\n\n");
+    printf("\n");
     nod = nod->next;
   }
 }
 
+/*
 void am_format_for_tesexpr(char *s) {
   int i;
   for (i=0; s[i]; i++) {
@@ -752,6 +826,7 @@ void am_format_for_tesexpr(char *s) {
     else if ((s[i] == 'x') || (s[i] == 'X')) { s[i] = '*'; }
   }
 }
+*/
 
 void am_fill_eval_line(am_ll_node_t *nod, int n_eval_line, char *chp, int *end_pos, int skip_field) {
   int i, apos=0;
@@ -764,7 +839,7 @@ void am_fill_eval_line(am_ll_node_t *nod, int n_eval_line, char *chp, int *end_p
 
     nod->eval_line[i] = strndup(chp + apos, end_pos[i+skip_field] - apos);
 
-    am_format_for_tesexpr(nod->eval_line[i]);
+    //am_format_for_tesexpr(nod->eval_line[i]);
   }
 
 }
@@ -819,10 +894,6 @@ am_ll_node_t * am_ll_node_create_comment_n(char *comment, int n) {
 }
 
 // Split the variable name with the evauluation string.
-// Format the variable string to be e.g. 'x0' and
-// replace the evaulation with the appropriate variable
-// names.
-// Go through and replace '[xX]'s with the times symbol '*'.
 //
 // eval_line holds the variable evaluation.
 //
@@ -842,7 +913,7 @@ am_ll_node_t * am_ll_node_create_var_n(char *s, int n) {
 
   nod->varname = strndup(chp, idx);
   nod->type = AM_ENUM_VAR;
-  nod->varname[0] = 'x';
+  //nod->varname[0] = 'x';
   chp += idx+1;
 
   for (idx=0; chp[idx] && (chp[idx] != '*'); idx++) ;
@@ -855,7 +926,8 @@ am_ll_node_t * am_ll_node_create_var_n(char *s, int n) {
   nod->eval_line = (char **)malloc(sizeof(char *));
   nod->n_eval_line = 1;
   nod->eval_line[0] = strndup(chp, idx);
-  am_format_for_tesexpr(nod->eval_line[0]);
+
+  //am_format_for_tesexpr(nod->eval_line[0]);
 
   return nod;
 }
@@ -1042,6 +1114,23 @@ am_ll_node_t * am_ll_node_create_thermal_n(char *s, int n) {
   return nod;
 }
 
+void am_lib_print(gerber_state_t *gs) {
+  am_ll_lib_t *am_lib_nod;
+
+  am_lib_nod = gs->am_lib_head;
+
+  printf("\n\n");
+  printf("## AM_LIB\n");
+  printf("##\n");
+
+  while (am_lib_nod) {
+    am_node_print(am_lib_nod->am);
+    am_lib_nod = am_lib_nod->next;
+    printf("---\n\n");
+  }
+
+  printf("\n");
+}
 
 // aperture macro
 //
@@ -1049,6 +1138,7 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   char *chp=NULL, *dup_str=NULL;
   int i, n=0, complete=0;
   am_ll_node_t *am_nod, *am_nod_head;
+  am_ll_lib_t *am_lib_nod;
 
   chp = linebuf;
   n = ( (gs->gerber_read_state == GRS_AM) ? 0 : 1 );
@@ -1066,12 +1156,28 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   dup_str = string_ll_dup_str(&(gs->string_ll_buf));
   string_ll_free(&(gs->string_ll_buf));
 
+  //DEBUG
+  printf("### AM %s\n", dup_str);
+
+  // skip "%AM"
+  //
   chp = dup_str+3;
+
+  //DEBUG
+  printf("### chp: %s\n", chp);
+
+
+  // scan for end of line ('*' token denotes eol) and
+  // save the macro name.
+  //
   for (n=0; (chp[n]) && (chp[n]!='*'); n++) ;
   am_nod_head = am_ll_node_create_name_n(chp, n);
   am_nod = am_nod_head;
 
   chp += n+1;
+
+  //DEBUG
+  printf("## am_nod_head(%p) %s\n", am_nod_head, am_nod_head->name);
 
   while ((*chp) && ((*chp) != '%')) {
 
@@ -1102,8 +1208,27 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
     am_nod = am_nod->next;
   }
 
+  //--
+
   gs->gerber_read_state = GRS_NONE;
   if (dup_str) { free(dup_str); }
+
+  //--
+
+  // add it to our aperture macro library
+  //
+  am_lib_nod = (am_ll_lib_t *)malloc(sizeof(am_ll_lib_t));
+  am_lib_nod->next = NULL;
+  am_lib_nod->am = am_nod_head;
+  if (gs->am_lib_head)  { gs->am_lib_tail->next = am_lib_nod; }
+  else                  { gs->am_lib_head       = am_lib_nod; }
+  gs->am_lib_tail = am_lib_nod;
+
+
+
+  //DEBUG
+  am_lib_print(gs);
+
   return;
 
 am_parse_error:
@@ -1238,8 +1363,10 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
     chp -= real_processed_count+1;
 
     while (chp >= s) {
+      if (pos < 0) {
+        parse_error("coordinate format exceeded (olz)", gs->line_no, NULL);
+      }
       tbuf[pos--] = *chp--;
-      if (pos < 0) parse_error("coordinate format exceeded", gs->line_no, NULL);
     }
 
     while (pos>=0) { tbuf[pos--] = ' '; }
@@ -1251,14 +1378,18 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
     if (*chp == '-') tbuf[pos++] = '-';
 
     for (i=0; i<fs_int; i++) {
-      if (!isdigit(*chp)) parse_error("expected number", gs->line_no, NULL);
+      if (!isdigit(*chp)) { parse_error("expected number", gs->line_no, NULL); }
       tbuf[pos++] = *chp++;
     }
     tbuf[pos++] = '.';
 
     while (*chp && (isdigit(*chp))) {
       tbuf[pos++] = *chp++;
-      if (pos >= (max_buf-1)) parse_error("coordinate format exceeded", gs->line_no, NULL);
+
+      if (pos >= (max_buf-1)) {
+        parse_error("coordinate format exceeded (wlz)", gs->line_no, NULL);
+      }
+
     }
     tbuf[pos] = '\0';
   }
@@ -1701,61 +1832,55 @@ enum {
   APERTURE_POLYGON
 } aperture_enum;
 
-void dump_information(gerber_state_t *gs)
-{
-  int i, j, k;
-  int n=0;
-
-  int verbose_print = 0;
-
+void dump_information(gerber_state_t *gs) {
+  int i, j, k, n=0, verbose_print=0;
   int cur_contour_list = 0;
 
   aperture_data_t *adb;
   contour_list_ll_t *cl;
   contour_ll_t *c;
 
-  if (verbose_print)
+  if (verbose_print) {
     printf("# aperture list:\n");
+  }
 
   adb = gs->aperture_head;
   k=0;
-  while (adb)
-  {
+  while (adb) {
 
-    if (verbose_print)
+    if (verbose_print) {
       printf("#  [%i] name: %i, type: %i, crop_type %i, ", k, adb->name, adb->type, adb->crop_type);
+    }
 
-    if (adb->type == APERTURE_CIRCLE)
-    {
+    if (adb->type == APERTURE_CIRCLE) {
       if (verbose_print)
         printf("circle:");
 
       n = adb->crop_type + 1;
     }
-    else if (adb->type == APERTURE_RECTANGLE)
-    {
+
+    else if (adb->type == APERTURE_RECTANGLE) {
       if (verbose_print)
         printf("rectangle:");
 
       n = adb->crop_type + 2;
     }
-    else if (adb->type == APERTURE_OBROUND)
-    {
+
+    else if (adb->type == APERTURE_OBROUND) {
       if (verbose_print)
         printf("obround:");
 
       n = adb->crop_type + 2;
     }
-    else if (adb->type == APERTURE_POLYGON)
-    {
+
+    else if (adb->type == APERTURE_POLYGON) {
       if (verbose_print)
         printf("polygon:");
 
       n = adb->crop_type + 3;
     }
 
-    if (verbose_print)
-    {
+    if (verbose_print) {
       for (i=0; i<n; i++) printf(" %g", adb->crop[i]);
       printf("\n");
     }
@@ -1766,19 +1891,17 @@ void dump_information(gerber_state_t *gs)
 
   cur_contour_list = 0;
   cl = gs->contour_list_head;
-  while (cl)
-  {
+  while (cl) {
 
-    if (verbose_print)
+    if (verbose_print) {
       printf("# [%i] contour_list\n", cur_contour_list);
+    }
 
     k=0;
     c = cl->c;
 
-    while (c)
-    {
-      if (verbose_print)
-      {
+    while (c) {
+      if (verbose_print) {
         printf("#  [%i] contour d_name: %i, region: %i, x,y: (%g,%g)\n", k, c->d_name, c->region, c->x, c->y);
         printf("%g %g\n", c->x, c->y);
       }
@@ -1789,8 +1912,7 @@ void dump_information(gerber_state_t *gs)
     cl = cl->next;
     cur_contour_list++;
 
-    if (verbose_print)
-      printf("\n");
+    if (verbose_print) { printf("\n"); }
   }
 
 
@@ -1892,8 +2014,7 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
 #define GERBER_STATE_LINEBUF 4099
 
 
-int gerber_state_load_file(gerber_state_t *gs, char *fn)
-{
+int gerber_state_load_file(gerber_state_t *gs, char *fn) {
   FILE *fp;
   char linebuf[GERBER_STATE_LINEBUF];
 

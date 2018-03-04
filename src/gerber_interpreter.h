@@ -22,6 +22,10 @@
 #ifndef GERBER_INTERPRETER
 #define GERBER_INTERPRETER
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -181,10 +185,17 @@ typedef struct am_ll_node_type {
   struct am_ll_node_type *next;
 } am_ll_node_t;
 
+/*
 typedef struct am_ll_type {
   int n;
   am_ll_node_t *head, *last;
 } am_ll_t;
+*/
+
+typedef struct am_ll_lib_type {
+  struct am_ll_lib_type *next;
+  struct am_ll_node_type *am;
+} am_ll_lib_t;
 
 // current state of the gerber interpreter
 //
@@ -226,7 +237,9 @@ typedef struct gerber_state_type
   contour_ll_t *contour_head, *contour_cur;
   contour_list_ll_t *contour_list_head, *contour_list_cur;
 
-  am_ll_t am;
+  //am_ll_t am;
+  am_ll_lib_t *am_lib_head;
+  am_ll_lib_t *am_lib_tail;
 
   string_ll_t string_ll_buf;
   int gerber_read_state;
@@ -294,5 +307,7 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf);
 int gerber_state_load_file(gerber_state_t *gs, char *fn);
 
 void gerber_report_state(gerber_state_t *gs);
+
+int eval_ad_func(gerber_state_t *gs, aperture_data_t *ap_d);
 
 #endif

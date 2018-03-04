@@ -251,10 +251,15 @@ void next_token(state *s) {
             s->type = TOK_NUMBER;
         } else {
             /* Look for a variable or builtin function call. */
-            if (s->next[0] >= 'a' && s->next[0] <= 'z') {
+
+            //if (s->next[0] >= 'a' && s->next[0] <= 'z') {
+            if (s->next[0] == '$') {
                 const char *start;
                 start = s->next;
-                while ((s->next[0] >= 'a' && s->next[0] <= 'z') || (s->next[0] >= '0' && s->next[0] <= '9') || (s->next[0] == '_')) s->next++;
+
+                //while ((s->next[0] >= 'a' && s->next[0] <= 'z') || (s->next[0] >= '0' && s->next[0] <= '9') || (s->next[0] == '_')) s->next++;
+                s->next++;
+                while ( (s->next[0] >= '0') && (s->next[0] <= '9') ) s->next++;
 
                 const tes_variable *var = find_lookup(s, start, s->next - start);
                 if (!var) var = find_builtin(start, s->next - start);
@@ -286,13 +291,19 @@ void next_token(state *s) {
                 switch (s->next++[0]) {
                     case '+': s->type = TOK_INFIX; s->function = add; break;
                     case '-': s->type = TOK_INFIX; s->function = sub; break;
-                    case '*': s->type = TOK_INFIX; s->function = mul; break;
+
+                    //case '*': s->type = TOK_INFIX; s->function = mul; break;
+                    case 'X':
+                    case 'x': s->type = TOK_INFIX; s->function = mul; break;
+
                     case '/': s->type = TOK_INFIX; s->function = divide; break;
-                    case '^': s->type = TOK_INFIX; s->function = pow; break;
-                    case '%': s->type = TOK_INFIX; s->function = fmod; break;
+                    //case '^': s->type = TOK_INFIX; s->function = pow; break;
+                    //case '%': s->type = TOK_INFIX; s->function = fmod; break;
                     case '(': s->type = TOK_OPEN; break;
                     case ')': s->type = TOK_CLOSE; break;
-                    case ',': s->type = TOK_SEP; break;
+
+                    //case ',': s->type = TOK_SEP; break;
+
                     case ' ': case '\t': case '\n': case '\r': break;
                     default: s->type = TOK_ERROR; break;
                 }
