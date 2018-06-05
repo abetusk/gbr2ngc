@@ -36,6 +36,8 @@ struct option gLongOption[] =
   {"zsafe"  , required_argument , 0, 'z'},
   {"zcut"   , required_argument , 0, 'Z'},
 
+  // {"config-file", required_argument , 0, 'c'},
+
   {"metric" , no_argument       , 0, 'M'},
   {"inches" , no_argument       , 0, 'I'},
 //  {"scan"   , no_argument       , 0, 'H'},
@@ -61,7 +63,6 @@ struct option gLongOption[] =
   {0, 0, 0, 0}
 };
 
-
 char gOptionDescription[][1024] =
 {
   "radius (default 0)",
@@ -76,6 +77,8 @@ char gOptionDescription[][1024] =
 
   "z safe height (default 0.1 inches)",
   "z cut height (default -0.05 inches)",
+
+  // "configuration file (default ./gbl2ngc.ini)",
 
   "units in metric",
   "units in inches",
@@ -102,6 +105,21 @@ char gOptionDescription[][1024] =
 };
 
 int gPrintPolygon = 0;
+
+option lookup_option_by_name(const char* name) {
+  int i;
+
+  for (i = 0; gLongOption[i].name; i++) {
+    const option opt = gLongOption[i];
+    if (strcmp(opt.name, name) == 0) {
+      return opt;
+    }
+  }
+
+  const option no_option = {0, 0, 0, 0};
+
+  return no_option;
+}
 
 void show_help(void)
 {
@@ -139,18 +157,8 @@ void show_help(void)
 
 }
 
-void process_command_line_options(int argc, char **argv)
-{
-
-  extern char *optarg;
-  //extern int optind;
-  int option_index;
-
-  char ch;
-
-  gFillRadius = -1.0;
-
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) switch(ch)
+void set_option(const char option_char, const char* optarg) {
+  switch(option_char)
   {
     case 0:
       // long option
@@ -226,6 +234,22 @@ void process_command_line_options(int argc, char **argv)
       exit(1);
       break;
   }
+}
+
+void process_command_line_options(int argc, char **argv)
+{
+
+  extern char *optarg;
+  //extern int optind;
+  int option_index;
+
+  char ch;
+
+  gFillRadius = -1.0;
+
+  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) {
+    set_option(ch, optarg);
+  }
 
   if (gFillRadius <= 0.0)
     gFillRadius = gRadius;
@@ -277,14 +301,64 @@ void process_command_line_options(int argc, char **argv)
 }
 
 
+
+void process_config_file_options() {
+
+  if (!gConfigFilename) {
+    const char* S = "./gbl2ngc.ini";
+    gConfigFilename = new char[64];
+    strcpy(gConfigFilename, S);
+  }
+
+  fprintf(stdout, "using config file: %s\n", gConfigFilename);
+
+  if (! (gCfgStream = fopen(gConfigFilename, "r"))) {
+    perror(gOutputFilename);
+    exit(1);
+  }
+
+  char option_name[64];
+  char option_value[64];
+  char line[256] = {'\0'};
+
+  while (fgets(line, sizeof(line), gCfgStream)) {
+    
+    if (strcmp(line, "\n") == 0) {
+      // printf("skipping blank line");
+    }
+
+    else if (line[0] == ';') {
+      // printf("skipping comment");
+    }
+
+    else {
+      memset(option_name, 0, sizeof(option_name));
+      memset(option_value, 0, sizeof(option_value));
+
+      const char* name_end = strpbrk(line, " \t=");
+      const char* value_start = name_end + strspn(name_end, " \t=");
+      strncpy(option_name, line, name_end - line);
+      strncpy(option_value, value_start, strlen(value_start)-1);
+
+      printf("|%s=%s|\n", option_name, option_value);
+      
+      const char option_char = lookup_option_by_name(option_name).val;
+      set_option(option_char, option_value);
+    }
+  }
+}
+
 void cleanup(void)
 {
+  fclose(gCfgStream);
   if (gOutStream != stdout)
     fclose(gOutStream);
   if (gOutputFilename)
     free(gOutputFilename);
   if (gInputFilename)
     free(gInputFilename);
+  if (gConfigFilename)
+    free(gConfigFilename);
 }
 
 
@@ -669,6 +743,32 @@ void invert(Paths &src, Paths &dst) {
 
 }
 
+void dump_options() {
+  printf("input = %s\n", gInputFilename);
+  printf("output = %s\n", gOutputFilename);
+  // printf("config-file = %s", gConfigFilename);
+
+  printf("radius = %f\n", gRadius);
+  printf("fillradius = %f\n", gFillRadius);
+
+  printf("feed = %d\n", gFeedRate);
+  printf("seek = %d\n", gSeekRate);
+
+  printf("zsafe = %f\n", gZSafe);
+  printf("zcut = %f\n", gZCut);
+
+  printf("metric = %d\n", gMetricUnits);
+
+  printf("no-comment = %d\n", !gShowComments);
+  printf("machine-readable = %d\n", !gHumanReadable);
+
+  printf("horizinal = %d\n", gScanLineHorizontal);
+  printf("vertical = %d\n", gScanLineVertical);
+  printf("zengarden = %d\n", gScanLineZenGarden);
+
+  printf("verbose = %d\n", gVerboseFlag);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -679,8 +779,10 @@ int main(int argc, char **argv)
 
   Paths pgn_union;
   Paths offset;
-
+  
+  process_config_file_options();
   process_command_line_options(argc, argv);
+  dump_options();
 
   // Initalize and load gerber file
   //
