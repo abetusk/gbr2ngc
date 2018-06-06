@@ -29,14 +29,13 @@ struct option gLongOption[] =
 
   {"input"  , required_argument , 0, 'i'},
   {"output" , required_argument , 0, 'o'},
+  {"config-file", required_argument , 0, 'c'},
 
   {"feed"   , required_argument , 0, 'f'},
   {"seek"   , required_argument , 0, 's'},
 
   {"zsafe"  , required_argument , 0, 'z'},
   {"zcut"   , required_argument , 0, 'Z'},
-
-  // {"config-file", required_argument , 0, 'c'},
 
   {"metric" , no_argument       , 0, 'M'},
   {"inches" , no_argument       , 0, 'I'},
@@ -71,14 +70,13 @@ char gOptionDescription[][1024] =
 
   "input file",
   "output file (default stdout)",
+  "configuration file (default ./gbl2ngc.ini)",
 
   "feed rate (default 10)",
   "seek rate (default 100)",
 
   "z safe height (default 0.1 inches)",
   "z cut height (default -0.05 inches)",
-
-  // "configuration file (default ./gbl2ngc.ini)",
 
   "units in metric",
   "units in inches",
@@ -106,7 +104,8 @@ char gOptionDescription[][1024] =
 
 int gPrintPolygon = 0;
 
-option lookup_option_by_name(const char* name) {
+option lookup_option_by_name(const char* name)
+{
   int i;
 
   for (i = 0; gLongOption[i].name; i++) {
@@ -157,18 +156,10 @@ void show_help(void)
 
 }
 
-void set_option(const char option_char, const char* optarg) {
+bool set_option(const char option_char, const char* optarg) 
+{
   switch(option_char)
   {
-    case 0:
-      // long option
-      //
-      break;
-    case 'N':
-    case 'h':
-      show_help();
-      exit(0);
-      break;
     case 'C':
       gShowComments = 0;
       break;
@@ -195,12 +186,6 @@ void set_option(const char option_char, const char* optarg) {
       break;
     case 'f':
       gFeedRate = atoi(optarg);
-      break;
-    case 'i':
-      gInputFilename = strdup(optarg);
-      break;
-    case 'o':
-      gOutputFilename = strdup(optarg);
       break;
     case 'I':
       gMetricUnits = 0;
@@ -229,10 +214,54 @@ void set_option(const char option_char, const char* optarg) {
       gVerboseFlag = 1;
       break;
     default:
-      printf("bad option\n");
-      show_help();
-      exit(1);
+      return false;
       break;
+  }
+
+  return true;
+}
+
+void process_config_file_options() {
+
+  if (!gConfigFilename) {
+    // gConfigFilename = strdup("./gbl2ngc.ini");
+  }
+
+  fprintf(stdout, "using config file: %s\n", gConfigFilename);
+
+  if (! (gCfgStream = fopen(gConfigFilename, "r"))) {
+    perror(gOutputFilename);
+    exit(1);
+  }
+
+  char option_name[64];
+  char option_value[64];
+  char line[256] = {'\0'};
+
+  while (fgets(line, sizeof(line), gCfgStream)) {
+    
+    if (strcmp(line, "\n") == 0) {
+      // printf("skipping blank line");
+    }
+
+    else if (line[0] == ';') {
+      // printf("skipping comment");
+    }
+
+    else {
+      memset(option_name, 0, sizeof(option_name));
+      memset(option_value, 0, sizeof(option_value));
+
+      const char* name_end = strpbrk(line, " \t=");
+      const char* value_start = name_end + strspn(name_end, " \t=");
+      strncpy(option_name, line, name_end - line);
+      strncpy(option_value, value_start, strlen(value_start)-1);
+
+      printf("|%s=%s|\n", option_name, option_value);
+      
+      const char option_char = lookup_option_by_name(option_name).val;
+      set_option(option_char, option_value);
+    }
   }
 }
 
@@ -240,15 +269,66 @@ void process_command_line_options(int argc, char **argv)
 {
 
   extern char *optarg;
-  //extern int optind;
+  extern int optind, opterr;
   int option_index;
 
   char ch;
 
   gFillRadius = -1.0;
 
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) {
-    set_option(ch, optarg);
+  // Check if a custom path for the configuration file was given. If so,
+  // those options need to be loaded before applying the command-line
+  // options.
+
+  opterr = 0;  // disable error messages for extra arguments
+
+  while ((ch = getopt_long(argc, argv, "-c:", gLongOption, &option_index)) >= 0) {
+    if (ch == 'c') {
+      gConfigFilename = strdup(optarg);
+      break;
+    }
+  }
+
+  optind = 0;
+
+  process_config_file_options();
+
+  // Now the cli args and be applied. 'c:' is still included in the
+  // argstring so that it won't be defaulted as a bad option.
+
+  opterr = 1;  // this time extra arguments SHOULD raise errors
+
+  while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) {
+    switch(ch) {
+      case 0:
+        // long option
+        //
+        break;
+      case 'N':
+      case 'h':
+        show_help();
+        exit(0);
+        break;
+
+      case 'i':
+        gInputFilename = strdup(optarg);
+        break;
+      case 'o':
+        gOutputFilename = strdup(optarg);
+        break;
+      case 'c':
+        // Do nothing, but don't go to default!
+        break;
+      
+      default:
+        if (!set_option(ch, optarg)) {
+          printf("bad option: -%c %s\n", ch, optarg);
+          show_help();
+          exit(1);
+        }
+        break;
+    }
+    
   }
 
   if (gFillRadius <= 0.0)
@@ -301,52 +381,6 @@ void process_command_line_options(int argc, char **argv)
 }
 
 
-
-void process_config_file_options() {
-
-  if (!gConfigFilename) {
-    const char* S = "./gbl2ngc.ini";
-    gConfigFilename = new char[64];
-    strcpy(gConfigFilename, S);
-  }
-
-  fprintf(stdout, "using config file: %s\n", gConfigFilename);
-
-  if (! (gCfgStream = fopen(gConfigFilename, "r"))) {
-    perror(gOutputFilename);
-    exit(1);
-  }
-
-  char option_name[64];
-  char option_value[64];
-  char line[256] = {'\0'};
-
-  while (fgets(line, sizeof(line), gCfgStream)) {
-    
-    if (strcmp(line, "\n") == 0) {
-      // printf("skipping blank line");
-    }
-
-    else if (line[0] == ';') {
-      // printf("skipping comment");
-    }
-
-    else {
-      memset(option_name, 0, sizeof(option_name));
-      memset(option_value, 0, sizeof(option_value));
-
-      const char* name_end = strpbrk(line, " \t=");
-      const char* value_start = name_end + strspn(name_end, " \t=");
-      strncpy(option_name, line, name_end - line);
-      strncpy(option_value, value_start, strlen(value_start)-1);
-
-      printf("|%s=%s|\n", option_name, option_value);
-      
-      const char option_char = lookup_option_by_name(option_name).val;
-      set_option(option_char, option_value);
-    }
-  }
-}
 
 void cleanup(void)
 {
@@ -746,7 +780,7 @@ void invert(Paths &src, Paths &dst) {
 void dump_options() {
   printf("input = %s\n", gInputFilename);
   printf("output = %s\n", gOutputFilename);
-  // printf("config-file = %s", gConfigFilename);
+  printf("config-file = %s", gConfigFilename);
 
   printf("radius = %f\n", gRadius);
   printf("fillradius = %f\n", gFillRadius);
@@ -780,9 +814,8 @@ int main(int argc, char **argv)
   Paths pgn_union;
   Paths offset;
   
-  process_config_file_options();
   process_command_line_options(argc, argv);
-  dump_options();
+  // dump_options();
 
   // Initalize and load gerber file
   //
