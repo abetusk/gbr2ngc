@@ -20,7 +20,17 @@
 
 #include "gbl2ngc.hpp"
 
+// gbl2ngc will look here by default for a config file
 #define DEFAULT_CONFIG_FILENAME "./gbl2ngc.ini"
+
+// How should users specify boolean options?
+// i.e.
+//  - verbose = 1|0
+//  - verbose = yes|no
+//  - verbose = true|false
+//  - verbose = on|off
+#define CONFIG_FILE_YES "1"
+#define CONFIG_FILE_NO "0"
 
 struct option gLongOption[] =
 {
@@ -157,15 +167,40 @@ void show_help(void)
 
 }
 
+// Use as a go-between for the internal globals and optarg,
+// which could either come from a config file or be NULL if
+// the option was given as a command line switch.
+// `default_` is the value that is returned if the option is
+// set to CONFIG_FILE_YES or given as a CLI switch.
+bool bool_option(const char* optarg, bool default_ = true)
+{
+  if (optarg == NULL) {
+    return default_;
+  }
+
+  else if (strcmp(optarg, CONFIG_FILE_YES) == 0) {
+    return default_;
+  }
+
+  else if (strcmp(optarg, CONFIG_FILE_NO) == 0) {
+    return !default_;
+  }
+
+  // Treat all other values for optarg as NO
+  return !default_;
+}
+
 bool set_option(const char option_char, const char* optarg) 
 {
+  printf("set_option(%c, %s)\n", option_char, optarg);
+
   switch(option_char)
   {
     case 'C':
-      gShowComments = 0;
+      gShowComments = bool_option(optarg, 0);
       break;
     case 'R':
-      gHumanReadable = 0;
+      gHumanReadable = bool_option(optarg, 0);
       break;
     case 'r':
       gRadius = atof(optarg);
@@ -189,30 +224,30 @@ bool set_option(const char option_char, const char* optarg)
       gFeedRate = atoi(optarg);
       break;
     case 'I':
-      gMetricUnits = 0;
+      gMetricUnits = bool_option(optarg, 0);
       gUnitsDefault = 0;
       break;
     case 'M':
-      gMetricUnits = 1;
+      gMetricUnits = bool_option(optarg);
       gUnitsDefault = 0;
       break;
 
     case 'H':
-      gScanLineHorizontal = 1;
+      gScanLineHorizontal = bool_option(optarg);
       break;
     case 'V':
-      gScanLineVertical = 1;
+      gScanLineVertical = bool_option(optarg);
       break;
     case 'G':
-      gScanLineZenGarden = 1;
+      gScanLineZenGarden = bool_option(optarg);
       break;
 
     case 'P':
-      gPrintPolygon = 1;
+      gPrintPolygon = bool_option(optarg);
       break;
 
     case 'v':
-      gVerboseFlag = 1;
+      gVerboseFlag = bool_option(optarg);
       break;
     default:
       return false;
