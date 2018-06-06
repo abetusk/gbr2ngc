@@ -29,8 +29,8 @@
 //  - verbose = yes|no
 //  - verbose = true|false
 //  - verbose = on|off
-#define CONFIG_FILE_YES "1"
-#define CONFIG_FILE_NO "0"
+#define CONFIG_FILE_YES "yes"
+#define CONFIG_FILE_NO "no"
 
 struct option gLongOption[] =
 {
