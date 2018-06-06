@@ -20,6 +20,7 @@
 
 #include "gbl2ngc.hpp"
 
+#define DEFAULT_CONFIG_FILENAME "./gbl2ngc.ini"
 
 struct option gLongOption[] =
 {
@@ -224,15 +225,20 @@ bool set_option(const char option_char, const char* optarg)
 void process_config_file_options() {
 
   if (!gConfigFilename) {
-    // gConfigFilename = strdup("./gbl2ngc.ini");
+    gConfigFilename = strdup(DEFAULT_CONFIG_FILENAME);
   }
 
-  fprintf(stdout, "using config file: %s\n", gConfigFilename);
-
   if (! (gCfgStream = fopen(gConfigFilename, "r"))) {
+    if (strcmp(gConfigFilename, DEFAULT_CONFIG_FILENAME) == 0) {
+      return;
+    }
+    
+    fprintf(stderr, "Can't load configuration: ");
     perror(gOutputFilename);
     exit(1);
   }
+
+  fprintf(stdout, "Using configuration: %s\n", gConfigFilename);
 
   char option_name[64];
   char option_value[64];
@@ -257,12 +263,12 @@ void process_config_file_options() {
       strncpy(option_name, line, name_end - line);
       strncpy(option_value, value_start, strlen(value_start)-1);
 
-      printf("|%s=%s|\n", option_name, option_value);
-      
       const char option_char = lookup_option_by_name(option_name).val;
       set_option(option_char, option_value);
     }
   }
+
+  fclose(gCfgStream);
 }
 
 void process_command_line_options(int argc, char **argv)
@@ -384,7 +390,6 @@ void process_command_line_options(int argc, char **argv)
 
 void cleanup(void)
 {
-  fclose(gCfgStream);
   if (gOutStream != stdout)
     fclose(gOutStream);
   if (gOutputFilename)
