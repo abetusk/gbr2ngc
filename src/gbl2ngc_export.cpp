@@ -96,7 +96,10 @@ void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm,
     }
   }
 
-  //fprintf(ofp, "%s\n", gBlockHeader);
+  if (gGCodeHeader) {
+    fprintf(ofp, "%s\n", gGCodeHeader);
+  }
+  
 
   if (gHumanReadable) {
     fprintf(ofp, "f%i\n", gFeedRate);
@@ -158,7 +161,9 @@ void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm,
     fprintf(ofp, "\n\n");
   }
 
-  //fprintf(ofp, "%s\n", gBlockFooter);
+  if (gGCodeFooter) {
+    fprintf(ofp, "%s\n", gGCodeFooter);
+  }
 
 }
 
