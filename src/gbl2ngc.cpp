@@ -447,6 +447,11 @@ void cleanup(void)
     free(gInputFilename);
   if (gConfigFilename)
     free(gConfigFilename);
+
+  if (gGCodeHeader)
+    free(gGCodeHeader);
+  if (gGCodeFooter)
+    free(gGCodeFooter);
 }
 
 
