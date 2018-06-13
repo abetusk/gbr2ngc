@@ -89,6 +89,7 @@ extern int gMetricUnits;
 extern int gUnitsDefault;
 extern char *gInputFilename;
 extern char *gOutputFilename;
+extern char *gConfigFilename;
 extern int gFeedRate;
 extern int gSeekRate;
 
@@ -105,6 +106,7 @@ extern double gZCut;
 
 extern FILE *gOutStream;
 extern FILE *gInpStream;
+extern FILE *gCfgStream;
 
 extern double eps;
 extern double gRadius;

@@ -335,3 +335,28 @@ void print_profile(struct timeval *tv0, struct timeval *tv1)
 }
 
 
+void dump_options() {
+  printf("input = %s\n", gInputFilename);
+  printf("output = %s\n", gOutputFilename);
+  // printf("config-file = %s", gConfigFilename);
+
+  printf("radius = %f\n", gRadius);
+  printf("fillradius = %f\n", gFillRadius);
+
+  printf("feed = %d\n", gFeedRate);
+  printf("seek = %d\n", gSeekRate);
+
+  printf("zsafe = %f\n", gZSafe);
+  printf("zcut = %f\n", gZCut);
+
+  printf("metric = %d\n", gMetricUnits);
+
+  printf("no-comment = %d\n", !gShowComments);
+  printf("machine-readable = %d\n", !gHumanReadable);
+
+  printf("horizinal = %d\n", gScanLineHorizontal);
+  printf("vertical = %d\n", gScanLineVertical);
+  printf("zengarden = %d\n", gScanLineZenGarden);
+
+  printf("verbose = %d\n", gVerboseFlag);
+}
