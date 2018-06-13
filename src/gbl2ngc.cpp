@@ -23,19 +23,18 @@
 // gbl2ngc will look here by default for a config file
 #define DEFAULT_CONFIG_FILENAME "./gbl2ngc.ini"
 
-// How should users specify boolean options?
-// i.e.
-//  - verbose = 1|0
+// Users should specify boolean options as "yes" or "no"
+// (without quotes).
+//
+// e.g.
 //  - verbose = yes|no
-//  - verbose = true|false
-//  - verbose = on|off
+//
 #define CONFIG_FILE_YES "yes"
 #define CONFIG_FILE_NO "no"
 
 struct option gLongOption[] =
 {
   {"radius" , required_argument , 0, 'r'},
-  //{"routeradius" , required_argument , 0, 'R'},
   {"fillradius" , required_argument , 0, 'F'},
 
   {"input"  , required_argument , 0, 'i'},
@@ -76,7 +75,6 @@ struct option gLongOption[] =
 char gOptionDescription[][1024] =
 {
   "radius (default 0)",
-  //"radius to be used for routing (default to radius above)",
   "radius to be used for fill pattern (default to radius above)",
 
   "input file",
@@ -190,9 +188,7 @@ bool bool_option(const char* optarg, bool default_ = true)
   return !default_;
 }
 
-bool set_option(const char option_char, const char* optarg) 
-{
-  printf("set_option(%c, %s)\n", option_char, optarg);
+bool set_option(const char option_char, const char* optarg) {
 
   switch(option_char)
   {
@@ -267,20 +263,18 @@ void process_config_file_options() {
     if (strcmp(gConfigFilename, DEFAULT_CONFIG_FILENAME) == 0) {
       return;
     }
-    
+
     fprintf(stderr, "Can't load configuration: ");
     perror(gOutputFilename);
     exit(1);
   }
-
-  fprintf(stdout, "Using configuration: %s\n", gConfigFilename);
 
   char option_name[64];
   char option_value[64];
   char line[256] = {'\0'};
 
   while (fgets(line, sizeof(line), gCfgStream)) {
-    
+
     if (strcmp(line, "\n") == 0) {
       // printf("skipping blank line");
     }
@@ -360,7 +354,7 @@ void process_command_line_options(int argc, char **argv)
       case 'c':
         // Do nothing, but don't go to default!
         break;
-      
+
       default:
         if (!set_option(ch, optarg)) {
           printf("bad option: -%c %s\n", ch, optarg);
@@ -369,7 +363,7 @@ void process_command_line_options(int argc, char **argv)
         }
         break;
     }
-    
+
   }
 
   if (gFillRadius <= 0.0)
@@ -853,7 +847,7 @@ int main(int argc, char **argv)
 
   Paths pgn_union;
   Paths offset;
-  
+
   process_command_line_options(argc, argv);
   // dump_options();
 
