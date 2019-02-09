@@ -25,6 +25,7 @@ int gMetricUnits = 0;
 int gUnitsDefault = 1;
 char *gInputFilename = NULL;
 char *gOutputFilename = NULL;
+char *gConfigFilename = NULL;
 int gFeedRate = 10;
 int gSeekRate = 100;
 
@@ -41,6 +42,7 @@ double gZCut = -0.05;
 
 FILE *gOutStream = stdout;
 FILE *gInpStream = stdin;
+FILE *gCfgStream;
 
 double eps = 0.000001;
 double gRadius = 0.0;
