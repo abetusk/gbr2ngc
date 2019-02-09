@@ -36,8 +36,8 @@
 // program grows in complexity and cabability, the letter choices available
 // for command-line arguments will get slim. One solution is to assign numbers
 // instead of letters for less-commonly used or advanced options.
-#define ARG_GCODE_HEADER 2
-#define ARG_GCODE_FOOTER 3
+#define ARG_GCODE_HEADER '2'
+#define ARG_GCODE_FOOTER '3'
 
 struct option gLongOption[] =
 {
@@ -232,7 +232,7 @@ bool set_option(const char option_char, const char* optarg) {
     case 'f':
       gFeedRate = atoi(optarg);
       break;
-    
+
     case ARG_GCODE_HEADER:
       gGCodeHeader = strdup(optarg);
       break;

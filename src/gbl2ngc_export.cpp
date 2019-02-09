@@ -22,7 +22,7 @@
 
 // How many digits after the decimal point?
 // Yes, it should be a string :)
-#define GCODE_LENGTH_PRECISION "6"  
+#define GCODE_LENGTH_PRECISION "6"
 
 static double unit_mm2in(double v) {
   return v/25.4;
@@ -43,12 +43,12 @@ static double unit_identity(double v) {
 void rapid(FILE* file, const char* axes, double one, double two=0, double three=0) {
   int i;
   double coords[] = {one, two, three};
-  
+
   if (gHumanReadable) {
-    fprintf(file, "g0");  
+    fprintf(file, "g0");
     for (i = 0; axes[i] != '\0'; i++) {
       fprintf(file, " %c%." GCODE_LENGTH_PRECISION "f", tolower(axes[i]), coords[i]);
-    }  
+    }
   } else {
     fprintf(file, "G00");
     for (i = 0; axes[i] != '\0'; i++) {
@@ -63,12 +63,12 @@ void rapid(FILE* file, const char* axes, double one, double two=0, double three=
 void cut(FILE* file, const char* axes, double one, double two=0, double three=0) {
   int i;
   double coords[] = {one, two, three};
-  
+
   if (gHumanReadable) {
-    fprintf(file, "g1");  
+    fprintf(file, "g1");
     for (i = 0; axes[i] != '\0'; i++) {
       fprintf(file, " %c%." GCODE_LENGTH_PRECISION "f", tolower(axes[i]), coords[i]);
-    }  
+    }
   } else {
     fprintf(file, "G01");
     for (i = 0; axes[i] != '\0'; i++) {
@@ -99,7 +99,7 @@ void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm,
   if (gGCodeHeader) {
     fprintf(ofp, "%s\n", gGCodeHeader);
   }
-  
+
 
   if (gHumanReadable) {
     fprintf(ofp, "f%i\n", gFeedRate);
@@ -107,7 +107,7 @@ void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm,
     fprintf(ofp, "F%i\n", gFeedRate);
   }
 
-  rapid(ofp, "z", gZSafe);
+  cut(ofp, "z", gZSafe);
 
   if (gHumanReadable) {
     fprintf(ofp, "\n");
