@@ -559,19 +559,19 @@ void print_aperture_data(gerber_state_t *gs) {
 
   a_nod = gs->aperture_head;
   while (a_nod) {
-    printf("name: %i\n", a_nod->name);
-    printf("type: %i\n", a_nod->type);
-    printf("crop_type: %i\n", a_nod->crop_type);
-    printf("crop[5]:");
+    printf("# name: %i\n", a_nod->name);
+    printf("# type: %i\n", a_nod->type);
+    printf("# crop_type: %i\n", a_nod->crop_type);
+    printf("# crop[5]:");
     for (i=0; i<5; i++) { printf(" %f", a_nod->crop[i]); }
     printf("\n");
-    printf("macro_name: %s\n", a_nod->macro_name ? a_nod->macro_name : "" );
-    printf("macro_param[%i]:", a_nod->macro_param_count);
+    printf("# macro_name: %s\n", a_nod->macro_name ? a_nod->macro_name : "" );
+    printf("# macro_param[%i]:", a_nod->macro_param_count);
     for (i=0; i<a_nod->macro_param_count; i++) {
       printf(" %f", a_nod->macro_param[i]);
     }
     printf("\n");
-    printf("---\n\n");
+    printf("#---\n\n");
     a_nod = a_nod->next;
   }
 }
@@ -805,11 +805,11 @@ void am_node_print(am_ll_node_t *nod) {
   };
 
   while (nod) {
-    printf("type: %i (%s)\n", nod->type, typs[nod->type]);
-    printf("  name: %s\n", nod->name ? nod->name : "" );
-    printf("  comment: %s\n", nod->comment ? nod->comment : "" );
-    printf("  varname: %s\n", nod->varname ? nod->varname : "" );
-    printf("  eval_line[%i]:", nod->n_eval_line);
+    printf("# type: %i (%s)\n", nod->type, typs[nod->type]);
+    printf("#   name: %s\n", nod->name ? nod->name : "" );
+    printf("#   comment: %s\n", nod->comment ? nod->comment : "" );
+    printf("#   varname: %s\n", nod->varname ? nod->varname : "" );
+    printf("#   eval_line[%i]:", nod->n_eval_line);
     for (i=0; i<nod->n_eval_line; i++) {
       printf(" {$%i:\"%s\"}", i+1, nod->eval_line[i]);
     }
@@ -1126,7 +1126,7 @@ void am_lib_print(gerber_state_t *gs) {
   while (am_lib_nod) {
     am_node_print(am_lib_nod->am);
     am_lib_nod = am_lib_nod->next;
-    printf("---\n\n");
+    printf("#---\n\n");
   }
 
   printf("\n");
@@ -1406,8 +1406,7 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
 
 //------------------------
 
-char *parse_single_int(gerber_state_t *gs, int *val, char *s)
-{
+char *parse_single_int(gerber_state_t *gs, int *val, char *s) {
   int i, j, k;
   char *chp, ch, *tbuf;;
   double d;
@@ -1416,7 +1415,7 @@ char *parse_single_int(gerber_state_t *gs, int *val, char *s)
   s++;
   
   for (chp = s;  (*chp && (isdigit(*chp) || (*chp == '-') || (*chp == '+'))) ; chp++);
-  if (!*chp) parse_error("unexpected eol", gs->line_no, NULL);
+  if (!*chp) { parse_error("unexpected eol", gs->line_no, NULL); }
 
   ch = *chp;
   *chp = '\0';
@@ -1426,8 +1425,9 @@ char *parse_single_int(gerber_state_t *gs, int *val, char *s)
 
   errno = 0;
   *val = atoi(tbuf);
-  if (*val <= 0)
+  if (*val <= 0) {
     parse_error("bad conversion", gs->line_no, NULL);
+  }
   free(tbuf);
 
   return chp;
@@ -1435,8 +1435,7 @@ char *parse_single_int(gerber_state_t *gs, int *val, char *s)
 
 //------------------------
 
-void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, int aperture_name)
-{
+void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, int aperture_name) {
   contour_ll_t *contour_nod;
   contour_list_ll_t *contour_list_nod;
 
@@ -1459,18 +1458,19 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   contour_nod->next = NULL;
   contour_nod->region = 0;
 
-  if (gs->contour_list_head == NULL)
+  if (gs->contour_list_head == NULL) {
     gs->contour_list_head = contour_list_nod;
-  else
+  }
+  else {
     gs->contour_list_cur->next = contour_list_nod;
+  }
   gs->contour_list_cur = contour_list_nod;
 
 }
 
 //------------------------
 
-void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name)
-{
+void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name) {
   contour_ll_t *contour_nod;
   contour_list_ll_t *contour_list_nod;
 
@@ -1485,21 +1485,20 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
 
   contour_nod->next = NULL;
 
-
   contour_list_nod->c = contour_nod;
 
-  if (gs->contour_list_head == NULL)
+  if (gs->contour_list_head == NULL) {
     gs->contour_list_head = contour_list_nod;
-  else
+  }
+  else {
     gs->contour_list_cur->next = contour_list_nod;
+  }
   gs->contour_list_cur = contour_list_nod;
-
 }
 
 //------------------------
 
-void parse_data_block(gerber_state_t *gs, char *linebuf)
-{
+void parse_data_block(gerber_state_t *gs, char *linebuf) {
   char *chp;
   unsigned char state=0;
   double prev_x, prev_y;
@@ -1513,33 +1512,32 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
 
   chp = linebuf;
 
-  while (*chp)
-  {
-    if (*chp == 'X')
-    {
+  while (*chp) {
+
+    if (*chp == 'X') {
       if (state & 1) parse_error("multiple 'X' tokens found", gs->line_no, NULL);
       state |= 1;
       chp = parse_single_coord(gs, &(gs->cur_x), gs->fs_x_int, gs->fs_x_real, chp);
     }
 
-    else if (*chp == 'Y')
-    {
+    else if (*chp == 'Y') {
       if (state & 2) parse_error("multiple 'Y' tokens found", gs->line_no, NULL);
       state |= 2;
       chp = parse_single_coord(gs, &(gs->cur_y), gs->fs_y_int, gs->fs_y_real, chp);
     }
 
-    else if (*chp == 'D')
-    {
+    else if (*chp == 'D') {
       if (state & 4) parse_error("multiple 'D' tokens found", gs->line_no, NULL);
       state |= 4;
       chp = parse_single_int(gs, &(gs->d_state), chp);
     }
 
-    else if (*chp == '*')
+    else if (*chp == '*') {
       break;
-    else
+    }
+    else {
       parse_error("unknown token when parsing data block", gs->line_no, NULL);
+    }
 
   }
 
@@ -1550,13 +1548,12 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
 
   // handle region
   //
-  if (gs->region)
-  {
+  if (gs->region) {
 
-    if (gs->d_state == 1)
-    {
-      if (gs->contour_head == NULL)
-      {
+    if (gs->d_state == 1) {
+
+      if (gs->contour_head == NULL) {
+
         contour_nod = (contour_ll_t *)malloc(sizeof(contour_ll_t));
         contour_nod->d_name = gs->current_aperture;
         contour_nod->x = prev_x;
@@ -1582,21 +1579,24 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
 
       //printf("%g %g # %i \n", gs->cur_x, gs->cur_y, gs->d_state);
     }
-    else  // need to tie off region
-    {
 
-      if (gs->contour_head)
-      {
+    // need to tie off region
+    //
+    else {
+
+      if (gs->contour_head) {
 
         contour_list_nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
         contour_list_nod->n = 1;
         contour_list_nod->next = NULL;
         contour_list_nod->c = gs->contour_head;
 
-        if (!gs->contour_list_head)
+        if (!gs->contour_list_head) {
           gs->contour_list_head = contour_list_nod;
-        else
+        }
+        else {
           gs->contour_list_cur->next = contour_list_nod;
+        }
         gs->contour_list_cur = contour_list_nod;
 
         gs->contour_head = NULL;
@@ -1606,23 +1606,21 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
     }
       
   }
-  else
-  {
+  else {
 
-    if (gs->d_state == 1)
-    {
+    if (gs->d_state == 1) {
       add_segment(gs, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->current_aperture);
     }
 
   }
 
-  if (gs->d_state == 2)
-  {
-    //printf("# %g %g  (%i)\n", gs->cur_x, gs->cur_y, gs->d_state);
+  // Move without any realization
+  //
+  if (gs->d_state == 2) {
+
   }
 
-  if (gs->d_state == 3)
-  {
+  if (gs->d_state == 3) {
     add_flash(gs, gs->cur_x, gs->cur_y, gs->current_aperture);
   }
 
@@ -1631,8 +1629,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf)
 
 //------------------------
 
-char *parse_d_state(gerber_state_t *gs, char *s)
-{
+char *parse_d_state(gerber_state_t *gs, char *s) {
   char *chp, ch;
   if (*s != 'D') parse_error("bad D state, expected 'D'", gs->line_no, NULL);
   s++;

@@ -44,6 +44,8 @@ extern "C" {
 #include <string>
 #include <vector>
 
+#include <cmath>
+
 #include "jc_voronoi.h"
 
 #include "clipper.hpp"
@@ -72,14 +74,33 @@ class Aperture_realization {
     int m_crop_type;
     double m_crop[5];
 
-    Path m_outer_boundary;
-    Path m_hole;
-    
+    //Path m_outer_boundary;
+    //Path m_hole;
+
     std::string m_macro_name;
     std::vector< double > m_macro_param;
 
     //std::vector<Point_2> m_outer_boundary;
     //std::vector<Point_2> m_hole;
+
+    Paths m_macro_path;
+    std::vector< int > m_macro_exposure;
+
+    // The paths that are queued to be rendered, additive or subtractive
+    // depending on exposure.
+    //
+    Paths m_path;
+
+    // exposures indicate whether the path in m_path is additive or subtractive
+    // 1 - additive
+    // 0 - subtractive
+    //
+    std::vector< int > m_exposure;
+
+    // Final realized geometry from m_path and m_exposure.
+    //
+    Paths m_geom;
+
 
 };
 

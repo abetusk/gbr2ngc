@@ -199,8 +199,7 @@ typedef struct am_ll_lib_type {
 
 // current state of the gerber interpreter
 //
-typedef struct gerber_state_type
-{
+typedef struct gerber_state_type {
 
   int g_state;
   int d_state;

@@ -20,150 +20,215 @@
 
 #include "gbl2ngc.hpp"
 
-void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 )
-{
-  int i, segments;
-  double c, theta, a;
+#define _isnan std::isnan
+
+static int _get_segment_count(double r, double min_segment_length, int min_segments) {
+  int segments;
+  double c, theta, z;
+
+  segments=min_segments;
   c = 2.0 * M_PI * r;
 
   theta = 2.0 * asin( min_segment_length / (2.0*r) );
+  if (_isnan(theta)) { return min_segments; }
+  if (_isnan(c/theta)) { return min_segments; }
   segments = (int)(c / theta);
-  if (segments < min_segments)
+  if (segments < min_segments) {
     segments = min_segments;
-
-  for (i=0; i<segments; i++)
-  {
-    a = 2.0 * M_PI * (double)i / (double)segments ;
-    //ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
-    ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) ) );
   }
 
-}
-
-void realize_rectangle( Aperture_realization &ap, double x, double y )
-{
-  ap.m_outer_boundary.push_back( dtoc( -x, -y ) );
-  ap.m_outer_boundary.push_back( dtoc(  x, -y ) );
-  ap.m_outer_boundary.push_back( dtoc(  x,  y ) );
-  ap.m_outer_boundary.push_back( dtoc( -x,  y ) );
+  return segments;
 }
 
 
-void realize_obround( Aperture_realization &ap, double x_len, double y_len, int min_segments = 8, double min_segment_length = 0.01 )
+void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 )
 {
-  int i, segments;
-  double theta, a, r;
-  //double c = 2.0 * M_PI * r;
-  double c;
+  int i, idx, segments;
+  double a;
+  //double c, theta, a;
+  //c = 2.0 * M_PI * r;
+  Path empty_path;
+
+  segments = _get_segment_count(r, min_segment_length, min_segments);
+
+  //theta = 2.0 * asin( min_segment_length / (2.0*r) );
+  //segments = (int)(c / theta);
+  //if (segments < min_segments) {
+  //  segments = min_segments;
+  //}
+
+  idx = (int)ap.m_path.size();
+  ap.m_path.push_back(empty_path);
+  for (i=0; i<segments; i++) {
+    a = 2.0 * M_PI * (double)i / (double)segments ;
+    //ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) ) );
+    ap.m_path[idx].push_back( dtoc( r*cos(a), r*sin(a) ) );
+  }
+  ap.m_exposure.push_back(1);
+
+}
+
+void realize_rectangle( Aperture_realization &ap, double x, double y ) {
+  int idx;
+  Path empty_path;
+
+  idx = (int)ap.m_path.size();
+  ap.m_path.push_back(empty_path);
+
+  // ap.m_outer_boundary.push_back( dtoc( -x, -y ) );
+  // ap.m_outer_boundary.push_back( dtoc(  x, -y ) );
+  // ap.m_outer_boundary.push_back( dtoc(  x,  y ) );
+  // ap.m_outer_boundary.push_back( dtoc( -x,  y ) );
+
+  ap.m_path[idx].push_back( dtoc( -x, -y ) );
+  ap.m_path[idx].push_back( dtoc(  x, -y ) );
+  ap.m_path[idx].push_back( dtoc(  x,  y ) );
+  ap.m_path[idx].push_back( dtoc( -x,  y ) );
+  ap.m_exposure.push_back(1);
+}
+
+
+void realize_obround( Aperture_realization &ap, double x_len, double y_len, int min_segments = 8, double min_segment_length = 0.01 ) {
+  int i, segments, idx;
+  double r, a;
+  //double theta, a, r;
+  //double c;
+  Path empty_path;
 
   r = ( (fabs(x_len) < fabs(y_len)) ? x_len : y_len );
-  c = 2.0 * M_PI * r;
 
-  theta = 2.0 * asin( min_segment_length / (2.0*r) );
-  segments = (int)(c / theta);
-  if (segments < min_segments)
-    segments = min_segments;
+//  c = 2.0 * M_PI * r;
+//  theta = 2.0 * asin( min_segment_length / (2.0*r) );
+//  segments = (int)(c / theta);
+//  if (segments < min_segments)
+//    segments = min_segments;
 
+  segments = _get_segment_count(r, min_segment_length, min_segments);
 
-  if (x_len < y_len)
-  {
+  idx = (int)ap.m_path.size();
+  ap.m_path.push_back(empty_path);
+  if (x_len < y_len) {
+
     r = x_len / 2.0;
 
     // start at the top right
-    for (i=0; i <= (segments/2); i++)
-    {
+    //
+    for (i=0; i <= (segments/2); i++) {
       a = 2.0 * M_PI * (double)i / (double)segments ;
-      ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
+      //ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
+      ap.m_path[idx].push_back( dtoc( r*cos(a), r*sin(a) + ((y_len/2.0) - r) ) );
     }
 
     // then the bottom
-    for (int i = (segments/2); i <= segments; i++)
-    {
+    //
+    for (int i = (segments/2); i <= segments; i++) {
       a = 2.0 * M_PI * (double)i / (double)segments ;
-      ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) - ((y_len/2.0) - r) ) );
+      //ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) - ((y_len/2.0) - r) ) );
+      ap.m_path[idx].push_back( dtoc( r*cos(a), r*sin(a) - ((y_len/2.0) - r) ) );
     }
 
   }
-  else if (y_len < x_len)
-  {
+  else if (y_len < x_len) {
+
     r = y_len / 2.0;
 
     // start at bottom right
-    for (i=0; i <= (segments/2); i++)
-    {
+    //
+    for (i=0; i <= (segments/2); i++) {
       a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
-      ap.m_outer_boundary.push_back( dtoc( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
+      //ap.m_outer_boundary.push_back( dtoc( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
+      ap.m_path[idx].push_back( dtoc( r*cos(a) + ((x_len/2.0) - r) , r*sin(a) ) );
     }
 
     // then the left
-    for (i=(segments/2); i <= segments; i++)
-    {
+    //
+    for (i=(segments/2); i <= segments; i++) {
       a = ( 2.0 * M_PI * (double)i / (double)segments ) - ( M_PI / 2.0 );
-      ap.m_outer_boundary.push_back( dtoc( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
+      //ap.m_outer_boundary.push_back( dtoc( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
+      ap.m_path[idx].push_back( dtoc( r*cos(a) - ((x_len/2.0) - r) , r*sin(a) ) );
     }
 
   }
-  else  // circle
-  {
+
+  // circle
+  //
+  else {
+
     r = x_len / 2.0;
-    for (i=0; i<segments; i++)
-    {
+    for (i=0; i<segments; i++) {
       a = 2.0 * M_PI * (double)i / (double)segments ;
-      ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+      //ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+      ap.m_path[idx].push_back( dtoc( r*cos( a ), r*sin( a ) ) );
     }
   }
 
+  ap.m_exposure.push_back(1);
 }
 
 
-void realize_polygon( Aperture_realization &ap, double r, int n_vert, double rot_deg)
-{
-  int i;
+void realize_polygon( Aperture_realization &ap, double r, int n_vert, double rot_deg) {
+  int i, idx;
   double a;
+  Path empty_path;
 
-  if ((n_vert < 3) || (n_vert > 12))
-  {
+  if ((n_vert < 3) || (n_vert > 12)) {
     printf("ERROR! Number of polygon vertices out of range\n");
   }
 
-  for (i=0; i<n_vert; i++)
-  {
+  idx = (int)ap.m_path.size();
+  ap.m_path.push_back(empty_path);
+  for (i=0; i<n_vert; i++) {
     a = (2.0 * M_PI * (double)i / (double)n_vert) + (rot_deg * M_PI / 180.0);
-    ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+    //ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+    ap.m_path[idx].push_back( dtoc( r*cos( a ), r*sin( a ) ) );
   }
+  ap.m_exposure.push_back(1);
 
 }
 
 
-void realize_circle_hole( Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 )
-{
-  int i, segments;
-  double a, c, theta;
+void realize_hole( Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 ) {
+  int i, idx, segments;
+  double a;
+  //double a, c, theta;
+  Path empty_path;
 
-  c = 2.0 * M_PI * r;
+//  c = 2.0 * M_PI * r;
+//  theta = 2.0 * asin( min_segment_length / (2.0*r) );
+//  segments = (int)(c / theta);
+//  if (segments < min_segments)
+//    segments = min_segments;
 
-  theta = 2.0 * asin( min_segment_length / (2.0*r) );
-  segments = (int)(c / theta);
-  if (segments < min_segments)
-    segments = min_segments;
+  segments = _get_segment_count(r, min_segment_length, min_segments);
 
-  for (i=0; i<segments; i++)
-  {
-    a = -2.0 * M_PI * (double)i / (double)segments;  // counter clockwise
-    ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+  idx = (int)ap.m_path.size();
+  ap.m_path.push_back(empty_path);
+  for (i=0; i<segments; i++) {
+
+    // counter clockwise
+    //
+    a = -2.0 * M_PI * (double)i / (double)segments;
+    //ap.m_outer_boundary.push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+    ap.m_path[idx].push_back( dtoc( r*cos( a ), r*sin( a ) ) );
+
   }
+  ap.m_exposure.push_back(0);
 
 }
 
 
+/*
 void realize_rectangle_hole( Aperture_realization &ap, double x, double y ) {
 
-  ap.m_hole.push_back( dtoc( -x, -y ) );  //clockwise instead of contouer clockwise
+  // clockwise instead of contouer clockwise
+  //
+  ap.m_hole.push_back( dtoc( -x, -y ) );
   ap.m_hole.push_back( dtoc( -x,  y ) );
   ap.m_hole.push_back( dtoc(  x,  y ) );
   ap.m_hole.push_back( dtoc(  x, -y ) );
 
 }
+*/
 
 
 // WIP
@@ -335,8 +400,8 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
 
 
   //DBEUG
-  printf("## am_circle:\n");
-  for (i=0; i<eval_param.size(); i++) { printf("[%i] %f\n", i, eval_param[i]); }
+  printf("## am_circle: ");
+  for (i=0; i<eval_param.size(); i++) { printf(" %f", eval_param[i]); }
   printf("\n");
   printf("## %i\n", expose);
   for (i=0; i<path.size(); i++) {
@@ -346,9 +411,11 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
 
 
   //DBEUG
+  printf("# eval_param[%i]:", (int)(eval_param.size()));
   for (i=0; i<eval_param.size(); i++) {
-    printf("[%i] %f\n", i, eval_param[i]);
+    printf(" %f", eval_param[i]);
   }
+  printf("\n");
 
 
   free(vars);
@@ -367,10 +434,8 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   double val;
   std::vector< double > eval_param;
 
-  int segments = 8;
-  double a;
-  int expose = 0;
-  double px, py, c_a, s_a;
+  int segments = 8, expose = 0;
+  double a, px, py, c_a, s_a;
   double width=0.0, height=0.0, cx=0.0, cy=0.0, ang=0.0;
 
 
@@ -447,7 +512,7 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
 // and progressively building up the union and difference of the atomic parts sequencially.
 // Since this is done progressively, the final geometry has to potential to grow exponentially.
 //
-int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< double > &macro_param) {
+int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &macro_name, std::vector< double > &macro_param) {
 
   int i, err=0;
   am_ll_node_t *am_nod;
@@ -457,12 +522,12 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
   int var_idx, ret=0;
   tes_expr *expr;
 
-  std::vector< int > exposure;
-  Paths atomic_geom;
+  //std::vector< int > exposure;
+  //Paths atomic_geom;
 
 
   //DEBUG
-  printf("realizing macro\n");
+  printf("# realizing macro\n");
 
   am_nod = aperture_macro_lookup(gs->am_lib_head, macro_name.c_str());
   if (!am_nod) { return -1; }
@@ -470,7 +535,7 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
   var_idx = 0;
 
   //DEBUG
-  printf("found %s\n", am_nod->name);
+  printf("# found %s\n", am_nod->name);
 
   param_val = macro_param;
   for (i=0; i<(int)param_val.size(); i++) {
@@ -480,12 +545,10 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
   }
 
   for (i=0; i<(int)var_name.size(); i++) {
-    printf("%s %f\n", var_name[i].c_str(), param_val[i]);
+    printf("# %s %f\n", var_name[i].c_str(), param_val[i]);
   }
 
   while (am_nod) {
-
-    printf(".");
 
     switch (am_nod->type) {
       case AM_ENUM_NAME: printf("# name: %s\n", am_nod->name); break;
@@ -498,7 +561,7 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
 
       case AM_ENUM_CIRCLE:
         printf("# circle\n");
-        ret = add_AM_circle(am_nod, param_val, atomic_geom, exposure);
+        ret = add_AM_circle(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# circle error? ret %i\n", ret); }
         break;
 
@@ -506,7 +569,7 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
 
       case AM_ENUM_CENTER_LINE:
         printf("# center line\n");
-        ret = add_AM_center_line(am_nod, param_val, atomic_geom, exposure);
+        ret = add_AM_center_line(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# center line  error? ret %i\n", ret); }
         break;
 
@@ -518,14 +581,12 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
       default: printf("# unknown\n"); break;
     }
 
-
-
     am_nod = am_nod->next;
   }
 
   printf("\n");
 
-  exit(0);
+
   return ret;
 }
 
@@ -533,6 +594,99 @@ int realize_macro(gerber_state_t *gs, std::string &macro_name, std::vector< doub
 // Curves are linearized.  Circles have a minium of 8
 // vertices.
 //
+int realize_apertures_old(gerber_state_t *gs) {
+  double min_segment_length = 0.01;
+  int min_segments = 8;
+  int base_mapping[] = {1, 2, 3, 3};
+  int i;
+
+  aperture_data_t *aperture;
+
+  for ( aperture = gs->aperture_head ;
+        aperture ;
+        aperture = aperture->next ) {
+
+    Aperture_realization ap;
+
+    if (aperture->type != 4) {
+      ap.m_name = aperture->name;
+      ap.m_type = aperture->type;
+      ap.m_crop_type = aperture->crop_type;
+    } else {
+      ap.m_macro_name = aperture->macro_name;
+      for (i=0; i<aperture->macro_param_count; i++) {
+        ap.m_macro_param.push_back(aperture->macro_param[i]);
+      }
+    }
+
+    switch (aperture->type) {
+
+      // circle
+      //
+      case 0:
+        realize_circle( ap, aperture->crop[0]/2.0, min_segments, min_segment_length );
+        break;
+
+      // rectangle
+      //
+      case 1:
+        realize_rectangle( ap, aperture->crop[0]/2.0, aperture->crop[1]/2.0 );
+        break;
+
+      // obround
+      //
+      case 2:
+        realize_obround( ap, aperture->crop[0], aperture->crop[1], min_segments, min_segment_length  );
+        break;
+
+      // polygon
+      //
+      case 3:
+        realize_polygon( ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
+        break;
+
+      // macro
+      //
+      case 4:
+        realize_macro( gs, ap, ap.m_macro_name, ap.m_macro_param );
+        break;
+
+      default: break;
+    }
+
+    int base = ( (aperture->type < 4) ? base_mapping[ aperture->type ] : 0 );
+
+    switch (aperture->crop_type)
+    {
+      // solid, do nothing
+      //
+      case 0: break;
+
+      // circle hole
+      //
+      case 1:
+        realize_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
+        break;
+
+      // rect hole
+      //
+      case 2:
+        //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
+        break;
+
+      default: break;
+    }
+
+    gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
+    gApertureName.push_back(ap.m_name);
+
+  }
+
+  return 0;
+}
+
+//----
+
 int realize_apertures(gerber_state_t *gs) {
   double min_segment_length = 0.01;
   int min_segments = 8;
@@ -558,26 +712,36 @@ int realize_apertures(gerber_state_t *gs) {
       }
     }
 
-    switch (aperture->type)
-    {
-      case 0:  // circle
+    switch (aperture->type) {
+
+      // circle
+      //
+      case 0:
         realize_circle( ap, aperture->crop[0]/2.0, min_segments, min_segment_length );
         break;
 
-      case 1:  // rectangle
+      // rectangle
+      //
+      case 1:
         realize_rectangle( ap, aperture->crop[0]/2.0, aperture->crop[1]/2.0 );
         break;
 
-      case 2:  // obround
+      // obround
+      //
+      case 2:
         realize_obround( ap, aperture->crop[0], aperture->crop[1], min_segments, min_segment_length  );
         break;
 
-      case 3:  // polygon
+      // polygon
+      //
+      case 3:
         realize_polygon( ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
         break;
 
+      // macro
+      //
       case 4:
-        realize_macro( gs, ap.m_macro_name, ap.m_macro_param );
+        realize_macro( gs, ap, ap.m_macro_name, ap.m_macro_param );
         break;
 
       default: break;
@@ -587,15 +751,22 @@ int realize_apertures(gerber_state_t *gs) {
 
     switch (aperture->crop_type)
     {
-      case 0: // solid, do nothing
+      // solid, do nothing
+      //
+      case 0: break;
+
+      // circle hole
+      //
+      case 1:
+        printf("## circle hole?\n");
+        //realize_circle_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
         break;
 
-      case 1: // circle hole
-        realize_circle_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
-        break;
-
-      case 2: // rect hole
-        realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
+      // rect hole
+      //
+      case 2:
+        printf("## rect?\n");
+        //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
         break;
 
       default: break;
@@ -608,5 +779,3 @@ int realize_apertures(gerber_state_t *gs) {
 
   return 0;
 }
-
-

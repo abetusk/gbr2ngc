@@ -304,22 +304,25 @@ void print_polygon_set(gerber_state_t *gs) {
 
       // An informative example:
       // Consider drawing a line with rounded corners from position prev_contour->[xy] to contour->[xy].
-      // This is done by first drawing a (linearized) circle (in general, an aperture) at prev_countour,
-      // then drawing another circle at countour.  After those two are formed, take the convex hull
+      // This is done by first drawing a (linearized) circle (in general, an aperture) at prev_contour,
+      // then drawing another circle at contour.  After those two are formed, take the convex hull
       // of the two (this is the ch_graham_andrew call).  Now we have a "line" with width, which is
       // really a polygon that we've constructed.
       // After all these polygoin segments have been constructed, do a big join at the end to eliminate
       // overlap.
       //
+
+      /*
       for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++) {
-        point_list.push_back( IntPoint(  gAperture[ name ].m_outer_boundary[i].X + prev_pnt.X,
-                                         gAperture[ name ].m_outer_boundary[i].Y + prev_pnt.Y  ) );
+        point_list.push_back( IntPoint( gAperture[ name ].m_outer_boundary[i].X + prev_pnt.X,
+                                        gAperture[ name ].m_outer_boundary[i].Y + prev_pnt.Y ) );
       }
 
       for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++) {
         point_list.push_back( IntPoint( gAperture[ name ].m_outer_boundary[i].X + cur_pnt.X ,
                                         gAperture[ name ].m_outer_boundary[i].Y + cur_pnt.Y ) );
       }
+      */
 
       ConvexHull( point_list, res_point );
 
@@ -334,11 +337,11 @@ void print_polygon_set(gerber_state_t *gs) {
       if (res_point.size()>2) {
         printf("\n\n");
         for (i=0; i<res_point.size(); i++) {
-          printf("%llu %llu\n",
+          printf("%lli %lli\n",
               res_point[i].X,
               res_point[i].Y);
         }
-        printf("%llu %llu\n",
+        printf("%lli %lli\n",
             res_point[0].X,
             res_point[0].Y);
       } else {
@@ -355,11 +358,11 @@ void print_polygon_set(gerber_state_t *gs) {
       printf("\n\n");
       printf("## polygon with hole vector %i, %i\n", i, j);
       for (k=0; k<temp_pwh_vec[i][j].size(); k++) {
-        printf("%llu %llu\n",
+        printf("%lli %lli\n",
             temp_pwh_vec[i][j][k].X,
             temp_pwh_vec[i][j][k].Y);
       }
-      printf("%llu %llu\n",
+      printf("%lli %lli\n",
           temp_pwh_vec[i][j][0].X,
           temp_pwh_vec[i][j][0].Y);
     }
@@ -372,14 +375,18 @@ void print_polygon_set(gerber_state_t *gs) {
 //
 void join_polygon_set(Paths &result, gerber_state_t *gs) {
 
-  unsigned int i;
+  unsigned int i, ii, jj;
   contour_list_ll_t *contour_list;
   contour_ll_t      *contour, *prev_contour;
 
   PathSet temp_pwh_vec;
   IntPoint prev_pnt, cur_pnt;
-  Clipper clip;
 
+  Paths clip_paths, clip_result;
+  Path clip_path;
+
+  Clipper clip;
+  int n=0;
 
   for (contour_list = gs->contour_list_head;
        contour_list;
@@ -392,9 +399,10 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       continue;
     }
 
-
+    n=0;
     while (contour) {
 
+      n++;
       if (!prev_contour) {
         prev_contour = contour;
         continue;
@@ -416,13 +424,23 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       // After all these polygoin segments have been constructed, do a big join at the end to eliminate
       // overlap.
       //
-      for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++)
-        point_list.push_back( IntPoint(  gAperture[ name ].m_outer_boundary[i].X + prev_pnt.X,
-                                         gAperture[ name ].m_outer_boundary[i].Y + prev_pnt.Y  ) );
 
-      for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++)
-        point_list.push_back( IntPoint( gAperture[ name ].m_outer_boundary[i].X + cur_pnt.X ,
-                                        gAperture[ name ].m_outer_boundary[i].Y + cur_pnt.Y ) );
+      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
+                                          gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
+        }
+      }
+
+      if ( (cur_pnt.X != prev_pnt.X) &&
+           (cur_pnt.Y != prev_pnt.Y) ) {
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+            point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X ,
+                                            gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y ) );
+          }
+        }
+      }
 
       ConvexHull( point_list, res_point );
 
@@ -436,7 +454,41 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 
       clip.AddPath( res_point, ptSubject, true );
       contour = contour->next;
+
     }
+
+    //WIP
+    //
+
+    //DEBUG
+    //
+    /*
+    if ( (n==2) &&
+         (cur_pnt.X == prev_pnt.X) &&
+         (cur_pnt.Y == prev_pnt.Y) ) {
+
+      Clipper clip_x;
+      int name = contour->d_name;
+
+      clip_result.clear();
+      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+        clip_path.clear();
+        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+          clip_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
+                                         gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
+        }
+        clip_x.AddPath( clip_path, ptSubject, true );
+      }
+
+      clip_x.Execute( ctUnion, clip_result, pftNonZero, pftNonZero );
+
+      //clip.AddPaths( ctUnion, clip_result, pftNonZero, pftNonZero );
+      clip.AddPaths( clip_result, ptSubject, true );
+    }
+    */
+
+    //
+    //WIP
 
   }
 
@@ -445,4 +497,5 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
   }
 
   clip.Execute( ctUnion, result, pftNonZero, pftNonZero  );
+
 }
