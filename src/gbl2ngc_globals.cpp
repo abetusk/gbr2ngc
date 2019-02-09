@@ -23,9 +23,13 @@
 int gVerboseFlag = 0;
 int gMetricUnits = 0;
 int gUnitsDefault = 1;
+
 char *gInputFilename = NULL;
 char *gOutputFilename = NULL;
 char *gConfigFilename = NULL;
+char *gGCodeHeader = NULL;
+char *gGCodeFooter = NULL;
+
 int gFeedRate = 10;
 int gSeekRate = 100;
 

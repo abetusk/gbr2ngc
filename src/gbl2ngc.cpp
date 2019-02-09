@@ -32,6 +32,13 @@
 #define CONFIG_FILE_YES "yes"
 #define CONFIG_FILE_NO "no"
 
+// There are only 26 letters in the alphabet; 52 including uppercase. As the
+// program grows in complexity and cabability, the letter choices available
+// for command-line arguments will get slim. One solution is to assign numbers
+// instead of letters for less-commonly used or advanced options.
+#define ARG_GCODE_HEADER '2'
+#define ARG_GCODE_FOOTER '3'
+
 struct option gLongOption[] =
 {
   {"radius" , required_argument , 0, 'r'},
@@ -46,6 +53,9 @@ struct option gLongOption[] =
 
   {"zsafe"  , required_argument , 0, 'z'},
   {"zcut"   , required_argument , 0, 'Z'},
+
+  {"gcode-header", required_argument, 0, ARG_GCODE_HEADER},
+  {"gcode-footer", required_argument, 0, ARG_GCODE_FOOTER},
 
   {"metric" , no_argument       , 0, 'M'},
   {"inches" , no_argument       , 0, 'I'},
@@ -86,6 +96,9 @@ char gOptionDescription[][1024] =
 
   "z safe height (default 0.1 inches)",
   "z cut height (default -0.05 inches)",
+
+  "prepend custom G-code to the beginning of the program",
+  "append custom G-code to the end of the program",
 
   "units in metric",
   "units in inches",
@@ -219,6 +232,13 @@ bool set_option(const char option_char, const char* optarg) {
     case 'f':
       gFeedRate = atoi(optarg);
       break;
+
+    case ARG_GCODE_HEADER:
+      gGCodeHeader = strdup(optarg);
+      break;
+    case ARG_GCODE_FOOTER:
+      gGCodeFooter = strdup(optarg);
+
     case 'I':
       gMetricUnits = bool_option(optarg, 0);
       gUnitsDefault = 0;
@@ -427,6 +447,11 @@ void cleanup(void)
     free(gInputFilename);
   if (gConfigFilename)
     free(gConfigFilename);
+
+  if (gGCodeHeader)
+    free(gGCodeHeader);
+  if (gGCodeFooter)
+    free(gGCodeFooter);
 }
 
 

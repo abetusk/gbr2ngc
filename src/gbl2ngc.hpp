@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.7.3"
+#define GBL2NGC_VERSION "0.7.4"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -87,9 +87,13 @@ typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 extern int gVerboseFlag;
 extern int gMetricUnits;
 extern int gUnitsDefault;
+
 extern char *gInputFilename;
 extern char *gOutputFilename;
 extern char *gConfigFilename;
+extern char *gGCodeHeader;
+extern char *gGCodeFooter;
+
 extern int gFeedRate;
 extern int gSeekRate;
 
