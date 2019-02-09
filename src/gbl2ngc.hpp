@@ -87,9 +87,13 @@ typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 extern int gVerboseFlag;
 extern int gMetricUnits;
 extern int gUnitsDefault;
+
 extern char *gInputFilename;
 extern char *gOutputFilename;
 extern char *gConfigFilename;
+extern char *gGCodeHeader;
+extern char *gGCodeFooter;
+
 extern int gFeedRate;
 extern int gSeekRate;
 
