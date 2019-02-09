@@ -1429,6 +1429,10 @@ int gerber_state_load_file(gerber_state_t *gs, char *fn)
       continue;
     gs->line_no++;
 
+    if (linebuf[0] == '\0') {  // it's an empty line
+      continue;
+    }
+
     gerber_state_interpret_line(gs, linebuf);
   }
 
