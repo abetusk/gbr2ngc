@@ -250,6 +250,7 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour ) {
 
   pwh_vec.push_back( soln );
 
+  if (!res) { return -1; }
   return 0;
 }
 

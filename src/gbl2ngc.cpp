@@ -20,21 +20,42 @@
 
 #include "gbl2ngc.hpp"
 
+// gbl2ngc will look here by default for a config file
+#define DEFAULT_CONFIG_FILENAME "./gbl2ngc.ini"
+
+// Users should specify boolean options as "yes" or "no"
+// (without quotes).
+//
+// e.g.
+//  - verbose = yes|no
+//
+#define CONFIG_FILE_YES "yes"
+#define CONFIG_FILE_NO "no"
+
+// There are only 26 letters in the alphabet; 52 including uppercase. As the
+// program grows in complexity and cabability, the letter choices available
+// for command-line arguments will get slim. One solution is to assign numbers
+// instead of letters for less-commonly used or advanced options.
+#define ARG_GCODE_HEADER '2'
+#define ARG_GCODE_FOOTER '3'
 
 struct option gLongOption[] =
 {
   {"radius" , required_argument , 0, 'r'},
-  //{"routeradius" , required_argument , 0, 'R'},
   {"fillradius" , required_argument , 0, 'F'},
 
   {"input"  , required_argument , 0, 'i'},
   {"output" , required_argument , 0, 'o'},
+  {"config-file", required_argument , 0, 'c'},
 
   {"feed"   , required_argument , 0, 'f'},
   {"seek"   , required_argument , 0, 's'},
 
   {"zsafe"  , required_argument , 0, 'z'},
   {"zcut"   , required_argument , 0, 'Z'},
+
+  {"gcode-header", required_argument, 0, ARG_GCODE_HEADER},
+  {"gcode-footer", required_argument, 0, ARG_GCODE_FOOTER},
 
   {"metric" , no_argument       , 0, 'M'},
   {"inches" , no_argument       , 0, 'I'},
@@ -61,21 +82,23 @@ struct option gLongOption[] =
   {0, 0, 0, 0}
 };
 
-
 char gOptionDescription[][1024] =
 {
   "radius (default 0)",
-  //"radius to be used for routing (default to radius above)",
   "radius to be used for fill pattern (default to radius above)",
 
   "input file",
   "output file (default stdout)",
+  "configuration file (default ./gbl2ngc.ini)",
 
   "feed rate (default 10)",
   "seek rate (default 100)",
 
   "z safe height (default 0.1 inches)",
   "z cut height (default -0.05 inches)",
+
+  "prepend custom G-code to the beginning of the program",
+  "append custom G-code to the end of the program",
 
   "units in metric",
   "units in inches",
@@ -102,6 +125,22 @@ char gOptionDescription[][1024] =
 };
 
 int gPrintPolygon = 0;
+
+option lookup_option_by_name(const char* name)
+{
+  int i;
+
+  for (i = 0; gLongOption[i].name; i++) {
+    const option opt = gLongOption[i];
+    if (strcmp(opt.name, name) == 0) {
+      return opt;
+    }
+  }
+
+  const option no_option = {0, 0, 0, 0};
+
+  return no_option;
+}
 
 void show_help(void)
 {
@@ -139,33 +178,38 @@ void show_help(void)
 
 }
 
-void process_command_line_options(int argc, char **argv)
+// Use as a go-between for the internal globals and optarg,
+// which could either come from a config file or be NULL if
+// the option was given as a command line switch.
+// `default_` is the value that is returned if the option is
+// set to CONFIG_FILE_YES or given as a CLI switch.
+bool bool_option(const char* optarg, bool default_ = true)
 {
+  if (optarg == NULL) {
+    return default_;
+  }
 
-  extern char *optarg;
-  //extern int optind;
-  int option_index;
+  else if (strcmp(optarg, CONFIG_FILE_YES) == 0) {
+    return default_;
+  }
 
-  char ch;
+  else if (strcmp(optarg, CONFIG_FILE_NO) == 0) {
+    return !default_;
+  }
 
-  gFillRadius = -1.0;
+  // Treat all other values for optarg as NO
+  return !default_;
+}
 
-  while ((ch = getopt_long(argc, argv, "i:o:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) switch(ch)
+bool set_option(const char option_char, const char* optarg) {
+
+  switch(option_char)
   {
-    case 0:
-      // long option
-      //
-      break;
-    case 'N':
-    case 'h':
-      show_help();
-      exit(0);
-      break;
     case 'C':
-      gShowComments = 0;
+      gShowComments = bool_option(optarg, 0);
       break;
     case 'R':
-      gHumanReadable = 0;
+      gHumanReadable = bool_option(optarg, 0);
       break;
     case 'r':
       gRadius = atof(optarg);
@@ -188,43 +232,158 @@ void process_command_line_options(int argc, char **argv)
     case 'f':
       gFeedRate = atoi(optarg);
       break;
-    case 'i':
-      gInputFilename = strdup(optarg);
+
+    case ARG_GCODE_HEADER:
+      gGCodeHeader = strdup(optarg);
       break;
-    case 'o':
-      gOutputFilename = strdup(optarg);
-      break;
+    case ARG_GCODE_FOOTER:
+      gGCodeFooter = strdup(optarg);
+
     case 'I':
-      gMetricUnits = 0;
+      gMetricUnits = bool_option(optarg, 0);
       gUnitsDefault = 0;
       break;
     case 'M':
-      gMetricUnits = 1;
+      gMetricUnits = bool_option(optarg);
       gUnitsDefault = 0;
       break;
 
     case 'H':
-      gScanLineHorizontal = 1;
+      gScanLineHorizontal = bool_option(optarg);
       break;
     case 'V':
-      gScanLineVertical = 1;
+      gScanLineVertical = bool_option(optarg);
       break;
     case 'G':
-      gScanLineZenGarden = 1;
+      gScanLineZenGarden = bool_option(optarg);
       break;
 
     case 'P':
-      gPrintPolygon = 1;
+      gPrintPolygon = bool_option(optarg);
       break;
 
     case 'v':
-      gVerboseFlag = 1;
+      gVerboseFlag = bool_option(optarg);
       break;
     default:
-      printf("bad option\n");
-      show_help();
-      exit(1);
+      return false;
       break;
+  }
+
+  return true;
+}
+
+void process_config_file_options() {
+
+  if (!gConfigFilename) {
+    gConfigFilename = strdup(DEFAULT_CONFIG_FILENAME);
+  }
+
+  if (! (gCfgStream = fopen(gConfigFilename, "r"))) {
+    if (strcmp(gConfigFilename, DEFAULT_CONFIG_FILENAME) == 0) {
+      return;
+    }
+
+    fprintf(stderr, "Can't load configuration: ");
+    perror(gOutputFilename);
+    exit(1);
+  }
+
+  char option_name[64];
+  char option_value[64];
+  char line[256] = {'\0'};
+
+  while (fgets(line, sizeof(line), gCfgStream)) {
+
+    if (strcmp(line, "\n") == 0) {
+      // printf("skipping blank line");
+    }
+
+    else if (line[0] == ';') {
+      // printf("skipping comment");
+    }
+
+    else {
+      memset(option_name, 0, sizeof(option_name));
+      memset(option_value, 0, sizeof(option_value));
+
+      const char* name_end = strpbrk(line, " \t=");
+      const char* value_start = name_end + strspn(name_end, " \t=");
+      strncpy(option_name, line, name_end - line);
+      strncpy(option_value, value_start, strlen(value_start)-1);
+
+      const char option_char = lookup_option_by_name(option_name).val;
+      set_option(option_char, option_value);
+    }
+  }
+
+  fclose(gCfgStream);
+}
+
+void process_command_line_options(int argc, char **argv)
+{
+
+  extern char *optarg;
+  extern int optind, opterr;
+  int option_index;
+
+  char ch;
+
+  gFillRadius = -1.0;
+
+  // Check if a custom path for the configuration file was given. If so,
+  // those options need to be loaded before applying the command-line
+  // options.
+
+  opterr = 0;  // disable error messages for extra arguments
+
+  while ((ch = getopt_long(argc, argv, "-c:", gLongOption, &option_index)) >= 0) {
+    if (ch == 'c') {
+      gConfigFilename = strdup(optarg);
+      break;
+    }
+  }
+
+  optind = 0;
+
+  process_config_file_options();
+
+  // Now the cli args and be applied. 'c:' is still included in the
+  // argstring so that it won't be defaulted as a bad option.
+
+  opterr = 1;  // this time extra arguments SHOULD raise errors
+
+  while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) {
+    switch(ch) {
+      case 0:
+        // long option
+        //
+        break;
+      case 'N':
+      case 'h':
+        show_help();
+        exit(0);
+        break;
+
+      case 'i':
+        gInputFilename = strdup(optarg);
+        break;
+      case 'o':
+        gOutputFilename = strdup(optarg);
+        break;
+      case 'c':
+        // Do nothing, but don't go to default!
+        break;
+
+      default:
+        if (!set_option(ch, optarg)) {
+          printf("bad option: -%c %s\n", ch, optarg);
+          show_help();
+          exit(1);
+        }
+        break;
+    }
+
   }
 
   if (gFillRadius <= 0.0)
@@ -277,6 +436,7 @@ void process_command_line_options(int argc, char **argv)
 }
 
 
+
 void cleanup(void)
 {
   if (gOutStream != stdout)
@@ -285,6 +445,13 @@ void cleanup(void)
     free(gOutputFilename);
   if (gInputFilename)
     free(gInputFilename);
+  if (gConfigFilename)
+    free(gConfigFilename);
+
+  if (gGCodeHeader)
+    free(gGCodeHeader);
+  if (gGCodeFooter)
+    free(gGCodeFooter);
 }
 
 
@@ -669,6 +836,32 @@ void invert(Paths &src, Paths &dst) {
 
 }
 
+void dump_options() {
+  printf("input = %s\n", gInputFilename);
+  printf("output = %s\n", gOutputFilename);
+  printf("config-file = %s", gConfigFilename);
+
+  printf("radius = %f\n", gRadius);
+  printf("fillradius = %f\n", gFillRadius);
+
+  printf("feed = %d\n", gFeedRate);
+  printf("seek = %d\n", gSeekRate);
+
+  printf("zsafe = %f\n", gZSafe);
+  printf("zcut = %f\n", gZCut);
+
+  printf("metric = %d\n", gMetricUnits);
+
+  printf("no-comment = %d\n", !gShowComments);
+  printf("machine-readable = %d\n", !gHumanReadable);
+
+  printf("horizinal = %d\n", gScanLineHorizontal);
+  printf("vertical = %d\n", gScanLineVertical);
+  printf("zengarden = %d\n", gScanLineZenGarden);
+
+  printf("verbose = %d\n", gVerboseFlag);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -681,6 +874,7 @@ int main(int argc, char **argv)
   Paths offset;
 
   process_command_line_options(argc, argv);
+  // dump_options();
 
   // Initalize and load gerber file
   //
