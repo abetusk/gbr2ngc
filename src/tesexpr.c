@@ -90,6 +90,15 @@ static tes_expr *new_expr(const int type, const tes_expr *parameters[]) {
     const int arity = ARITY(type);
     const int psize = sizeof(void*) * arity;
     const int size = (sizeof(tes_expr) - sizeof(void*)) + psize + (IS_CLOSURE(type) ? sizeof(void*) : 0);
+
+    //DEBUG
+    //if (type==0) {
+    //  fprintf(stderr, "# type: %i, param: %p, size: %i, psize: %i\n",
+    //      type, parameters, size, psize);
+    //  fflush(stderr);
+    //}
+    //DEBUG
+
     tes_expr *ret = malloc(size);
     memset(ret, 0, size);
     if (arity && parameters) {
@@ -218,7 +227,18 @@ static const tes_variable *find_lookup(const state *s, const char *name, int len
     if (!s->lookup) return 0;
 
     for (var = s->lookup, iters = s->lookup_len; iters; ++var, --iters) {
+
+      //DEBUG
+      //fprintf(stderr, "## lookup: name:%s == var->name %s (%i)\n", name, var->name, len); fflush(stderr);
+      //fprintf(stderr, "## var(%i,%s,%f)\n", var->type, var->name, (float)(*((double *)(var->address)))); fflush(stderr);
+      //DEBUG
+
         if (strncmp(name, var->name, len) == 0 && var->name[len] == '\0') {
+
+          //DEBUG
+          //fprintf(stderr, "### returning...\n"); fflush(stderr);
+          //DEBUG
+
             return var;
         }
     }
@@ -262,14 +282,37 @@ void next_token(state *s) {
                 while ( (s->next[0] >= '0') && (s->next[0] <= '9') ) s->next++;
 
                 const tes_variable *var = find_lookup(s, start, s->next - start);
-                if (!var) var = find_builtin(start, s->next - start);
+
+
+                  //DEBUG
+                  //fprintf(stderr, "#cp0 (tesexpr.c::next_token)\n"); fflush(stderr);
+                  //fprintf(stderr, "#  var: %p\n", var); fflush(stderr);
+                  //DEBUG
+
+
+                // builtin functions can't start with '$', only variables, so
+                // skip this check
+                //
+                //if (!var) var = find_builtin(start, s->next - start);
 
                 if (!var) {
                     s->type = TOK_ERROR;
                 } else {
+
+                  //DEBUG
+                  //fprintf(stderr, "#cp (tesexpr.c::next_token)\n"); fflush(stderr);
+                  //fprintf(stderr, "#  name: %s\n", var->name); fflush(stderr);
+                  //fprintf(stderr, "#  type: %i,  type_maske: %i, (TES_VARIABLE %i)\n", (int)var->type, (int)TYPE_MASK(var->type), TES_VARIABLE); fflush(stderr);
+                  //DEBUG
+
                     switch(TYPE_MASK(var->type))
                     {
                         case TES_VARIABLE:
+
+                          //DEBUG
+                          //fprintf(stderr, "# cp2... val: %f\n", (float)(*((double *)var->address)));
+                          //DEBUG
+
                             s->type = TOK_VARIABLE;
                             s->bound = var->address;
                             break;

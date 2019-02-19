@@ -15,5 +15,7 @@ gcc -g gerber_interpreter.c gerber_interpreter_aperture_macro.c tesexpr.c string
 #g++ -Wall -O2 -o gbl2ngc $CPP_FILES  $OBJ_FILES clipper.cpp -lstdc++  -lboost_thread -lm
 #g++ -std=c++11 -Wall -O2 -o gbl2ngc $CPP_FILES  $OBJ_FILES clipper.cpp -lstdc++  -lboost_thread -lm
 g++ -std=c++11 -g -o gbl2ngc $CPP_FILES  $OBJ_FILES clipper.cpp -lstdc++  -lboost_thread -lm
-#g++ -g -o gbl2ngc_debug $CPP_FILES  $OBJ_FILES clipper.cpp -lstdc++  -lboost_thread
+g++ -std=c++11 -g -o gbl2ngc_debug $CPP_FILES  $OBJ_FILES clipper.cpp -lstdc++  -lboost_thread -lm
+
+
 

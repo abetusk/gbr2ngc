@@ -274,6 +274,7 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   for (i=0; i<(int)macro_param.size(); i++) {
     vars[i].name = varname[i].c_str();
     vars[i].address = &(macro_param[i]);
+    vars[i].type = TES_VARIABLE;
   }
 
   var_idx = atoi(am_node->varname + 1);
@@ -283,13 +284,15 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   //DEBUG
   printf("## got var_idx %i\n", var_idx);
   printf("## var eval: %s\n", am_node->eval_line[0]);
+  fflush(stdout);
 
   expr = tes_compile(am_node->eval_line[0], vars, macro_param.size(), &err);
   if (!expr) { free(vars); return -2; }
 
   val = tes_eval(expr);
 
-  printf("## got val %f\n", val);
+  //DEBUG
+  printf("## got val %f\n", val); fflush(stdout);
 
   if ((var_idx+1) > (int)macro_param.size()) {
     for (i=(int)macro_param.size(); i<=var_idx; i++) {
@@ -300,7 +303,7 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   macro_param[var_idx] = val;
 
   //DEBUG
-  printf("# macro_param[%i]:", (int)macro_param.size());
+  printf("# macro_param[%i]:", (int)macro_param.size()); fflush(stdout);
   for (i=0; i<macro_param.size(); i++) {
     printf(" %f", macro_param[i]);
   }
@@ -350,6 +353,7 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   for (i=0; i<(int)macro_param.size(); i++) {
     vars[i].name = varname[i].c_str();
     vars[i].address = &(macro_param[i]);
+    vars[i].type = TES_VARIABLE;
   }
 
   //DEBUG
@@ -398,7 +402,6 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   paths.push_back(path);
   exposure.push_back(expose);
 
-
   //DBEUG
   printf("## am_circle: ");
   for (i=0; i<eval_param.size(); i++) { printf(" %f", eval_param[i]); }
@@ -439,13 +442,24 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   double width=0.0, height=0.0, cx=0.0, cy=0.0, ang=0.0;
 
 
-  vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
-  for (i=0; i<macro_param.size(); i++) {
-    s.clear();
-    s += "$";
-    s += std::to_string(i+1);
-    vars[i].name = s.c_str();
-    vars[i].address = &(macro_param[i]);
+  if (macro_param.size() > 0) {
+    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
+    for (i=0; i<macro_param.size(); i++) {
+      s.clear();
+      s += "$";
+      s += std::to_string(i+1);
+      varname.push_back(s);
+      //vars[i].name = varname[i].c_str();
+      vars[i].address = &(macro_param[i]);
+      vars[i].type = TES_VARIABLE;
+    }
+
+    // varname is dynamically allocated, so we need to set the
+    // string points here, after varname's size becomes static
+    //
+    for (i=0; i<macro_param.size(); i++) {
+      vars[i].name = varname[i].c_str();
+    }
   }
 
 
@@ -499,7 +513,7 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
 }
 
 // Realize a macro.
-// A macro consists of a series of prmiitives to be drawn, either with 'exposure' on or off,
+// A macro consists of a series of primiitives to be drawn, either with 'exposure' on or off,
 // representing additive or subtractive geometry.
 // The additions and subtraction only happen within the macro and aren't affected by or
 // affect the outside geometry, so they can be realized wholly with the macro defintion
@@ -514,7 +528,7 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
 //
 int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &macro_name, std::vector< double > &macro_param) {
 
-  int i, err=0;
+  int i, err=0, idx, segments, m_idx;
   am_ll_node_t *am_nod;
   std::vector< double > param_val;
   std::vector< std::string > var_name;
@@ -522,12 +536,15 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
   int var_idx, ret=0;
   tes_expr *expr;
 
+  Path empty_path;
+  IntPoint pnt;
+
   //std::vector< int > exposure;
   //Paths atomic_geom;
 
 
   //DEBUG
-  printf("# realizing macro\n");
+  printf("# realizing macro\n"); fflush(stdout);
 
   am_nod = aperture_macro_lookup(gs->am_lib_head, macro_name.c_str());
   if (!am_nod) { return -1; }
@@ -535,7 +552,7 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
   var_idx = 0;
 
   //DEBUG
-  printf("# found %s\n", am_nod->name);
+  printf("# found %s\n", am_nod->name); fflush(stdout);
 
   param_val = macro_param;
   for (i=0; i<(int)param_val.size(); i++) {
@@ -545,46 +562,84 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
   }
 
   for (i=0; i<(int)var_name.size(); i++) {
-    printf("# %s %f\n", var_name[i].c_str(), param_val[i]);
+    printf("# %s %f\n", var_name[i].c_str(), param_val[i]); fflush(stdout);
   }
 
   while (am_nod) {
 
     switch (am_nod->type) {
-      case AM_ENUM_NAME: printf("# name: %s\n", am_nod->name); break;
-      case AM_ENUM_COMMENT: printf("# comment %s\n", am_nod->comment); break;
+      case AM_ENUM_NAME: printf("#xx name: %s\n", am_nod->name); break;
+      case AM_ENUM_COMMENT: printf("#xx comment %s\n", am_nod->comment); break;
       case AM_ENUM_VAR:
-        printf("# var %s = %s\n", am_nod->varname, am_nod->eval_line[0]);
+
+        printf("#xx var %s = %s\n", am_nod->varname, am_nod->eval_line[0]); fflush(stdout);
+
         ret = eval_AM_var(am_nod, param_val);
+
         if (ret<0) { printf("# var error? ret %i\n", ret); }
         break;
 
       case AM_ENUM_CIRCLE:
-        printf("# circle\n");
+        printf("#xx circle\n");
         ret = add_AM_circle(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# circle error? ret %i\n", ret); }
+
+
+        // trying to add to add from am
+        //
+        m_idx = (int)(ap.m_macro_path.size()-1);
+        idx = (int)ap.m_path.size();
+        ap.m_path.push_back(empty_path);
+        for (i=0; i<ap.m_macro_path.size(); i++) {
+          ap.m_path[idx].push_back( ap.m_macro_path[m_idx][i] );
+        }
+        ap.m_exposure.push_back( ap.m_macro_exposure[m_idx] );
+
         break;
 
       case AM_ENUM_VECTOR_LINE: printf("# vector line\n"); break;
 
       case AM_ENUM_CENTER_LINE:
-        printf("# center line\n");
+
+        printf("#xx center line\n");
+
         ret = add_AM_center_line(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
+
         if (ret<0) { printf("# center line  error? ret %i\n", ret); }
+
+        // trying to add to add from am
+        //
+        m_idx = (int)(ap.m_macro_path.size()-1);
+        idx = (int)ap.m_path.size();
+        ap.m_path.push_back(empty_path);
+        for (i=0; i<ap.m_macro_path.size(); i++) {
+          ap.m_path[idx].push_back( ap.m_macro_path[m_idx][i] );
+        }
+        ap.m_exposure.push_back( ap.m_macro_exposure[m_idx] );
+
         break;
 
-      case AM_ENUM_OUTLINE: printf("# outline\n"); break;
-      case AM_ENUM_POLYGON: printf("# polygon\n"); break;
-      case AM_ENUM_MOIRE: printf("# moire\n"); break;
-      case AM_ENUM_THERMAL: printf("# thermal\n"); break;
+      case AM_ENUM_OUTLINE: printf("#xx outline\n"); break;
+      case AM_ENUM_POLYGON: printf("#xx polygon\n"); break;
+      case AM_ENUM_MOIRE: printf("#xx moire\n"); break;
+      case AM_ENUM_THERMAL: printf("#xx thermal\n"); break;
 
-      default: printf("# unknown\n"); break;
+      default: printf("#xx unknown\n"); break;
     }
 
     am_nod = am_nod->next;
   }
 
-  printf("\n");
+  //DEBUG
+  printf("\n"); fflush(stdout);
+
+  // not ready for this yet...we're adding aperture macro stuff above,
+  // need ot figure out how to actually get it into an aperture data definition/realization
+  //
+  //gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
+  //gApertureName.push_back(ap.m_name);
+
+
 
 
   return ret;
@@ -701,11 +756,15 @@ int realize_apertures(gerber_state_t *gs) {
   {
     Aperture_realization ap;
 
+    //DEBUG
+    printf("##>> aperture->type %i, aperture->name %i\n", aperture->type, aperture->name);
+
     if (aperture->type != 4) {
       ap.m_name = aperture->name;
       ap.m_type = aperture->type;
       ap.m_crop_type = aperture->crop_type;
     } else {
+      ap.m_name = aperture->name;
       ap.m_macro_name = aperture->macro_name;
       for (i=0; i<aperture->macro_param_count; i++) {
         ap.m_macro_param.push_back(aperture->macro_param[i]);
@@ -749,28 +808,35 @@ int realize_apertures(gerber_state_t *gs) {
 
     int base = ( (aperture->type < 4) ? base_mapping[ aperture->type ] : 0 );
 
-    switch (aperture->crop_type)
-    {
-      // solid, do nothing
-      //
-      case 0: break;
+    if (aperture->type != 4) {
 
-      // circle hole
-      //
-      case 1:
-        printf("## circle hole?\n");
-        //realize_circle_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
-        break;
+      switch (aperture->crop_type)
+      {
+        // solid, do nothing
+        //
+        case 0: break;
 
-      // rect hole
-      //
-      case 2:
-        printf("## rect?\n");
-        //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
-        break;
+        // circle hole
+        //
+        case 1:
+          printf("## circle hole?\n");
+          //realize_circle_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
+          break;
 
-      default: break;
+        // rect hole
+        //
+        case 2:
+          printf("## rect?\n");
+          //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
+          break;
+
+        default: break;
+      }
+
     }
+
+    //DEBUG
+    printf("##?? adding aperture %i\n", ap.m_name); fflush(stdout);
 
     gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
     gApertureName.push_back(ap.m_name);

@@ -250,7 +250,7 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour ) {
 
   pwh_vec.push_back( soln );
 
-  if (!res) { return -1; }
+  //if (!res) { return -1; }
   return 0;
 }
 
@@ -371,6 +371,20 @@ void print_polygon_set(gerber_state_t *gs) {
 
 }
 
+static void debug_gAperture() {
+  int key;
+  Aperture_realization *rlz;
+  ApertureNameMap::iterator it;
+
+  for (it = gAperture.begin(); it != gAperture.end(); ++it ) {
+    key = it->first;
+    rlz = &(it->second);
+
+    printf("## debug_gAperture: key:%i\n", key);
+  }
+
+}
+
 // construct the final polygon set (before offsetting)
 //   of the joined polygons from the parsed gerber file.
 //
@@ -426,12 +440,20 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       // overlap.
       //
 
+      //DEBUG
+      printf("##>> aperture name: %i\n", name); fflush(stdout);
+      debug_gAperture(); fflush(stdout);
+      printf("## gAperture[%i].m_path.size() %i\n", name, (int)gAperture[name].m_path.size());
+
       for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
         for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
           point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
                                           gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
         }
       }
+
+      //DEBUG
+      printf("### cp.0\n"); fflush(stdout);
 
       if ( (cur_pnt.X != prev_pnt.X) &&
            (cur_pnt.Y != prev_pnt.Y) ) {
@@ -443,7 +465,18 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         }
       }
 
+      //DEBUG
+      printf("### cp.1\n"); fflush(stdout);
+      printf("### point_list.size() %i\n", (int)point_list.size());
+
       ConvexHull( point_list, res_point );
+      if (res_point.size() == 0) {
+        fprintf(stderr, "ERROR: res_point.size() == 0 in join_polygon_set\n"); fflush(stderr);
+        return;
+      }
+
+      //DEBUG
+      printf("## res_point.size() %i\n", (int)res_point.size()); fflush(stdout);
 
       if (res_point[ res_point.size() - 1] == res_point[0]) {
         res_point.pop_back();

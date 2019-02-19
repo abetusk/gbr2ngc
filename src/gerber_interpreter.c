@@ -627,10 +627,13 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   ap_db->macro_name = strndup(chp, n);
   ap_db->type = 4;
 
+  //DEBUG
+  printf("## ap_db->macro_name: %s\n", ap_db->macro_name); fflush(stdout);
+
   chp += n;
 
   //DEBUG
-  printf("## chp: %s\n", chp);
+  printf("## chp: %s\n", chp); fflush(stdout);
 
   param_count=0;
   for (n=0; (chp[n]) && (chp[n]!='*'); n++) {
@@ -640,7 +643,7 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   }
 
   //DEBUG
-  printf("## param_count: %i\n", param_count);
+  printf("## param_count: %i\n", param_count); fflush(stdout);
 
   ap_db->macro_param_count = param_count;
   if (param_count>0) {
@@ -658,7 +661,7 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
 
 
       //DEBUG
-      printf("# converting %s\n", chp);
+      printf("# converting %s\n", chp); fflush(stdout);
 
       ap_db->macro_param[i] = strtod(chp, NULL);
 
@@ -681,6 +684,7 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   printf("\n");
   printf("## ad end\n");
   print_aperture_data(gs);
+  fflush(stdout);
 
   gs->gerber_read_state = GRS_NONE;
 }
