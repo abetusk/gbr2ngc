@@ -20,6 +20,7 @@
 
 #include "gbl2ngc.hpp"
 
+//#define DEBUG_CONSTRUCT
 
 class Gerber_point_2 {
   public:
@@ -388,6 +389,15 @@ static void debug_gAperture() {
 // construct the final polygon set (before offsetting)
 //   of the joined polygons from the parsed gerber file.
 //
+// The aperture macros add a lot of complexity, so the basic
+// idea to construct the geometry is:
+//
+// * if it's a 'region', add to a running `clip` of subject
+//   for a union
+// * for individual elements, construct a temporry `cur_clip`
+//   that does an individual subject union for exposure of 1
+//   and a differenc clip of exposure 0
+//
 void join_polygon_set(Paths &result, gerber_state_t *gs) {
 
   unsigned int i, ii, jj;
@@ -403,6 +413,12 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
   Clipper clip;
   int n=0;
 
+  int clip_count=0, name=0;
+
+  Path point_list, res_point, tmp_path;
+  Paths aperture_geom, it_paths;
+  Clipper aperture_clip;
+
   for (contour_list = gs->contour_list_head;
        contour_list;
        contour_list = contour_list->next) {
@@ -410,7 +426,17 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
     contour = contour_list->c;
 
     if (contour->region) {
+
+      temp_pwh_vec.clear();
+
       construct_contour_region(temp_pwh_vec, contour);
+
+      //clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
+      //clip.AddPath( temp_pwh_vec, ptSubject, true );
+      for (i=0; i<temp_pwh_vec.size(); i++) { clip.AddPaths( temp_pwh_vec[i], ptSubject, true ); }
+
+      clip_count++;
+
       continue;
     }
 
@@ -423,9 +449,7 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         continue;
       }
 
-      Path point_list;
-      Path res_point;
-      int name = contour->d_name;
+      name = contour->d_name;
 
       prev_pnt = dtoc( prev_contour->x, prev_contour->y );
       cur_pnt = dtoc( contour->x, contour->y );
@@ -439,96 +463,126 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       // After all these polygoin segments have been constructed, do a big join at the end to eliminate
       // overlap.
       //
-
-      //DEBUG
-      printf("##>> aperture name: %i\n", name); fflush(stdout);
-      debug_gAperture(); fflush(stdout);
-      printf("## gAperture[%i].m_path.size() %i\n", name, (int)gAperture[name].m_path.size());
-
-      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
-        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
-                                          gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
-        }
-      }
-
-      //DEBUG
-      printf("### cp.0\n"); fflush(stdout);
+      //
 
       if ( (cur_pnt.X != prev_pnt.X) &&
            (cur_pnt.Y != prev_pnt.Y) ) {
+
+        printf("## realizing aperture %i\n", name);
+
+        point_list.clear();
+        res_point.clear();
+
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+            point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
+                                            gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
+          }
+        }
+
         for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
           for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
             point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X ,
                                             gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y ) );
           }
         }
+
+        ConvexHull( point_list, res_point );
+
+        if (res_point.size() == 0) {
+          fprintf(stdout, "ERROR: res_point.size() == 0 in join_polygon_set\n"); fflush(stdout);
+          fprintf(stderr, "ERROR: res_point.size() == 0 in join_polygon_set\n"); fflush(stderr);
+          return;
+        }
+
+        clip.AddPath( res_point, ptSubject, true );
+        contour = contour->next;
+        continue;
       }
+
+
+      aperture_clip.Clear();
+      aperture_geom.clear();
+      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+
+        //DEBUG
+#ifdef DEBUG_CONSTRUCT
+        printf("##>> exposure %i\n", gAperture[name].m_exposure[ii]);
+#endif
+
+        tmp_path.clear();
+        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+          tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
+                                        gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
+        }
+        bool tf = Orientation(gAperture[name].m_path[ii]);
+        //if (!tf) { tmp_path.reverse(tmp_path.begin(), tmp_path.end()); }
+        if (!tf) { ReversePath(tmp_path); }
+
+        if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
+
+
+        int last_idx = (int)(tmp_path.size()-1);
+        if ((tmp_path[0].X != tmp_path[last_idx].X) &&
+            (tmp_path[0].Y != tmp_path[last_idx].Y)) {
+          fprintf(stdout, "## WARNING, tmp_path for %i is not closed!\n", name); fflush(stdout);
+          tmp_path.push_back(tmp_path[0]);
+        }
+
+        if (gAperture[name].m_exposure[ii]) {
+
+          //DEBUG
+          bool tf = Orientation(gAperture[name].m_path[ii]);
+
+#ifdef DEBUG_CONSTRUCT
+          printf("##++ exposure %i for name %i, orient %i\n", gAperture[name].m_exposure[ii], name, tf ? 1 : 0);
+#endif
+
+
+          aperture_clip.AddPath(tmp_path, ptSubject, true);
+        }
+        else {
+
+          //DEBUG
+          bool tf = Orientation(gAperture[name].m_path[ii]);
+
+#ifdef DEBUG_CONSTRUCT
+          printf("##-- exposure %i for name %i, orient %i\n", gAperture[name].m_exposure[ii], name, tf ? 1 : 0);
+#endif
+
+
+          aperture_clip.AddPath(tmp_path, ptClip, true);
+          aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
+
+          aperture_clip.Clear();
+          aperture_clip.AddPaths(aperture_geom, ptSubject, true);
+
+          aperture_geom.clear();
+        }
+
+      }
+      it_paths.clear();
+      aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
 
       //DEBUG
-      printf("### cp.1\n"); fflush(stdout);
-      printf("### point_list.size() %i\n", (int)point_list.size());
-
-      ConvexHull( point_list, res_point );
-      if (res_point.size() == 0) {
-        fprintf(stderr, "ERROR: res_point.size() == 0 in join_polygon_set\n"); fflush(stderr);
-        return;
+#ifdef DEBUG_CONSTRUCT
+      printf("##name%03i\n", name);
+      for (ii=0; ii<it_paths.size(); ii++) {
+        for (jj=0; jj<it_paths[ii].size(); jj++) {
+          printf("##name%03i %lli %lli\n", name, (long long int)it_paths[ii][jj].X, (long long int)it_paths[ii][jj].Y);
+        }
+        printf("##name%03i\n", name);
       }
+#endif
 
-      //DEBUG
-      printf("## res_point.size() %i\n", (int)res_point.size()); fflush(stdout);
-
-      if (res_point[ res_point.size() - 1] == res_point[0]) {
-        res_point.pop_back();
-      }
-
-      if (Area(res_point) < 0.0) {
-        std::reverse( res_point.begin(), res_point.end() );
-      }
-
-      clip.AddPath( res_point, ptSubject, true );
+      clip.AddPaths( it_paths, ptSubject, true );
       contour = contour->next;
 
     }
 
-    //WIP
-    //
-
-    //DEBUG
-    //
-    /*
-    if ( (n==2) &&
-         (cur_pnt.X == prev_pnt.X) &&
-         (cur_pnt.Y == prev_pnt.Y) ) {
-
-      Clipper clip_x;
-      int name = contour->d_name;
-
-      clip_result.clear();
-      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
-        clip_path.clear();
-        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          clip_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
-                                         gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
-        }
-        clip_x.AddPath( clip_path, ptSubject, true );
-      }
-
-      clip_x.Execute( ctUnion, clip_result, pftNonZero, pftNonZero );
-
-      //clip.AddPaths( ctUnion, clip_result, pftNonZero, pftNonZero );
-      clip.AddPaths( clip_result, ptSubject, true );
-    }
-    */
-
-    //
-    //WIP
-
   }
 
-  for (i=0; i<temp_pwh_vec.size(); i++) {
-    clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
-  }
+  //for (i=0; i<temp_pwh_vec.size(); i++) { clip.AddPaths( temp_pwh_vec[i], ptSubject, true ); }
 
   clip.Execute( ctUnion, result, pftNonZero, pftNonZero  );
 

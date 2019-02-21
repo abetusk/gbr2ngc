@@ -27,6 +27,8 @@
 
 #include "gerber_interpreter.h"
 
+//#define DEBUG_INTERPRETER
+
 int (*function_code_handler[13])(gerber_state_t *, char *);
 
 
@@ -597,8 +599,10 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   chp = linebuf + 3;
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## parse extended ad : %s\n", linebuf);
   printf("## parse extended chp: %s\n", chp);
+#endif
 
   if (*chp != 'D') { parse_error("bad AD format", gs->line_no, linebuf); }
   chp++;
@@ -617,7 +621,9 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   if (n<2) { parse_error("bad AD format, expected aperture macro name", gs->line_no, linebuf); }
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## dcode %i\n", (int)d_code);
+#endif
 
 
   ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
@@ -628,12 +634,16 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   ap_db->type = 4;
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## ap_db->macro_name: %s\n", ap_db->macro_name); fflush(stdout);
+#endif
 
   chp += n;
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## chp: %s\n", chp); fflush(stdout);
+#endif
 
   param_count=0;
   for (n=0; (chp[n]) && (chp[n]!='*'); n++) {
@@ -643,7 +653,9 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   }
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## param_count: %i\n", param_count); fflush(stdout);
+#endif
 
   ap_db->macro_param_count = param_count;
   if (param_count>0) {
@@ -661,7 +673,9 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
 
 
       //DEBUG
+#ifdef DEBUG_INTERPRETER
       printf("# converting %s\n", chp); fflush(stdout);
+#endif
 
       ap_db->macro_param[i] = strtod(chp, NULL);
 
@@ -677,6 +691,7 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
 
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## mactro_param[%i]:", ap_db->macro_param_count);
   for (i=0; i<ap_db->macro_param_count; i++) {
     printf(" %f", ap_db->macro_param[i]);
@@ -685,6 +700,7 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   printf("## ad end\n");
   print_aperture_data(gs);
   fflush(stdout);
+#endif
 
   gs->gerber_read_state = GRS_NONE;
 }
@@ -1161,14 +1177,18 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   string_ll_free(&(gs->string_ll_buf));
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("### AM %s\n", dup_str);
+#endif
 
   // skip "%AM"
   //
   chp = dup_str+3;
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("### chp: %s\n", chp);
+#endif
 
 
   // scan for end of line ('*' token denotes eol) and
@@ -1181,7 +1201,9 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   chp += n+1;
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   printf("## am_nod_head(%p) %s\n", am_nod_head, am_nod_head->name);
+#endif
 
   while ((*chp) && ((*chp) != '%')) {
 
@@ -1231,7 +1253,9 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
 
 
   //DEBUG
+#ifdef DEBUG_INTERPRETER
   am_lib_print(gs);
+#endif
 
   return;
 

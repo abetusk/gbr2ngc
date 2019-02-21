@@ -20,6 +20,8 @@
 
 #include "gbl2ngc.hpp"
 
+//#define DEBUG_APERTURE
+
 #define _isnan std::isnan
 
 static int _get_segment_count(double r, double min_segment_length, int min_segments) {
@@ -245,6 +247,52 @@ am_ll_node_t *aperture_macro_lookup(am_ll_lib_t *am_lib_nod, const char *am_name
   return NULL;
 }
 
+// eval_line holds parameters to be interpreted
+// macro_param holds global variables (the hack to allow passed in varaibles to be seen by the macro 'function' call)
+// eval_param are the resuling variables
+//
+// return 0 on success, non-zero on error
+//
+int _eval_var(std::vector< double > &eval_param, char **eval_line, int n_eval_line, std::vector< double > &macro_param) {
+  int i, err=0;
+  tes_expr *expr=NULL;
+  tes_variable *vars=NULL;
+  std::vector< std::string > varname;
+  std::string s;
+  double val;
+
+  if (macro_param.size() > 0) {
+    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
+    for (i=0; i<macro_param.size(); i++) {
+      s.clear();
+      s += "$";
+      s += std::to_string(i+1);
+      varname.push_back(s);
+      vars[i].address = &(macro_param[i]);
+      vars[i].type = TES_VARIABLE;
+    }
+
+    // varname is dynamically allocated, so we need to set the
+    // string points here, after varname's size becomes static
+    //
+    for (i=0; i<macro_param.size(); i++) {
+      vars[i].name = varname[i].c_str();
+    }
+  }
+
+  for (i=0; i<n_eval_line; i++) {
+    expr = tes_compile(eval_line[i], vars, macro_param.size(), &err);
+    if (!expr) { if(vars) { free(vars); } return -1; }
+    val = tes_eval(expr);
+    eval_param.push_back(val);
+    tes_free(expr);
+  }
+
+  if (vars) { free(vars); }
+  return 0;
+}
+
+
 int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   int i, j, k, err=0;
   tes_expr *expr=NULL;
@@ -282,9 +330,11 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   if (var_idx<0) { free(vars); return -1; }
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("## got var_idx %i\n", var_idx);
   printf("## var eval: %s\n", am_node->eval_line[0]);
   fflush(stdout);
+#endif
 
   expr = tes_compile(am_node->eval_line[0], vars, macro_param.size(), &err);
   if (!expr) { free(vars); return -2; }
@@ -292,7 +342,9 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   val = tes_eval(expr);
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("## got val %f\n", val); fflush(stdout);
+#endif
 
   if ((var_idx+1) > (int)macro_param.size()) {
     for (i=(int)macro_param.size(); i<=var_idx; i++) {
@@ -303,11 +355,13 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   macro_param[var_idx] = val;
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("# macro_param[%i]:", (int)macro_param.size()); fflush(stdout);
   for (i=0; i<macro_param.size(); i++) {
-    printf(" %f", macro_param[i]);
+    printf("## %f", macro_param[i]);
   }
   printf("\n");
+#endif
 
   tes_free(expr);
   free(vars);
@@ -316,16 +370,17 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
 
 int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
-  tes_expr *expr=NULL;
-  tes_variable *vars=NULL;
-  std::vector< std::string > varname;
-  std::string s;
+  //tes_expr *expr=NULL;
+  //tes_variable *vars=NULL;
+  //std::vector< std::string > varname;
+  //std::string s;
+  //double val;
 
-  double val;
   std::vector< double > eval_param;
   Path path;
 
-  int segments = 8;
+  //int segments = 8;
+  int segments = 32;
   double a;
   int expose = 0;
   double px, py, c_a, s_a;
@@ -334,13 +389,19 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   double *dptr=NULL;
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("# AM_circle\n");
   printf("# macro_param[%i]:", (int)macro_param.size());
   for (i=0; i<macro_param.size(); i++) {
-    printf(" %f", macro_param[i]);
+    printf("## %f", macro_param[i]);
   }
-  printf("\n");
+  printf("##\n");
+#endif
 
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err<0) { return err; }
+
+  /*
   vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
   memset(vars, 0, sizeof(tes_variable)*macro_param.size());
   for (i=0; i<(int)macro_param.size(); i++) {
@@ -357,16 +418,20 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   }
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   for (i=0; i<(int)macro_param.size(); i++) {
     dptr = (double *)vars[i].address;
     printf("# var %s %f\n", vars[i].name, *dptr);
   }
+#endif
 
 
   for (i=0; i<am_node->n_eval_line; i++) {
 
     //DEBUG
+#ifdef DEBUG_APERTURE
     printf("#>> %s\n", am_node->eval_line[i]);
+#endif
 
     expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
     if (!expr) { free(vars); return -1; }
@@ -376,15 +441,18 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
     eval_param.push_back(val);
     tes_free(expr);
   }
+  */
 
-  if (eval_param.size() < 2) { free(vars); return -1; }
+  //if (eval_param.size() < 2) { free(vars); return -1; }
+  if (eval_param.size() < 2) { return -1; }
 
   if (eval_param[0] > 0.5) { expose = 1; }
   r = eval_param[1]/2;
-  if (r <= 0.0) { free(vars); return -2; }
+  //if (r <= 0.0) { free(vars); return -2; }
+  if (r <= 0.0) { return -2; }
   if (eval_param.size() >= 3) { cx = eval_param[2]; }
   if (eval_param.size() >= 4) { cy = eval_param[3]; }
-  if (eval_param.size() >= 5) { ang_deg_ccw = eval_param[3]; }
+  if (eval_param.size() >= 5) { ang_deg_ccw = eval_param[4]; }
   ang = ang_deg_ccw * M_PI / 180.0;
 
   c_a = cos(ang);
@@ -399,43 +467,159 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
 
     path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
   }
+  if (path.size()>0) { path.push_back( path[0] ); }
 
   paths.push_back(path);
   exposure.push_back(expose);
 
-  //DBEUG
+  //DEBUG
+#ifdef DEBUG_APERTURE
   printf("## am_circle: ");
   for (i=0; i<eval_param.size(); i++) { printf(" %f", eval_param[i]); }
   printf("\n");
   printf("## %i\n", expose);
   for (i=0; i<path.size(); i++) {
-    printf("%f %f\n", ctod(path[i].X), ctod(path[i].Y));
+    printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
   }
   printf("\n");
+#endif
 
 
-  //DBEUG
+  //DEBUG
+#ifdef DEBUG_APERTURE
   printf("# eval_param[%i]:", (int)(eval_param.size()));
   for (i=0; i<eval_param.size(); i++) {
-    printf(" %f", eval_param[i]);
+    printf("## %f", eval_param[i]);
   }
   printf("\n");
+#endif
 
 
-  free(vars);
+  //free(vars);
+  return 0;
+}
+
+int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+  int i, j, k, err=0;
+
+  Path path;
+
+  std::vector< double > eval_param;
+
+  int segments = 8, expose = 0;
+  double a, px, py, c_a, s_a;
+  double width=0.0, cx=0.0, cy=0.0, ang=0.0, ang_deg_ccw=0.0;
+  double sx=0.0, sy=0.0, ex=0.0, ey=0.0;
+  double vang = 0.0, c_va=0.0, s_va=0.0;
+  double dwl=0.0, dwx0=0.0, dwy0=0.0, dwx1=0.0, dwy1=0.0;
+
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err!=0) { return err; }
+
+  /*
+  if (macro_param.size() > 0) {
+    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
+    for (i=0; i<macro_param.size(); i++) {
+      s.clear();
+      s += "$";
+      s += std::to_string(i+1);
+      varname.push_back(s);
+      vars[i].address = &(macro_param[i]);
+      vars[i].type = TES_VARIABLE;
+    }
+
+    // varname is dynamically allocated, so we need to set the
+    // string points here, after varname's size becomes static
+    //
+    for (i=0; i<macro_param.size(); i++) {
+      vars[i].name = varname[i].c_str();
+    }
+  }
+
+
+  for (i=0; i<am_node->n_eval_line; i++) {
+    expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
+    if (!expr) { free(vars); return -1; }
+    val = tes_eval(expr);
+    eval_param.push_back(val);
+    tes_free(expr);
+  }
+  */
+
+  if (eval_param.size() < 7) { return -1; }
+
+  if (eval_param[0] > 0.5) { expose = 1; }
+  width       = eval_param[1];
+  sx          = eval_param[2];
+  sy          = eval_param[3];
+  ex          = eval_param[3];
+  ey          = eval_param[4];
+  ang_deg_ccw = eval_param[5];
+
+  ang = ang_deg_ccw * M_PI / 180.0;
+  c_a = cos(ang);
+  s_a = sin(ang);
+
+  vang = atan2( ey-sy, ex-sx );
+  dwl = sqrt( (ex-sx)*(ex-sx) + (ey-sy)*(ey-sy) );
+  if (dwl < eps) { dwl = 1.0; }
+
+  c_va = cos(vang + M_PI/2.0);
+  s_va = sin(vang + M_PI/2.0);
+  dwx0 = s_va * width / (2.0 * dwl);
+  dwy0 = c_va * width / (2.0 * dwl);
+
+  c_va = cos(vang - M_PI/2.0);
+  s_va = sin(vang - M_PI/2.0);
+  dwx1 = s_va * width / (2.0 * dwl);
+  dwy1 = c_va * width / (2.0 * dwl);
+
+  px = cx + sx + dwx0;  py = cx + sy + dwy0;
+  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+
+  px = cx + sx + dwx1;  py = cx + sy + dwy1;
+  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+
+  px = cx + ex + dwx1;  py = cx + ey + dwy1;
+  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+
+  px = cx + ex + dwx0;  py = cx + ey + dwy0;
+  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+
+  if (path.size() > 0) { path.push_back( path[0] ); }
+
+  paths.push_back(path);
+  exposure.push_back(expose);
+
+  //DEBUG
+#ifdef DEBUG_APERTURE
+  printf("## am_vector_line:\n");
+  for (i=0; i<eval_param.size(); i++) {
+    printf("## [%i] %f\n", i, eval_param[i]);
+  }
+  printf("##\n");
+  printf("## %i\n", expose);
+  for (i=0; i<path.size(); i++) {
+    printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
+  }
+  printf("##\n");
+#endif
+
+  //free(vars);
   return 0;
 }
 
 int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
-  tes_expr *expr=NULL;
-  tes_variable *vars=NULL;
-  std::vector< std::string > varname;
-  std::string s;
+
+  //tes_expr *expr=NULL;
+  //tes_variable *vars=NULL;
+  //std::vector< std::string > varname;
+  //std::string s;
+  //double val;
 
   Path path;
 
-  double val;
   std::vector< double > eval_param;
 
   int segments = 8, expose = 0;
@@ -443,6 +627,10 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   double width=0.0, height=0.0, cx=0.0, cy=0.0, ang=0.0, ang_deg_ccw=0.0;
 
 
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err!=0) { return err; }
+
+  /*
   if (macro_param.size() > 0) {
     vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
     for (i=0; i<macro_param.size(); i++) {
@@ -471,8 +659,10 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
     eval_param.push_back(val);
     tes_free(expr);
   }
+  */
 
-  if (eval_param.size() < 3) { free(vars); return -1; }
+  //if (eval_param.size() < 3) { free(vars); return -1; }
+  if (eval_param.size() < 3) { return -1; }
 
   if (eval_param[0] > 0.5) { expose = 1; }
   width  = eval_param[1];
@@ -497,20 +687,26 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   px = (+width/2) + cx;  py = (-height/2) + cy;
   path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
 
+  if (path.size() > 0) { path.push_back( path[0] ); }
+
   paths.push_back(path);
   exposure.push_back(expose);
 
-  //DBEUG
+  //DEBUG
+#ifdef DEBUG_APERTURE
   printf("## am_center_line:\n");
-  for (i=0; i<eval_param.size(); i++) { printf("[%i] %f\n", i, eval_param[i]); }
-  printf("\n");
+  for (i=0; i<eval_param.size(); i++) {
+    printf("## [%i] %f\n", i, eval_param[i]);
+  }
+  printf("##\n");
   printf("## %i\n", expose);
   for (i=0; i<path.size(); i++) {
-    printf("%f %f\n", ctod(path[i].X), ctod(path[i].Y));
+    printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
   }
-  printf("\n");
+  printf("##\n");
+#endif
 
-  free(vars);
+  //free(vars);
   return 0;
 }
 
@@ -579,24 +775,34 @@ int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
     path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
   }
 
+  if (path.size() < 2) { return -4; }
+  if ( (path[0].X != path[ path.size()-1 ].X) || (path[0].Y != path[ path.size()-1 ].Y)) { return -5; }
+
   paths.push_back(path);
   exposure.push_back(expose);
 
-  //DBEUG
+  //DEBUG
+#ifdef DEBUG_APERTURE
   printf("## am_outline:\n");
-  for (i=0; i<eval_param.size(); i++) { printf("[%i] %f\n", i, eval_param[i]); }
-  printf("\n");
+  for (i=0; i<eval_param.size(); i++) {
+    printf("## [%i] %f\n", i, eval_param[i]);
+  }
+  printf("##\n");
   printf("## %i\n", expose);
   for (i=0; i<path.size(); i++) {
-    printf("%f %f\n", ctod(path[i].X), ctod(path[i].Y));
+    printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
   }
-  printf("\n");
+  printf("##\n");
+#endif
 
   free(vars);
   return 0;
 }
 
-static void _arc_path(Path &path, double cx, double cy, double r, double rad_beg, double rad_end, int segments) {
+// realize an arc
+// rotation is applied after (cx,cy) translation
+//
+static void _thermal_arc_path_ccw(Path &path, double cx, double cy, double r, double rad_beg, double rad_end, int segments) {
   int i=0;
   double a=0.0, c_a=0.0, s_a=0.0;
   IntPoint prv_pnt, pnt;
@@ -605,13 +811,21 @@ static void _arc_path(Path &path, double cx, double cy, double r, double rad_beg
 
   if (rad_beg < 0.0) { rad_beg += 2.0*M_PI; }
   if (rad_end < 0.0) { rad_end += 2.0*M_PI; }
+
+  // Thermal pads are at most pi/2, so fix up angles if they
+  // cross the 0 line
+  //
+  if ((rad_end - rad_beg) > (M_PI/2.0)) { rad_end -= 2.0*M_PI; }
+  else if ((rad_beg - rad_end) > (M_PI/2.0)) { rad_beg -= 2.0*M_PI; }
+
   for (i=0; i <= segments; i++) {
     a = (((double)i) * (rad_end - rad_beg) / (double)segments) + rad_beg;
     c_a = cos(a);
     s_a = sin(a);
-    pnt = dtoc( cx + c_a*r, cy + s_a*r );
+
+    pnt = dtoc( c_a*(cx + r), s_a*(cy + r) );
     if ((i>0) && (prv_pnt.X == pnt.X) && (prv_pnt.Y == pnt.Y)) { continue; }
-    //path.push_back( dtoc( cx + c_a*r, cy + s_a*r) );
+
     path.push_back( pnt );
     prv_pnt.X = pnt.X;
     prv_pnt.Y = pnt.Y;
@@ -717,11 +931,11 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 
   a_beg = atan2( outdel, -gapt2 );
   a_end = atan2( gapt2, -outdel );
-  _arc_path(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
 
   a_beg = atan2( gapt2, -inndel );
   a_end = atan2( inndel, -gapt2);
-  _arc_path(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
 
   if (path.size() > 0) { path.push_back( path[0] ); }
 
@@ -736,11 +950,11 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 
   a_beg = atan2( -gapt2, -outdel );
   a_end = atan2( -outdel, -gapt2 );
-  _arc_path(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
 
   a_beg = atan2( -inndel, -gapt2 );
   a_end = atan2( -gapt2, -inndel );
-  _arc_path(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
 
   if (path.size() > 0) { path.push_back( path[0] ); }
 
@@ -755,11 +969,11 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 
   a_beg = atan2( -gapt2, outdel );
   a_end = atan2( -outdel, gapt2 );
-  _arc_path(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
 
   a_beg = atan2( -inndel, gapt2 );
   a_end = atan2( -gapt2, inndel );
-  _arc_path(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
 
   if (path.size() > 0) { path.push_back( path[0] ); }
 
@@ -774,11 +988,11 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 
   a_beg = atan2( outdel, gapt2 );
   a_end = atan2( gapt2, outdel );
-  _arc_path(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, outr, a_beg + ang, a_end + ang, segments);
 
   a_beg = atan2( gapt2, inndel );
   a_end = atan2( inndel, gapt2 );
-  _arc_path(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
+  _thermal_arc_path_ccw(path, cx, cy, innr, a_beg + ang, a_end + ang, segments);
 
   if (path.size() > 0) { path.push_back( path[0] ); }
 
@@ -798,16 +1012,14 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 // affect the outside geometry, so they can be realized wholly with the macro defintion
 // and the parameters passed in by the aperture definition.
 // Each line in the aperture macro needs to be evaluated as they may have expressions.
-// Each line has to be evaluated in order as some variables.
 // For each expression, the 'atomic' geometry is realized with a flag to indicate whether the
 // exposure is on or off.
 // Once all atomic gemoetry is realized, the final aperture is realized by going through
 // and progressively building up the union and difference of the atomic parts sequencially.
-// Since this is done progressively, the final geometry has to potential to grow exponentially.
 //
 int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &macro_name, std::vector< double > &macro_param) {
 
-  int i, err=0, idx, segments, m_idx;
+  int i, j, err=0, idx, segments, m_idx;
   am_ll_node_t *am_nod;
   std::vector< double > param_val;
   std::vector< std::string > var_name;
@@ -815,15 +1027,19 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
   int var_idx, ret=0;
   tes_expr *expr;
 
+  Paths result;
   Path empty_path;
   IntPoint pnt;
 
-  //std::vector< int > exposure;
-  //Paths atomic_geom;
 
+  Clipper clip;
+
+  static int debug_count=0;
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("# realizing macro\n"); fflush(stdout);
+#endif
 
   am_nod = aperture_macro_lookup(gs->am_lib_head, macro_name.c_str());
   if (!am_nod) { return -1; }
@@ -831,7 +1047,9 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
   var_idx = 0;
 
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("# found %s\n", am_nod->name); fflush(stdout);
+#endif
 
   param_val = macro_param;
   for (i=0; i<(int)param_val.size(); i++) {
@@ -840,70 +1058,102 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
     var_name.push_back(buf);
   }
 
+#ifdef DEBUG_APERTURE
   for (i=0; i<(int)var_name.size(); i++) {
     printf("# %s %f\n", var_name[i].c_str(), param_val[i]); fflush(stdout);
   }
+#endif
 
   while (am_nod) {
 
     switch (am_nod->type) {
-      case AM_ENUM_NAME: printf("#xx name: %s\n", am_nod->name); break;
-      case AM_ENUM_COMMENT: printf("#xx comment %s\n", am_nod->comment); break;
+      case AM_ENUM_NAME:
+
+#ifdef DEBUG_APERTURE
+        printf("#xx name: %s\n", am_nod->name);
+#endif
+
+        break;
+      case AM_ENUM_COMMENT:
+
+#ifdef DEBUG_APERTURE
+        printf("#xx comment %s\n", am_nod->comment);
+#endif
+
+        break;
       case AM_ENUM_VAR:
 
+#ifdef DEBUG_APERTURE
         printf("#xx var %s = %s\n", am_nod->varname, am_nod->eval_line[0]); fflush(stdout);
-
+#endif
         ret = eval_AM_var(am_nod, param_val);
 
         if (ret<0) { printf("# var error? ret %i\n", ret); }
         break;
 
       case AM_ENUM_CIRCLE:
+
+#ifdef DEBUG_APERTURE
         printf("#xx circle\n");
+#endif
+
         ret = add_AM_circle(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# circle error? ret %i\n", ret); }
 
         // trying to add to add from am
         //
-        for (i=0; i<ap.m_macro_path.size(); i++) {
-          ap.m_path.push_back(ap.m_macro_path[i]);
-          ap.m_exposure.push_back( ap.m_macro_exposure[i] );
-        }
+        //for (i=0; i<ap.m_macro_path.size(); i++) {
+        //  ap.m_path.push_back(ap.m_macro_path[i]);
+        //  ap.m_exposure.push_back( ap.m_macro_exposure[i] );
+        //}
 
         break;
 
-      case AM_ENUM_VECTOR_LINE: printf("# vector line\n"); break;
+      case AM_ENUM_VECTOR_LINE:
+
+#ifdef DEBUG_APERTURE
+        printf("# vector line\n");
+#endif
+
+        ret = add_AM_vector_line(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
+        if (ret<0) { printf("# am vector line error? ret %i\n", ret); }
+
+        break;
 
       case AM_ENUM_CENTER_LINE:
 
+#ifdef DEBUG_APERTURE
         printf("#xx center line\n");
+#endif
 
         ret = add_AM_center_line(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# center line  error? ret %i\n", ret); }
 
         // trying to add to add from am
         //
-        for (i=0; i<ap.m_macro_path.size(); i++) {
-          ap.m_path.push_back(ap.m_macro_path[i]);
-          ap.m_exposure.push_back( ap.m_macro_exposure[i] );
-        }
+        //for (i=0; i<ap.m_macro_path.size(); i++) {
+        //  ap.m_path.push_back(ap.m_macro_path[i]);
+        //  ap.m_exposure.push_back( ap.m_macro_exposure[i] );
+        //}
 
 
         break;
 
       case AM_ENUM_OUTLINE:
 
+#ifdef DEBUG_APERTURE
         printf("#xx outline\n");
+#endif
 
         ret = add_AM_outline(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# outline error? ret %i\n", ret); }
 
         // trying to add to add from am
         //
-        for (i=0; i<ap.m_macro_path.size(); i++) {
-          ap.m_path.push_back(ap.m_macro_path[i]);
-          ap.m_exposure.push_back( ap.m_macro_exposure[i] );
-        }
+        //for (i=0; i<ap.m_macro_path.size(); i++) {
+        //  ap.m_path.push_back(ap.m_macro_path[i]);
+        //  ap.m_exposure.push_back( ap.m_macro_exposure[i] );
+        //}
 
 
         break;
@@ -913,28 +1163,86 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
         //STILL NEEDS WORK
         // circles aren't interpolated, will only render essentially rectrangles...
 
+#ifdef DEBUG_APERTURE
         printf("#xx thermal\n");
+#endif
 
         ret = add_AM_thermal(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# thermal error? ret %i\n", ret); }
 
         // trying to add to add from am
         //
-        for (i=0; i<ap.m_macro_path.size(); i++) {
-          ap.m_path.push_back(ap.m_macro_path[i]);
-          ap.m_exposure.push_back( ap.m_macro_exposure[i] );
-        }
+        //for (i=0; i<ap.m_macro_path.size(); i++) {
+        //  ap.m_path.push_back(ap.m_macro_path[i]);
+        //  ap.m_exposure.push_back( ap.m_macro_exposure[i] );
+        //}
 
         break;
 
-      default: printf("#xx unknown\n"); break;
+      default:
+
+#ifdef DEBUG_APERTURE
+        printf("#xx unknown\n");
+#endif
+
+        break;
     }
 
     am_nod = am_nod->next;
   }
 
+  for (i=0; i<ap.m_macro_path.size(); i++) {
+
+#ifdef DEBUG_APERTURE
+    printf("## adding to m_path (%i)\n", i);
+#endif
+
+    ap.m_path.push_back( ap.m_macro_path[i]);
+    ap.m_exposure.push_back( ap.m_macro_exposure[i] );
+  }
+
+  // clip the aperture macro individual geometry realizations for final use.
+  //
+  if (ap.m_macro_path.size() > 0) {
+    result.push_back(ap.m_macro_path[0]);
+  }
+  for (i=1; i<ap.m_macro_path.size(); i++) {
+
+    clip.Clear();
+    clip.AddPaths(result, ptSubject, true);
+    clip.AddPath(ap.m_macro_path[i], ptClip, true);
+
+    result.clear();
+    if (ap.m_macro_exposure[i] > 0) {
+      clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+    }
+    else {
+      clip.Execute( ctDifference, result, pftNonZero, pftNonZero );
+    }
+
+  }
+
   //DEBUG
+#ifdef DEBUG_APERTURE
   printf("\n"); fflush(stdout);
+
+  for (i=0; i<ap.m_macro_path.size(); i++) {
+    printf("##d%03i ##e %i\n", debug_count, ap.m_macro_exposure[i]);
+    for (j=0; j<ap.m_macro_path[i].size(); j++) {
+      printf("##d%03i %lli %lli\n", debug_count, (long long int)ap.m_macro_path[i][j].X, (long long int)ap.m_macro_path[i][j].Y);
+    }
+    printf("##d%03i\n##d%03i\n", debug_count, debug_count);
+  }
+
+  for (i=0; i<result.size(); i++) {
+    printf("###d%03i\n", debug_count);
+    for (j=0; j<result[i].size(); j++) {
+      printf("###d%03i %lli %lli\n", debug_count, (long long int)result[i][j].X, (long long int)result[i][j].Y);
+    }
+    printf("###d%03i\n", debug_count);
+  }
+  debug_count++;
+#endif
 
   // not ready for this yet...we're adding aperture macro stuff above,
   // need ot figure out how to actually get it into an aperture data definition/realization
@@ -942,105 +1250,7 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
   //gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
   //gApertureName.push_back(ap.m_name);
 
-
-
-
   return ret;
-}
-
-// Construct polygons that will be used for the apertures.
-// Curves are linearized.  Circles have a minium of 8
-// vertices.
-//
-int realize_apertures_old(gerber_state_t *gs) {
-  double min_segment_length = 0.01;
-  int min_segments = 8;
-  int base_mapping[] = {1, 2, 3, 3};
-  int i;
-
-  aperture_data_t *aperture;
-
-  for ( aperture = gs->aperture_head ;
-        aperture ;
-        aperture = aperture->next ) {
-
-    Aperture_realization ap;
-
-    if (aperture->type != 4) {
-      ap.m_name = aperture->name;
-      ap.m_type = aperture->type;
-      ap.m_crop_type = aperture->crop_type;
-    } else {
-      ap.m_macro_name = aperture->macro_name;
-      for (i=0; i<aperture->macro_param_count; i++) {
-        ap.m_macro_param.push_back(aperture->macro_param[i]);
-      }
-    }
-
-    switch (aperture->type) {
-
-      // circle
-      //
-      case 0:
-        realize_circle( ap, aperture->crop[0]/2.0, min_segments, min_segment_length );
-        break;
-
-      // rectangle
-      //
-      case 1:
-        realize_rectangle( ap, aperture->crop[0]/2.0, aperture->crop[1]/2.0 );
-        break;
-
-      // obround
-      //
-      case 2:
-        realize_obround( ap, aperture->crop[0], aperture->crop[1], min_segments, min_segment_length  );
-        break;
-
-      // polygon
-      //
-      case 3:
-        realize_polygon( ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
-        break;
-
-      // macro
-      //
-      case 4:
-        realize_macro( gs, ap, ap.m_macro_name, ap.m_macro_param );
-        break;
-
-      default: break;
-    }
-
-    int base = ( (aperture->type < 4) ? base_mapping[ aperture->type ] : 0 );
-
-    switch (aperture->crop_type)
-    {
-      // solid, do nothing
-      //
-      case 0: break;
-
-      // circle hole
-      //
-      case 1:
-        realize_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
-        break;
-
-      // rect hole
-      //
-      case 2:
-        //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
-        break;
-
-      default: break;
-    }
-
-    gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
-    gApertureName.push_back(ap.m_name);
-
-  }
-
-  return 0;
 }
 
 //----
@@ -1060,7 +1270,9 @@ int realize_apertures(gerber_state_t *gs) {
     Aperture_realization ap;
 
     //DEBUG
+#ifdef DEBUG_APERTURE
     printf("##>> aperture->type %i, aperture->name %i\n", aperture->type, aperture->name);
+#endif
 
     if (aperture->type != 4) {
       ap.m_name = aperture->name;
@@ -1068,6 +1280,7 @@ int realize_apertures(gerber_state_t *gs) {
       ap.m_crop_type = aperture->crop_type;
     } else {
       ap.m_name = aperture->name;
+      ap.m_type = aperture->type;
       ap.m_macro_name = aperture->macro_name;
       for (i=0; i<aperture->macro_param_count; i++) {
         ap.m_macro_param.push_back(aperture->macro_param[i]);
@@ -1122,14 +1335,23 @@ int realize_apertures(gerber_state_t *gs) {
         // circle hole
         //
         case 1:
+
+#ifdef DEBUG_APERTURE
           printf("## circle hole?\n");
-          //realize_circle_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
+#endif
+
+          realize_hole( ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
+
           break;
 
         // rect hole
         //
         case 2:
+
+#ifdef DEBUG_APERTURE
           printf("## rect?\n");
+#endif
+
           //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
           break;
 
@@ -1139,7 +1361,9 @@ int realize_apertures(gerber_state_t *gs) {
     }
 
     //DEBUG
+#ifdef DEBUG_APERTURE
     printf("##?? adding aperture %i\n", ap.m_name); fflush(stdout);
+#endif
 
     gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
     gApertureName.push_back(ap.m_name);
