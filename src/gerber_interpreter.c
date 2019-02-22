@@ -984,7 +984,7 @@ int am_parse_end_pos(char *s, int *end_pos, int n_end_pos, int n_opt_param) {
 
 // Circle has 5 fields, 6 with the circle code.
 //
-// circle_code=1,exposure,diameter,center_x,center_y,reotation
+// circle_code=1,exposure,diameter,center_x,center_y,rotation
 // 
 // format string for input into tesexpr.
 // eval_line holds diameter, center_x, center_y and rotation
@@ -1019,6 +1019,7 @@ am_ll_node_t * am_ll_node_create_vector_line_n(char *s, int n) {
 
   r = am_parse_end_pos(s, end_pos, n_end_pos, 0);
   if (r<0) { return NULL; }
+
   nod = (am_ll_node_t *)malloc(sizeof(am_ll_node_t));
   memset(nod, 0, sizeof(am_ll_node_t));
   nod->type = AM_ENUM_VECTOR_LINE;

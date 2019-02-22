@@ -233,8 +233,6 @@ void realize_rectangle_hole( Aperture_realization &ap, double x, double y ) {
 */
 
 
-// WIP
-//
 am_ll_node_t *aperture_macro_lookup(am_ll_lib_t *am_lib_nod, const char *am_name) {
   while (am_lib_nod) {
     if ((am_lib_nod->am) &&
@@ -301,15 +299,9 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   std::string s;
 
   double val;
-  std::vector< double > eval_param;
   Path path;
 
-  int segments = 8;
-  double a;
-  int expose = 0;
   int var_idx;
-  double px, py, c_a, s_a;
-  double r=0.0, cx=0.0, cy=0.0, ang=0.0;
 
   vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
   for (i=0; i<(int)macro_param.size(); i++) {
@@ -370,16 +362,10 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
 
 int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
-  //tes_expr *expr=NULL;
-  //tes_variable *vars=NULL;
-  //std::vector< std::string > varname;
-  //std::string s;
-  //double val;
 
   std::vector< double > eval_param;
-  Path path;
 
-  //int segments = 8;
+  Path path;
   int segments = 32;
   double a;
   int expose = 0;
@@ -388,7 +374,6 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
 
   double *dptr=NULL;
 
-  //DEBUG
 #ifdef DEBUG_APERTURE
   printf("# AM_circle\n");
   printf("# macro_param[%i]:", (int)macro_param.size());
@@ -401,54 +386,11 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
   if (err<0) { return err; }
 
-  /*
-  vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
-  memset(vars, 0, sizeof(tes_variable)*macro_param.size());
-  for (i=0; i<(int)macro_param.size(); i++) {
-    s.clear();
-    s += "$";
-    s += std::to_string(i+1);
-    varname.push_back(s);
-  }
-
-  for (i=0; i<(int)macro_param.size(); i++) {
-    vars[i].name = varname[i].c_str();
-    vars[i].address = &(macro_param[i]);
-    vars[i].type = TES_VARIABLE;
-  }
-
-  //DEBUG
-#ifdef DEBUG_APERTURE
-  for (i=0; i<(int)macro_param.size(); i++) {
-    dptr = (double *)vars[i].address;
-    printf("# var %s %f\n", vars[i].name, *dptr);
-  }
-#endif
-
-
-  for (i=0; i<am_node->n_eval_line; i++) {
-
-    //DEBUG
-#ifdef DEBUG_APERTURE
-    printf("#>> %s\n", am_node->eval_line[i]);
-#endif
-
-    expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
-    if (!expr) { free(vars); return -1; }
-
-    val = tes_eval(expr);
-
-    eval_param.push_back(val);
-    tes_free(expr);
-  }
-  */
-
-  //if (eval_param.size() < 2) { free(vars); return -1; }
   if (eval_param.size() < 2) { return -1; }
 
   if (eval_param[0] > 0.5) { expose = 1; }
   r = eval_param[1]/2;
-  //if (r <= 0.0) { free(vars); return -2; }
+
   if (r <= 0.0) { return -2; }
   if (eval_param.size() >= 3) { cx = eval_param[2]; }
   if (eval_param.size() >= 4) { cy = eval_param[3]; }
@@ -459,20 +401,20 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   s_a = sin(ang);
 
   for (i=0; i<segments; i++) {
-    //path.push
+
     a = -2.0 * M_PI * (double)i / (double)segments;
 
     px = r*cos(a) + cx;
     py = r*sin(a) + cy;
 
-    path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+    path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
   }
   if (path.size()>0) { path.push_back( path[0] ); }
 
   paths.push_back(path);
   exposure.push_back(expose);
 
-  //DEBUG
+
 #ifdef DEBUG_APERTURE
   printf("## am_circle: ");
   for (i=0; i<eval_param.size(); i++) { printf(" %f", eval_param[i]); }
@@ -482,11 +424,7 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
     printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
   }
   printf("\n");
-#endif
 
-
-  //DEBUG
-#ifdef DEBUG_APERTURE
   printf("# eval_param[%i]:", (int)(eval_param.size()));
   for (i=0; i<eval_param.size(); i++) {
     printf("## %f", eval_param[i]);
@@ -494,8 +432,6 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   printf("\n");
 #endif
 
-
-  //free(vars);
   return 0;
 }
 
@@ -507,8 +443,8 @@ int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   std::vector< double > eval_param;
 
   int segments = 8, expose = 0;
-  double a, px, py, c_a, s_a;
-  double width=0.0, cx=0.0, cy=0.0, ang=0.0, ang_deg_ccw=0.0;
+  double px, py, c_a, s_a;
+  double width=0.0, ang=0.0, ang_deg_ccw=0.0;
   double sx=0.0, sy=0.0, ex=0.0, ey=0.0;
   double vang = 0.0, c_va=0.0, s_va=0.0;
   double dwl=0.0, dwx0=0.0, dwy0=0.0, dwx1=0.0, dwy1=0.0;
@@ -516,75 +452,45 @@ int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
   if (err!=0) { return err; }
 
-  /*
-  if (macro_param.size() > 0) {
-    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
-    for (i=0; i<macro_param.size(); i++) {
-      s.clear();
-      s += "$";
-      s += std::to_string(i+1);
-      varname.push_back(s);
-      vars[i].address = &(macro_param[i]);
-      vars[i].type = TES_VARIABLE;
-    }
-
-    // varname is dynamically allocated, so we need to set the
-    // string points here, after varname's size becomes static
-    //
-    for (i=0; i<macro_param.size(); i++) {
-      vars[i].name = varname[i].c_str();
-    }
-  }
-
-
-  for (i=0; i<am_node->n_eval_line; i++) {
-    expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
-    if (!expr) { free(vars); return -1; }
-    val = tes_eval(expr);
-    eval_param.push_back(val);
-    tes_free(expr);
-  }
-  */
-
   if (eval_param.size() < 7) { return -1; }
 
   if (eval_param[0] > 0.5) { expose = 1; }
   width       = eval_param[1];
   sx          = eval_param[2];
   sy          = eval_param[3];
-  ex          = eval_param[3];
-  ey          = eval_param[4];
-  ang_deg_ccw = eval_param[5];
+  ex          = eval_param[4];
+  ey          = eval_param[5];
+  ang_deg_ccw = eval_param[6];
 
   ang = ang_deg_ccw * M_PI / 180.0;
   c_a = cos(ang);
   s_a = sin(ang);
 
   vang = atan2( ey-sy, ex-sx );
-  dwl = sqrt( (ex-sx)*(ex-sx) + (ey-sy)*(ey-sy) );
-  if (dwl < eps) { dwl = 1.0; }
-
-  c_va = cos(vang + M_PI/2.0);
-  s_va = sin(vang + M_PI/2.0);
-  dwx0 = s_va * width / (2.0 * dwl);
-  dwy0 = c_va * width / (2.0 * dwl);
+  //dwl = sqrt( (ex-sx)*(ex-sx) + (ey-sy)*(ey-sy) );
+  //if (dwl < eps) { dwl = 1.0; }
 
   c_va = cos(vang - M_PI/2.0);
   s_va = sin(vang - M_PI/2.0);
-  dwx1 = s_va * width / (2.0 * dwl);
-  dwy1 = c_va * width / (2.0 * dwl);
+  dwx0 = c_va * width / (2.0);
+  dwy0 = s_va * width / (2.0);
 
-  px = cx + sx + dwx0;  py = cx + sy + dwy0;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  c_va = cos(vang + M_PI/2.0);
+  s_va = sin(vang + M_PI/2.0);
+  dwx1 = c_va * width / (2.0);
+  dwy1 = s_va * width / (2.0);
 
-  px = cx + sx + dwx1;  py = cx + sy + dwy1;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  px = sx + dwx0;  py = sy + dwy0;
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
-  px = cx + ex + dwx1;  py = cx + ey + dwy1;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  px = sx + dwx1;  py = sy + dwy1;
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
-  px = cx + ex + dwx0;  py = cx + ey + dwy0;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  px = ex + dwx1;  py = ey + dwy1;
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
+
+  px = ex + dwx0;  py = ey + dwy0;
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
   if (path.size() > 0) { path.push_back( path[0] ); }
 
@@ -605,18 +511,11 @@ int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   printf("##\n");
 #endif
 
-  //free(vars);
   return 0;
 }
 
 int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
-
-  //tes_expr *expr=NULL;
-  //tes_variable *vars=NULL;
-  //std::vector< std::string > varname;
-  //std::string s;
-  //double val;
 
   Path path;
 
@@ -630,38 +529,6 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
   if (err!=0) { return err; }
 
-  /*
-  if (macro_param.size() > 0) {
-    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
-    for (i=0; i<macro_param.size(); i++) {
-      s.clear();
-      s += "$";
-      s += std::to_string(i+1);
-      varname.push_back(s);
-      //vars[i].name = varname[i].c_str();
-      vars[i].address = &(macro_param[i]);
-      vars[i].type = TES_VARIABLE;
-    }
-
-    // varname is dynamically allocated, so we need to set the
-    // string points here, after varname's size becomes static
-    //
-    for (i=0; i<macro_param.size(); i++) {
-      vars[i].name = varname[i].c_str();
-    }
-  }
-
-
-  for (i=0; i<am_node->n_eval_line; i++) {
-    expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
-    if (!expr) { free(vars); return -1; }
-    val = tes_eval(expr);
-    eval_param.push_back(val);
-    tes_free(expr);
-  }
-  */
-
-  //if (eval_param.size() < 3) { free(vars); return -1; }
   if (eval_param.size() < 3) { return -1; }
 
   if (eval_param[0] > 0.5) { expose = 1; }
@@ -676,16 +543,16 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   s_a = sin(ang);
 
   px = (+width/2) + cx;  py = (+height/2) + cy;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
   px = (-width/2) + cx;  py = (+height/2) + cy;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
   px = (-width/2) + cx;  py = (-height/2) + cy;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
   px = (+width/2) + cx;  py = (-height/2) + cy;
-  path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+  path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
 
   if (path.size() > 0) { path.push_back( path[0] ); }
 
@@ -706,20 +573,14 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   printf("##\n");
 #endif
 
-  //free(vars);
   return 0;
 }
 
 int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
-  tes_expr *expr=NULL;
-  tes_variable *vars=NULL;
-  std::vector< std::string > varname;
-  std::string s;
 
   Path path;
 
-  double val;
   std::vector< double > eval_param;
 
   int segments = 0, expose = 0;
@@ -727,39 +588,14 @@ int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   double cx=0.0, cy=0.0, ang_deg_ccw=0.0, ang=0.0;
 
 
-  if (macro_param.size() > 0) {
-    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
-    for (i=0; i<macro_param.size(); i++) {
-      s.clear();
-      s += "$";
-      s += std::to_string(i+1);
-      varname.push_back(s);
-      vars[i].address = &(macro_param[i]);
-      vars[i].type = TES_VARIABLE;
-    }
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err!=0) { return err; }
 
-    // varname is dynamically allocated, so we need to set the
-    // string points here, after varname's size becomes static
-    //
-    for (i=0; i<macro_param.size(); i++) {
-      vars[i].name = varname[i].c_str();
-    }
-  }
-
-
-  for (i=0; i<am_node->n_eval_line; i++) {
-    expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
-    if (!expr) { free(vars); return -1; }
-    val = tes_eval(expr);
-    eval_param.push_back(val);
-    tes_free(expr);
-  }
-
-  if (eval_param.size() < 9) { free(vars); return -1; }
+  if (eval_param.size() < 9) { return -1; }
 
   segments = eval_param[1];
 
-  if ((2*(segments+1) + 3) != eval_param.size()) { free(vars); return -3; }
+  if ((2*(segments+1) + 3) != eval_param.size()) { return -3; }
 
   if (eval_param[0] > 0.5) { expose = 1; }
 
@@ -772,7 +608,7 @@ int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   for (i=2; i<(eval_param.size()-1); i+=2) {
     px = eval_param[i];
     py = eval_param[i+1];
-    path.push_back( dtoc( c_a*px + s_a*py, s_a*px - c_a*py ) );
+    path.push_back( dtoc( c_a*px - s_a*py, s_a*px + c_a*py ) );
   }
 
   if (path.size() < 2) { return -4; }
@@ -795,7 +631,6 @@ int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   printf("##\n");
 #endif
 
-  free(vars);
   return 0;
 }
 
@@ -847,13 +682,7 @@ static void _thermal_arc_path_ccw(Path &path, double cx, double cy, double r, do
 int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
 
-  tes_expr *expr=NULL;
-  tes_variable *vars=NULL;
-  std::vector< std::string > varname;
   std::vector< double > eval_param;
-
-  std::string s;
-  double val;
 
   Path path;
   int segments = 8, expose = 0;
@@ -862,39 +691,10 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   double inndel=0.0, outdel=0.0;
   double a_beg=0.0, a_end=0.0;
 
-  if (macro_param.size() > 0) {
-    vars = (tes_variable *)malloc(sizeof(tes_variable)*macro_param.size());
-    for (i=0; i<macro_param.size(); i++) {
-      s.clear();
-      s += "$";
-      s += std::to_string(i+1);
-      varname.push_back(s);
-      vars[i].address = &(macro_param[i]);
-      vars[i].type = TES_VARIABLE;
-    }
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err!=0) { return err; }
 
-    // vecotr varname is dynamically allocated, so we need to set the
-    // string points here, after varname's element shuffling settles down
-    //
-    for (i=0; i<macro_param.size(); i++) {
-      vars[i].name = varname[i].c_str();
-    }
-  }
-
-  // parameters might have 'simple' math operations or
-  // might reference variables, so run it through our
-  // tiny expression processor to calculate values for
-  // the aperture macro realization
-  //
-  for (i=0; i<am_node->n_eval_line; i++) {
-    expr = tes_compile(am_node->eval_line[i], vars, macro_param.size(), &err);
-    if (!expr) { free(vars); return -1; }
-    val = tes_eval(expr);
-    eval_param.push_back(val);
-    tes_free(expr);
-  }
-
-  if (eval_param.size() != 6) { free(vars); return -1; }
+  if (eval_param.size() != 6) { return -1; }
   expose = 1;
 
   cx = eval_param[0];
@@ -999,7 +799,6 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   paths.push_back(path);
   exposure.push_back(expose);
 
-  free(vars);
   return 0;
 }
 
