@@ -465,7 +465,7 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       //
       //
 
-      if ( (cur_pnt.X != prev_pnt.X) &&
+      if ( (cur_pnt.X != prev_pnt.X) ||
            (cur_pnt.Y != prev_pnt.Y) ) {
 
         printf("## realizing aperture %i\n", name);
@@ -490,12 +490,20 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         ConvexHull( point_list, res_point );
 
         if (res_point.size() == 0) {
-          fprintf(stdout, "ERROR: res_point.size() == 0 in join_polygon_set\n"); fflush(stdout);
-          fprintf(stderr, "ERROR: res_point.size() == 0 in join_polygon_set\n"); fflush(stderr);
-          return;
+          fprintf(stderr, "# WARNING: empty polygon found for name %i, skipping\n", name);
+        }
+        else {
+
+#ifdef DEBUG_CONSTRUCT
+          for (i=0; i<res_point.size(); i++) {
+            printf("##+ %lli %lli\n", (long long int)res_point[i].X, (long long int)res_point[i].Y);
+          }
+#endif
+
+          if (!Orientation(res_point)) { ReversePath(res_point); }
+          clip.AddPath( res_point, ptSubject, true );
         }
 
-        clip.AddPath( res_point, ptSubject, true );
         contour = contour->next;
         continue;
       }

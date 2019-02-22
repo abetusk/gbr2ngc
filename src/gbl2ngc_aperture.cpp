@@ -20,7 +20,7 @@
 
 #include "gbl2ngc.hpp"
 
-//#define DEBUG_APERTURE
+#define DEBUG_APERTURE
 
 #define _isnan std::isnan
 
@@ -43,8 +43,7 @@ static int _get_segment_count(double r, double min_segment_length, int min_segme
 }
 
 
-void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 )
-{
+void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 ) {
   int i, idx, segments;
   double a;
   //double c, theta, a;
@@ -52,6 +51,10 @@ void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, do
   Path empty_path;
 
   segments = _get_segment_count(r, min_segment_length, min_segments);
+
+#ifdef DEBUG_APERTURE
+  printf("# realize_circle: r %f seg %i\n", (float)r, segments);
+#endif
 
   //theta = 2.0 * asin( min_segment_length / (2.0*r) );
   //segments = (int)(c / theta);
@@ -66,8 +69,16 @@ void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, do
     //ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) ) );
     ap.m_path[idx].push_back( dtoc( r*cos(a), r*sin(a) ) );
   }
+  if (ap.m_path[idx].size() > 0) {
+    ap.m_path[idx].push_back( ap.m_path[idx][0] );
+  }
   ap.m_exposure.push_back(1);
 
+#ifdef DEBUG_APERTURE
+  for (i=0; i<ap.m_path[idx].size(); i++) {
+    printf("# %lli %lli\n", (long long int)ap.m_path[idx][i].X, (long long int)ap.m_path[idx][i].Y);
+  }
+#endif
 }
 
 void realize_rectangle( Aperture_realization &ap, double x, double y ) {
@@ -576,6 +587,68 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   return 0;
 }
 
+int add_AM_polygon(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+  int i, j, k, err=0;
+
+  Path path;
+
+  std::vector< double > eval_param;
+
+  int segments = 0, expose = 0;
+  int nvert =3;
+  double a, diam, r;
+  double cx=0.0, cy=0.0, ang_deg_ccw=0.0, ang=0.0;
+  double px=0.0, py=0.0;
+
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err!=0) { return err; }
+
+  if (eval_param.size() < 6) { return -1; }
+
+  if (eval_param[0] > 0.5) { expose = 1; }
+  nvert = (int)eval_param[1];
+  cx = eval_param[2];
+  cy = eval_param[3];
+  diam = eval_param[4];
+  ang = ang_deg_ccw * M_PI / 180.0;
+
+  if (nvert<3) { return -2; }
+  if (nvert>12) { return -3; }
+
+  r = diam/2.0;
+
+  for (i=0; i<nvert; i++) {
+    a = (double)i * M_PI * 2.0 / (double)nvert;
+    a += ang;
+
+    px = r * cos(a);
+    py = r * sin(a);
+
+    path.push_back( dtoc( cx + px, cy + py ) );
+  }
+
+  if ( (path[0].X != path[ path.size()-1 ].X) || (path[0].Y != path[ path.size()-1 ].Y)) { return -5; }
+
+  paths.push_back(path);
+  exposure.push_back(expose);
+
+  //DEBUG
+#ifdef DEBUG_APERTURE
+  printf("## am_polygon:\n");
+  for (i=0; i<eval_param.size(); i++) {
+    printf("## [%i] %f\n", i, eval_param[i]);
+  }
+  printf("##\n");
+  printf("## %i\n", expose);
+  for (i=0; i<path.size(); i++) {
+    printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
+  }
+  printf("##\n");
+#endif
+
+  return 0;
+}
+
 int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
   int i, j, k, err=0;
 
@@ -956,11 +1029,27 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
 
 
         break;
-      case AM_ENUM_POLYGON: printf("#xx polygon\n"); break;
-      case AM_ENUM_MOIRE: printf("#xx moire\n"); break;
+
+      case AM_ENUM_POLYGON:
+
+#ifdef DEBUG_APERTURE
+        printf("#xx polygon\n");
+#endif
+
+        //printf("#xx polygon\n");
+
+        ret = add_AM_polygon(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
+        if (ret<0) { printf("# outline error? ret %i\n", ret); }
+
+        break;
+
+      case AM_ENUM_MOIRE:
+
+        printf("#xx moire (not implemented)\n");
+
+        break;
+
       case AM_ENUM_THERMAL:
-        //STILL NEEDS WORK
-        // circles aren't interpolated, will only render essentially rectrangles...
 
 #ifdef DEBUG_APERTURE
         printf("#xx thermal\n");
@@ -968,13 +1057,6 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
 
         ret = add_AM_thermal(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
         if (ret<0) { printf("# thermal error? ret %i\n", ret); }
-
-        // trying to add to add from am
-        //
-        //for (i=0; i<ap.m_macro_path.size(); i++) {
-        //  ap.m_path.push_back(ap.m_macro_path[i]);
-        //  ap.m_exposure.push_back( ap.m_macro_exposure[i] );
-        //}
 
         break;
 
