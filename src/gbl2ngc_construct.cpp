@@ -508,7 +508,6 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         continue;
       }
 
-
       aperture_clip.Clear();
       aperture_geom.clear();
       for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
@@ -523,12 +522,10 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
           tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
                                         gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
         }
-        bool tf = Orientation(gAperture[name].m_path[ii]);
-        //if (!tf) { tmp_path.reverse(tmp_path.begin(), tmp_path.end()); }
-        if (!tf) { ReversePath(tmp_path); }
+        //bool tf = Orientation(gAperture[name].m_path[ii]);
+        //if (!tf) { ReversePath(tmp_path); }
 
         if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
-
 
         int last_idx = (int)(tmp_path.size()-1);
         if ((tmp_path[0].X != tmp_path[last_idx].X) &&
@@ -539,25 +536,17 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 
         if (gAperture[name].m_exposure[ii]) {
 
-          //DEBUG
-          bool tf = Orientation(gAperture[name].m_path[ii]);
-
 #ifdef DEBUG_CONSTRUCT
           printf("##++ exposure %i for name %i, orient %i\n", gAperture[name].m_exposure[ii], name, tf ? 1 : 0);
 #endif
-
 
           aperture_clip.AddPath(tmp_path, ptSubject, true);
         }
         else {
 
-          //DEBUG
-          bool tf = Orientation(gAperture[name].m_path[ii]);
-
 #ifdef DEBUG_CONSTRUCT
           printf("##-- exposure %i for name %i, orient %i\n", gAperture[name].m_exposure[ii], name, tf ? 1 : 0);
 #endif
-
 
           aperture_clip.AddPath(tmp_path, ptClip, true);
           aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);

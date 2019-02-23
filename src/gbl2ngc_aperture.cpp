@@ -610,6 +610,7 @@ int add_AM_polygon(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   cx = eval_param[2];
   cy = eval_param[3];
   diam = eval_param[4];
+  ang_deg_ccw = eval_param[5];
   ang = ang_deg_ccw * M_PI / 180.0;
 
   if (nvert<3) { return -2; }
@@ -626,8 +627,7 @@ int add_AM_polygon(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 
     path.push_back( dtoc( cx + px, cy + py ) );
   }
-
-  if ( (path[0].X != path[ path.size()-1 ].X) || (path[0].Y != path[ path.size()-1 ].Y)) { return -5; }
+  path.push_back( path[0] );
 
   paths.push_back(path);
   exposure.push_back(expose);
@@ -642,6 +642,156 @@ int add_AM_polygon(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   printf("## %i\n", expose);
   for (i=0; i<path.size(); i++) {
     printf("## %f %f\n", ctod(path[i].X), ctod(path[i].Y));
+  }
+  printf("##\n");
+#endif
+
+  return 0;
+}
+
+
+void _line_path( Path &path, double cx, double cy, double width, double height, double ang) {
+  double c_a, s_a;
+  double w2, h2;
+
+  w2 = width/2.0;
+  h2 = height/2.0;
+
+  path.clear();
+
+  c_a = cos(ang);
+  s_a = sin(ang);
+
+  path.push_back( dtoc( c_a*( w2) - s_a*( h2) + cx,  s_a*( w2) + c_a*( h2) + cy) );
+  path.push_back( dtoc( c_a*(-w2) - s_a*( h2) + cx,  s_a*(-w2) + c_a*( h2) + cy) );
+  path.push_back( dtoc( c_a*(-w2) - s_a*(-h2) + cx,  s_a*(-w2) + c_a*(-h2) + cy) );
+  path.push_back( dtoc( c_a*( w2) - s_a*(-h2) + cx,  s_a*( w2) + c_a*(-h2) + cy) );
+  path.push_back( path[0] );
+}
+
+int add_AM_moire(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+  int i, j, k, err=0;
+  int ii, jj;
+
+  Path _path;
+  Paths _paths, _tmp_paths;
+  Clipper clip;
+
+  std::vector< double > eval_param;
+
+  int segments = 32, expose = 1;
+  double a, r;
+  double cx=0.0, cy=0.0, ang_deg_ccw=0.0, ang=0.0;
+  double px=0.0, py=0.0;
+  double outer_diam=0.0, ring_thick=0.0, ring_gap = 0.0;
+  double hair_thick=0.0, hair_width = 0.0;
+  int max_ring = 0;
+
+  err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
+  if (err!=0) { return err; }
+
+  if (eval_param.size() < 9) { return -1; }
+
+  cx = eval_param[0];
+  cy = eval_param[1];
+  outer_diam = eval_param[2];
+  ring_thick = eval_param[3];
+  ring_gap = eval_param[4];
+  max_ring = (int)eval_param[5];
+  hair_thick = eval_param[6];
+  hair_width = eval_param[7];
+  ang_deg_ccw = eval_param[8];
+
+  ang = ang_deg_ccw * M_PI / 180.0;
+
+  if (outer_diam <= 0.0) { return -2; }
+  if (ring_thick <= 0.0) { return -3; }
+  if (ring_gap <= 0.0) { return -4; }
+  if (max_ring < 1) { return  -5; }
+  if (hair_thick <= 0.0) { return -6; }
+  if (hair_width <= 0.0) { return -7; }
+
+  r = outer_diam/2.0;
+
+  for (ii=0; ii<max_ring; ii++) {
+
+    if (r <= 0.0) { break; }
+
+    clip.Clear();
+
+    _path.clear();
+    for (jj=0; jj<segments; jj++) {
+      a = (double)jj * M_PI * 2.0 / (double)segments;
+
+      px = r * cos(a);
+      py = r * sin(a);
+
+      _path.push_back( dtoc( cx + px, cy + py ) );
+    }
+    if (_path.size() > 0) { _path.push_back( _path[0] ); }
+    _paths.push_back(_path);
+
+    clip.AddPath( _path, ptSubject, true );
+
+    r -= ring_thick;
+
+    if (r <= 0.0) { break; }
+
+    _path.clear();
+    for (jj=0; jj<segments; jj++) {
+
+      a = -(double)jj * M_PI * 2.0 / (double)segments;
+
+      px = r * cos(a);
+      py = r * sin(a);
+
+      _path.push_back( dtoc( cx + px, cy + py ) );
+    }
+    if (_path.size() > 0) { _path.push_back( _path[0] ); }
+    _paths.push_back(_path);
+
+    clip.AddPath( _path, ptClip, true );
+
+    _tmp_paths.clear();
+    clip.Execute( ctDifference, _tmp_paths, pftNonZero, pftNonZero );
+    for (jj=0; jj<_tmp_paths.size(); jj++) {
+      _paths.push_back(_tmp_paths[jj]);
+    }
+
+    r -= ring_gap;
+  }
+
+  exposure.push_back(expose);
+
+  clip.AddPaths( _paths, ptSubject, true );
+  clip.Execute( ctUnion, _tmp_paths, pftPositive, pftPositive );
+
+  clip.Clear();
+  clip.AddPaths( _tmp_paths, ptSubject, true );
+
+  _path.clear();
+  _line_path(_path, cx, cy, hair_width, hair_thick, ang);
+  clip.AddPath( _path, ptClip, true );
+
+  _path.clear();
+  _line_path(_path, cx, cy, hair_width, hair_thick, ang + (M_PI/2.0));
+  clip.AddPath( _path, ptClip, true );
+
+  clip.Execute( ctUnion, paths, pftNonZero, pftNonZero);
+
+  //DEBUG
+#ifdef DEBUG_APERTURE
+  printf("## am_moire:\n");
+  for (i=0; i<eval_param.size(); i++) {
+    printf("## [%i] %f\n", i, eval_param[i]);
+  }
+  printf("##\n");
+  printf("## expose %i\n", expose);
+  for (ii=0; ii<paths.size(); ii++) {
+    for (jj=0; jj<paths.size(); jj++) {
+      printf("##moire %f %f\n", ctod(paths[ii][jj].X), ctod(paths[ii][jj].Y));
+    }
+    printf("##moire\n");
   }
   printf("##\n");
 #endif
@@ -1045,7 +1195,12 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
 
       case AM_ENUM_MOIRE:
 
-        printf("#xx moire (not implemented)\n");
+#ifdef DEBUG_APERTURE
+        printf("#xx moire\n");
+#endif
+
+        ret = add_AM_moire(am_nod, param_val, ap.m_macro_path, ap.m_macro_exposure);
+        if (ret<0) { printf("# thermal error? ret %i\n", ret); }
 
         break;
 
@@ -1065,6 +1220,7 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
 #ifdef DEBUG_APERTURE
         printf("#xx unknown\n");
 #endif
+
 
         break;
     }
