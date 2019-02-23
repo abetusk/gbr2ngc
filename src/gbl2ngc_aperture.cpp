@@ -413,7 +413,7 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
 
   for (i=0; i<segments; i++) {
 
-    a = -2.0 * M_PI * (double)i / (double)segments;
+    a = 2.0 * M_PI * (double)i / (double)segments;
 
     px = r*cos(a) + cx;
     py = r*sin(a) + cy;
@@ -481,13 +481,13 @@ int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   //dwl = sqrt( (ex-sx)*(ex-sx) + (ey-sy)*(ey-sy) );
   //if (dwl < eps) { dwl = 1.0; }
 
-  c_va = cos(vang - M_PI/2.0);
-  s_va = sin(vang - M_PI/2.0);
+  c_va = cos(vang + M_PI/2.0);
+  s_va = sin(vang + M_PI/2.0);
   dwx0 = c_va * width / (2.0);
   dwy0 = s_va * width / (2.0);
 
-  c_va = cos(vang + M_PI/2.0);
-  s_va = sin(vang + M_PI/2.0);
+  c_va = cos(vang - M_PI/2.0);
+  s_va = sin(vang - M_PI/2.0);
   dwx1 = c_va * width / (2.0);
   dwy1 = s_va * width / (2.0);
 
