@@ -27,7 +27,7 @@
 
 #include "gerber_interpreter.h"
 
-//#define DEBUG_INTERPRETER
+#define DEBUG_INTERPRETER
 
 int (*function_code_handler[13])(gerber_state_t *, char *);
 
@@ -41,8 +41,7 @@ enum {
   QUADRENT_MODE_MULTI,
 } quadrent_mode_enum;
 
-void gerber_state_init(gerber_state_t *gs)
-{
+void gerber_state_init(gerber_state_t *gs) {
   gs->g_state = -1;
   gs->d_state = -1;
   gs->region = 0;
@@ -53,15 +52,13 @@ void gerber_state_init(gerber_state_t *gs)
 
   gs->units_metric = -1;
   gs->polarity = -1;
+  gs->polarity_bit = 0;
   gs->eof = 0;
   gs->line_no = 0;
 
   gs->quadrent_mode = -1;
 
   gs->current_aperture = -1;
-
-  //gs->units_str[0] = strdup("mm");
-  //gs->units_str[1] = strdup("inches");
 
   gs->units_str[0] = strdup("inches");
   gs->units_str[1] = strdup("mm");
@@ -71,6 +68,14 @@ void gerber_state_init(gerber_state_t *gs)
 
   gs->fs_coord_value[0] = strdup("relative");
   gs->fs_coord_value[1] = strdup("absolute");
+
+  gs->fs_omit_leading_zero = 0;
+  gs->fs_coord_absolute = 1;
+
+  gs->fs_x_int = 0; gs->fs_x_real = 0;
+  gs->fs_y_int = 0; gs->fs_y_real = 0;
+  gs->fs_i_int = 0; gs->fs_i_real = 0;
+  gs->fs_j_int = 0; gs->fs_j_real = 0;
 
   gs->fs_init = 0;
 
@@ -85,48 +90,143 @@ void gerber_state_init(gerber_state_t *gs)
   gs->am_lib_head = NULL;
   gs->am_lib_tail = NULL;
 
-  //gs->am.head = NULL;
-  //gs->am.last = NULL;
-  //gs->am.n = 0;
+  // AB init
+  //
+
+  gs->ab_active = 0;
+  gs->ab_lib_depth = 0;
+  gs->ab_name = -1;
+
+  gs->ab_lib_next = NULL;
+  gs->ab_lib_parent = NULL;
+  gs->ab_lib_root = gs;
+
+  gs->ab_lib_child_head = NULL;
+  gs->ab_lib_child_cur = NULL;
+  gs->ab_lib_child_last = NULL;
+
+  //--
 
   string_ll_init(&(gs->string_ll_buf));
   gs->gerber_read_state = GRS_NONE;
 }
 
+// 
+gerber_state_t *gerber_state_add_ab_child(gerber_state_t *gs_parent, int ab_name) {
+  gerber_state_t *gs_child = NULL;
+
+  gs_child = (gerber_state_t *)malloc(sizeof(gerber_state_t));
+
+  gs_child->g_state   = gs_parent->g_state;
+  gs_child->d_state   = gs_parent->d_state;
+  gs_child->region    = gs_parent->region;
+
+  gs_child->unit_init = gs_parent->unit_init;
+  gs_child->pos_init  = gs_parent->pos_init;
+  gs_child->is_init   = gs_parent->is_init;
+
+  gs_child->units_metric  = gs_parent->units_metric;
+  gs_child->polarity      = gs_parent->polarity;
+  gs_child->polarity_bit  = gs_parent->polarity_bit;
+  gs_child->eof           = gs_parent->eof;
+  gs_child->line_no       = gs_parent->line_no;
+
+  gs_child->quadrent_mode = gs_parent->quadrent_mode;
+
+  gs_child->current_aperture = gs_parent->current_aperture;
+
+  gs_child->units_str[0] = strdup(gs_parent->units_str[0]);
+  gs_child->units_str[1] = strdup(gs_parent->units_str[1]);
+
+  gs_child->fs_omit_zero[0] = strdup(gs_parent->fs_omit_zero[0]);
+  gs_child->fs_omit_zero[1] = strdup(gs_parent->fs_omit_zero[1]);
+
+  gs_child->fs_coord_value[0] = strdup(gs_parent->fs_coord_value[0]);
+  gs_child->fs_coord_value[1] = strdup(gs_parent->fs_coord_value[1]);
+
+  gs_child->fs_omit_leading_zero = gs_parent->fs_omit_leading_zero;
+  gs_child->fs_coord_absolute = gs_parent->fs_coord_absolute;
+
+  gs_child->fs_x_int  = gs_parent->fs_x_int;
+  gs_child->fs_x_real = gs_parent->fs_x_real;
+
+  gs_child->fs_y_int  = gs_parent->fs_y_int;
+  gs_child->fs_y_real = gs_parent->fs_y_real;
+
+  gs_child->fs_i_int  = gs_parent->fs_i_int;
+  gs_child->fs_i_real = gs_parent->fs_i_real;
+
+  gs_child->fs_j_int  = gs_parent->fs_j_int;
+  gs_child->fs_j_real = gs_parent->fs_j_real;
+
+  gs_child->fs_init = gs_parent->fs_init;
+
+  gs_child->aperture_head = NULL;
+  gs_child->aperture_cur = NULL;
+
+  gs_child->cur_x = gs_parent->cur_x;
+  gs_child->cur_y = gs_parent->cur_y;
+
+  gs_child->contour_head = NULL;
+  gs_child->contour_cur = NULL;
+  gs_child->contour_list_head = NULL;
+  gs_child->contour_list_cur = NULL;
+
+  gs_child->am_lib_head = NULL;
+  gs_child->am_lib_tail = NULL;
+
+  // Aperture Block
+  //
+
+  gs_child->ab_active = 1;
+  gs_child->ab_name = ab_name;
+  gs_child->ab_lib_depth = gs_parent->ab_lib_depth + 1;
+
+  gs_child->ab_lib_next = NULL;
+  gs_child->ab_lib_parent = gs_parent;
+
+  gs_child->ab_lib_child_head = NULL;
+  gs_child->ab_lib_child_cur  = NULL;
+  gs_child->ab_lib_child_last = NULL;
+
+  gs_child->ab_lib_root = gs_parent->ab_lib_root;
+
+  if (gs_parent->ab_lib_child_head == NULL) {
+    gs_parent->ab_lib_child_head = gs_child;
+  }
+  else {
+    gs_parent->ab_lib_child_last->ab_lib_next = gs_child;
+  }
+  gs_parent->ab_lib_child_cur = gs_child;
+  gs_parent->ab_lib_child_last = gs_child;
+
+  //--
+
+  string_ll_init(&(gs_child->string_ll_buf));
+  gs_child->gerber_read_state = gs_parent->gerber_read_state;
+
+  return gs_child;
+}
+
+
 //------------------------
 
-void gerber_state_clear(gerber_state_t *gs)
-{
+void gerber_state_clear(gerber_state_t *gs) {
   contour_list_ll_t *contour_list_nod, *prev_contour_list_nod;
   contour_ll_t *contour_nod, *prev_contour_nod;
   aperture_data_t *aperture_nod, *prev_aperture_nod;
 
-  if (gs->units_str[0])
-    free(gs->units_str[0]);
-
-  if (gs->units_str[1])
-    free(gs->units_str[1]);
-
-  if (gs->fs_omit_zero[0])
-    free(gs->fs_omit_zero[0]);
-
-  if (gs->fs_omit_zero[1])
-    free(gs->fs_omit_zero[1]);
-
-  if (gs->fs_coord_value[0])
-    free(gs->fs_coord_value[0]);
-
-  if (gs->fs_coord_value[1])
-    free(gs->fs_coord_value[1]);
-
+  if (gs->units_str[0])       { free(gs->units_str[0]); }
+  if (gs->units_str[1])       { free(gs->units_str[1]); }
+  if (gs->fs_omit_zero[0])    { free(gs->fs_omit_zero[0]); }
+  if (gs->fs_omit_zero[1])    { free(gs->fs_omit_zero[1]); }
+  if (gs->fs_coord_value[0])  { free(gs->fs_coord_value[0]); }
+  if (gs->fs_coord_value[1])  { free(gs->fs_coord_value[1]); }
 
   contour_list_nod = gs->contour_list_head;
-  while (contour_list_nod)
-  {
-
+  while (contour_list_nod) {
     contour_nod = contour_list_nod->c;
-    while (contour_nod)
-    {
+    while (contour_nod) {
       prev_contour_nod = contour_nod;
       contour_nod = contour_nod->next;
       free(prev_contour_nod);
@@ -138,20 +238,79 @@ void gerber_state_clear(gerber_state_t *gs)
   }
 
   aperture_nod = gs->aperture_head;
-  while (aperture_nod)
-  {
-
+  while (aperture_nod) {
     prev_aperture_nod = aperture_nod;
     aperture_nod = aperture_nod->next;
     free(prev_aperture_nod);
   }
-}
 
+}
 
 //------------------------
 
-void gerber_report_state(gerber_state_t *gs)
-{
+void _pps(FILE *fp, int n) {
+  int i;
+  for (i=0;i<n;i++) { fprintf(fp, "."); }
+}
+
+void gerber_report_ab_state(gerber_state_t *gs) {
+  gerber_state_t *_nod;
+
+  if (!gs) { return; }
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("gerber_report_ab_state: %p\n", gs);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_active: %i\n", gs->ab_active);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_name: %i\n", gs->ab_name);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_depth: %i\n", gs->ab_lib_depth);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_depth: %i\n", gs->ab_lib_depth);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_next: %p\n", gs->ab_lib_next);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_parent: %p\n", gs->ab_lib_parent);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_child_head: %p\n", gs->ab_lib_child_head);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_child_last: %p\n", gs->ab_lib_child_last);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_child_cur: %p\n", gs->ab_lib_child_cur);
+
+  printf("# "); _pps(stdout, gs->ab_lib_depth);
+  printf("ab_lib_root: %p\n", gs->ab_lib_root);
+
+  printf("\n");
+
+  dump_information(gs);
+  
+  _nod = gs->ab_lib_child_head;
+  while (_nod) {
+    gerber_report_ab_state(_nod);
+    _nod = _nod->ab_lib_next;
+  }
+
+  _nod = gs->ab_lib_next;
+  while (_nod) {
+    gerber_report_ab_state(_nod);
+    _nod = _nod->ab_lib_next;
+  }
+
+
+}
+
+void gerber_report_state(gerber_state_t *gs) {
   int i, j, k;
 
   aperture_data_t *ap;
@@ -166,6 +325,7 @@ void gerber_report_state(gerber_state_t *gs)
 
   printf("  units: %i (%s)\n", gs->units_metric, gs->units_str[gs->units_metric]);
   printf("  polarity: %i\n", gs->polarity);
+  printf("  polarity_bit: %i\n", gs->polarity_bit);
   printf("  eof: %i\n", gs->eof);
 
   printf("  fs_omit_leading_zero: %i (%s)\n", gs->fs_omit_leading_zero, gs->fs_omit_zero[ gs->fs_omit_leading_zero]);
@@ -174,30 +334,23 @@ void gerber_report_state(gerber_state_t *gs)
 
   printf("  aperture:\n");
   ap = gs->aperture_head;
-  while (ap)
-  {
+  while (ap) {
     printf("    name: %i\n", ap->name);
     printf("    type: %i\n", ap->type);
     printf("    crop_type: %i\n", ap->crop_type);
     printf("    data:");
     k = 0;
-    if (ap->type == 0)
-      k = ap->crop_type + 1;
-    else if (ap->type == 1)
-      k = ap->crop_type + 2;
-    else if (ap->type == 2)
-      k = ap->crop_type + 2;
-    else if (ap->type == 3)
-      k = ap->crop_type + 2;
+    if (ap->type == 0)      { k = ap->crop_type + 1; }
+    else if (ap->type == 1) { k = ap->crop_type + 2; }
+    else if (ap->type == 2) { k = ap->crop_type + 2; }
+    else if (ap->type == 3) { k = ap->crop_type + 2; }
 
-    for (i=0; i<k; i++)
-      printf(" %g", ap->crop[i]);
+    for (i=0; i<k; i++) { printf(" %g", ap->crop[i]); }
     printf("\n");
     printf("    next: %p\n", ap->next);
     printf("\n");
     ap = ap->next;
   }
-
 
   printf("  current_aperture: %i\n", gs->current_aperture);
   printf("  x %g, y %g\n", gs->cur_x, gs->cur_y);
@@ -205,33 +358,24 @@ void gerber_report_state(gerber_state_t *gs)
 
 //------------------------
 
-//#define GERBER_STATE_INCHES 1
-//#define GERBER_STATE_MM 2
-
-void gerber_state_set_units(gerber_state_t *gs, int units_metric)
-{
+void gerber_state_set_units(gerber_state_t *gs, int units_metric) {
   gs->units_metric = units_metric;
   gs->unit_init = 1;
 }
 
 //------------------------
 
-int parse_nums(double *rop, char *s, char sep, char term, int max_rop)
-{
+int parse_nums(double *rop, char *s, char sep, char term, int max_rop) {
   int k;
   char *chp, ch;
   chp = s;
 
-  for (k=0; k<max_rop; k++)
-  {
+  for (k=0; k<max_rop; k++) {
 
-    //printf(" k%i\n", k);
-
-    while ( (*chp) && (*chp != sep) && (*chp != term) )
+    while ( (*chp) && (*chp != sep) && (*chp != term) ) {
       chp++;
-    if (!(*chp)) return -1;
-
-    //printf("    chp %p (%c) pos %i\n", chp, *chp, (int)(chp-s) );
+    }
+    if (!(*chp)) { return -1; }
 
     ch = *chp;
     *chp = '\0';
@@ -240,47 +384,45 @@ int parse_nums(double *rop, char *s, char sep, char term, int max_rop)
 
     *chp = ch;
 
-    if (ch == term) return k+1;
+    if (ch == term) { return k+1; }
     chp++;
     s = chp;
   }
 
-  if (ch != term) return -1;
+  if (ch != term) { return -1; }
   return max_rop;
 
 }
 
 //------------------------
 
-void parse_error(char *s, int line_no, char *l)
-{
-  if (l)
+void parse_error(char *s, int line_no, char *l) {
+  if (l) {
     printf("PARSE ERROR: %s at line %i '%s'\n", s, line_no, l);
-  else
+  }
+  else {
     printf("PARSE ERROR: %s at line %i\n", s, line_no );
+  }
   exit(2);
 }
 
 //------------------------
 
-char *skip_whitespace(char *s)
-{
+char *skip_whitespace(char *s) {
   while ((*s) && 
-         ( (*s == '\n') || (*s == ' ') || (*s == '\t') ) )
+         ( (*s == '\n') || (*s == ' ') || (*s == '\t') ) ) {
     s++;
+  }
   return s;
 }
 
 //------------------------
 
-void string_cleanup(char *rop, char *op)
-{
+void string_cleanup(char *rop, char *op) {
   if (!rop) return;
   if (!op) return;
-  while (*op)
-  {
-    if (*op != '\n')
-    {
+  while (*op) {
+    if (*op != '\n') {
       *rop = *op;
       rop++;
     }
@@ -291,14 +433,11 @@ void string_cleanup(char *rop, char *op)
 
 //------------------------
 
-void strip_whitespace(char *rop, char *op)
-{
+void strip_whitespace(char *rop, char *op) {
   if (!rop) return;
   if (!op) return;
-  while (*op)
-  {
-    if (!isspace(*op))
-    {
+  while (*op) {
+    if (!isspace(*op)) {
       *rop = *op;
       rop++;
     }
@@ -307,24 +446,9 @@ void strip_whitespace(char *rop, char *op)
   *rop = '\0';
 }
 
-//---
-
-/*
-char function_code[][4] = { "D01", "D02", "D03", 
-                            "G01", "G02", "G03", "G04", 
-                            "G36", "G37",
-                            "G74", "G75",
-                            "M02", '\0' };
-
-int (*function_code_handler[13])(gerber_state_t *, char *);
-*/
-
 #define N_FUNCTION_CODE 13
 
-//int fch_comment(gerbser_state_t *gs, char *buf) { printf("# comment: '%s'\n", buf); }
-
-int default_function_code_handler(gerber_state_t *gs, char *buf)
-{
+int default_function_code_handler(gerber_state_t *gs, char *buf) {
   printf("default_function_code_handler: '%s'\n", buf);
 }
 
@@ -345,6 +469,7 @@ int munch_line(char *linebuf, int n, FILE *fp) {
 
 
 // function codes
+//
 
 enum {
   FC_D01 = 1, FC_D02, FC_D03, FC_D10P,
@@ -361,16 +486,14 @@ enum {
 
 //------------------------
 
-int is_function_code_deprecated(int function_code)
-{
+int is_function_code_deprecated(int function_code) {
   if (function_code > FC_M02) return 1;
   return 0;
 }
 
 //------------------------
 
-int get_function_code(char *linebuf)
-{
+int get_function_code(char *linebuf) {
   char *pos = linebuf;
 
   if (pos[0] == 'X') return FC_X;
@@ -415,6 +538,7 @@ enum {
   IMG_PARAM_MO,       // MOde
   IMG_PARAM_AD,       // Aperture Definition
   IMG_PARAM_AM,       // Aperture Macro
+  IMG_PARAM_AB,       // Aperture Block
   IMG_PARAM_LN,       // Level Name
   IMG_PARAM_LP,       // Level Polarity
   IMG_PARAM_SR,       // Step and Repeat
@@ -437,8 +561,7 @@ enum {
 
 } IMG_PARAM;
 
-int get_image_parameter_code(char *linebuf)
-{
+int get_image_parameter_code(char *linebuf) {
   char *pos = linebuf + 1;
   if ( pos[0] && (pos[0] == 'F') && (pos[1] == 'S') ) return IMG_PARAM_FS;
   if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'N') ) return IMG_PARAM_IN;
@@ -446,6 +569,7 @@ int get_image_parameter_code(char *linebuf)
   if ( pos[0] && (pos[0] == 'M') && (pos[1] == 'O') ) return IMG_PARAM_MO;
   if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'D') ) return IMG_PARAM_AD;
   if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'M') ) return IMG_PARAM_AM;
+  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'B') ) return IMG_PARAM_AB;
   if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'N') ) return IMG_PARAM_LN;
   if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'P') ) return IMG_PARAM_LP;
   if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'R') ) return IMG_PARAM_SR;
@@ -466,24 +590,19 @@ int get_image_parameter_code(char *linebuf)
 
 //------------------------
 
-void parse_fs(gerber_state_t *gs, char *linebuf)
-{
+void parse_fs(gerber_state_t *gs, char *linebuf) {
   char *chp;
   int a, b;
-
-  //printf("# fs '%s'\n", linebuf);
 
   chp = linebuf + 3;
   if ((*chp != 'L') && (*chp != 'T')) parse_error("bad FS zero omission mode", gs->line_no, linebuf);
   if (*chp == 'L') gs->fs_omit_leading_zero = 1;
   else gs->fs_omit_leading_zero = 0;
-  //gs->fs_omit_zero = *chp++;
   chp++;
 
   if ((*chp != 'A') && (*chp != 'I')) parse_error("bad FS coordinate value mode", gs->line_no, linebuf);
   if (*chp == 'A') gs->fs_coord_absolute = 1;
   else gs->fs_coord_absolute = 0;
-  //gs->fs_coord_value = *chp++;
   chp++;
 
   if (*chp != 'X') parse_error("bad FS format (expected 'X')", gs->line_no, linebuf);
@@ -508,38 +627,29 @@ void parse_fs(gerber_state_t *gs, char *linebuf)
   gs->fs_y_real = *chp++ - '0';
   if ((gs->fs_y_real<0) || (gs->fs_y_real>7)) parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf);
 
+  gs->fs_i_int = gs->fs_x_int;
+  gs->fs_j_int = gs->fs_y_int;
+
+  gs->fs_i_real = gs->fs_x_real;
+  gs->fs_j_real = gs->fs_y_real;
+
   gs->fs_init = 1;
-
-  /*
-  printf("# fs omit_zero '%c', coord value '%c', x%i.%i, y%i.%i\n",
-      gs->fs_omit_zero, gs->fs_coord_value, 
-      gs->fs_x_int, gs->fs_x_real,
-      gs->fs_y_int, gs->fs_y_real);
-      */
-
 }
 
 //------------------------
 
-void parse_in(gerber_state_t *gs, char *linebuf)
-{
-  //printf("# in '%s'\n", linebuf);
+void parse_in(gerber_state_t *gs, char *linebuf) {
 }
 
 //------------------------
 
-void parse_ip(gerber_state_t *gs, char *linebuf)
-{
-  //printf("# ip '%s'\n", linebuf);
+void parse_ip(gerber_state_t *gs, char *linebuf) {
 }
 
 //------------------------
 
-void parse_mo(gerber_state_t *gs, char *linebuf)
-{
+void parse_mo(gerber_state_t *gs, char *linebuf) {
   char *chp;
-
-  //printf("# mo '%s'\n", linebuf);
 
   chp = linebuf+3;
   if      ( (chp[0] == 'I') && (chp[1] = 'N') ) gs->units_metric = 0;
@@ -598,7 +708,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
 
   chp = linebuf + 3;
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## parse extended ad : %s\n", linebuf);
   printf("## parse extended chp: %s\n", chp);
@@ -620,11 +729,9 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   if (!chp[n]) { parse_error("bad AD format, premature eol", gs->line_no, linebuf); }
   if (n<2) { parse_error("bad AD format, expected aperture macro name", gs->line_no, linebuf); }
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## dcode %i\n", (int)d_code);
 #endif
-
 
   ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
   memset(ap_db, 0, sizeof(aperture_data_t));
@@ -633,14 +740,12 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   ap_db->macro_name = strndup(chp, n);
   ap_db->type = 4;
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## ap_db->macro_name: %s\n", ap_db->macro_name); fflush(stdout);
 #endif
 
   chp += n;
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## chp: %s\n", chp); fflush(stdout);
 #endif
@@ -652,7 +757,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
     }
   }
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## param_count: %i\n", param_count); fflush(stdout);
 #endif
@@ -671,8 +775,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
       ch = *chp_end;
       *chp_end = '\0';
 
-
-      //DEBUG
 #ifdef DEBUG_INTERPRETER
       printf("# converting %s\n", chp); fflush(stdout);
 #endif
@@ -689,8 +791,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   else                    { gs->aperture_cur->next = ap_db; }
   gs->aperture_cur = ap_db;
 
-
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## mactro_param[%i]:", ap_db->macro_param_count);
   for (i=0; i<ap_db->macro_param_count; i++) {
@@ -731,7 +831,6 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   linebuf = string_ll_dup_str(&(gs->string_ll_buf));
   string_ll_free(&(gs->string_ll_buf));
 
-
   chp = linebuf + 3;
 
   if (*chp != 'D') { parse_error("bad AD format", gs->line_no, linebuf); }
@@ -759,7 +858,6 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
     return;
   }
 
-  //if ((*chp) != ',') parse_error("bad AD format, expected ','", gs->line_no, linebuf);
   chp++;
 
   ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
@@ -790,13 +888,145 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   }
 
   if (ap_db->crop_type < 0) {
-    //printf(" got %i\n", ap_db->crop_type);
     parse_error("bad AD, bad aperture data", gs->line_no, linebuf);
   }
 
   if (!gs->aperture_head) { gs->aperture_head = ap_db; }
   else                    { gs->aperture_cur->next = ap_db; }
   gs->aperture_cur = ap_db;
+
+  gs->gerber_read_state = GRS_NONE;
+
+  free(linebuf);
+}
+
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+// -----------------------------------------------
+
+// only parse the AB line and not the whole block.
+// Adding the block to the aperture data library is done
+// at a higher level.
+//
+void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
+  char *linebuf;
+  char *chp_beg, *chp, *s, ch;
+  char save_char;
+  int d_code, complete=0, n=0;
+
+  int begin_ab_block = -1;
+  gerber_state_t *new_gs=NULL;
+
+  // handle multi line AD
+  //
+  chp = linebuf_orig;
+  n = ( (gs->gerber_read_state == GRS_AB) ? 0 : 1 );
+
+  string_ll_add(&(gs->string_ll_buf), linebuf_orig);
+  gs->gerber_read_state = GRS_AB;
+
+  while (chp[n]) {
+    if (chp[n] == '%') { complete=1; break; }
+    n++;
+  }
+
+  //DEBUG
+  printf("## parse_ab linebuf_orig: '%s'\n", linebuf_orig);
+  printf("## parse_ab complete: %i\n", complete);
+
+  if (!complete) { return; }
+
+  linebuf = string_ll_dup_str(&(gs->string_ll_buf));
+  string_ll_free(&(gs->string_ll_buf));
+
+  chp = linebuf + 3;
+
+  if (*chp == 'D') { begin_ab_block = 1; }
+  else if (*chp == '*') { begin_ab_block = 0; }
+  else { parse_error("bad AB format", gs->line_no, linebuf); }
+
+  chp++;
+
+  // begin Aperture Block
+  //
+  if (begin_ab_block == 1) {
+    chp_beg = chp;
+
+    while (*chp) {
+      if ( (*chp < '0') || (*chp > '9') ) break;
+      chp++;
+    }
+    if (!(*chp)) { parse_error("bad AB format, expected character '*'", gs->line_no, linebuf); }
+
+    save_char = *chp;
+    *chp = '\0';
+    d_code = atoi(chp_beg);
+    if (d_code < 10) { parse_error("bad AB format, D code must be >= 10", gs->line_no, linebuf); }
+
+    if (save_char != '*') {
+      parse_error("bad AB format, expected character '*'", gs->line_no, linebuf);
+    }
+
+    chp++;
+    if (!(*chp)) { parse_error("bad AB format, expected character '%'", gs->line_no, linebuf); }
+    if (*chp != '%') { parse_error("bad AB format, expected character '%'", gs->line_no, linebuf); }
+
+    //new_gs = (gerber_state_t *)malloc(sizeof(gerber_state_t));
+    //gerber_state_init_AB(new_gs, gs);
+
+    new_gs = gerber_state_add_ab_child(gs, d_code);
+    if (!new_gs) {
+      fprintf(stderr, "could not allocate new AB block, exiting\n");
+      exit(-1);
+    }
+
+    // Regardless of the 'ab_active' state of the root, we can update it to
+    // 1 as we're processing an AB
+    //
+    new_gs->ab_lib_root->ab_active = 1;
+
+    // Save our current AB data structure so the root can refer to it when
+    // processing the rest of teh AB
+    //
+    new_gs->ab_lib_root->ab_lib_child_cur = new_gs;
+    new_gs->gerber_read_state = GRS_NONE;
+
+    //DEBUG
+    printf("## begin AB done\n");
+    //gerber_report_ab_state(gs);
+
+  }
+
+  // end Aperture Block
+  //
+  else {
+
+    if (gs->ab_lib_parent == NULL) {
+      parse_error("found end of AB without beginning", gs->line_no, linebuf);
+    }
+
+    // Since we've tied off the AB, we go up the stack of ABs and make
+    // sure the root is pointing to the parent for further processing.
+    //
+    gs->ab_lib_root->ab_lib_child_cur = gs->ab_lib_parent;
+
+    gs->ab_active = 0;
+
+    // If we've tied the AB and we're one below the root, we've stopped processing
+    // the AB and need to updat the root accordingly.
+    //
+    if (gs->ab_lib_depth==1) {
+      gs->ab_lib_parent->ab_active=0;
+    }
+    //new_gs->gerber_read_state = GRS_NONE;
+
+    //DEBUG
+    printf("## end AB\n");
+    //gerber_report_ab_state(gs->ab_lib_parent);
+
+  }
 
   gs->gerber_read_state = GRS_NONE;
 
@@ -838,16 +1068,6 @@ void am_node_print(am_ll_node_t *nod) {
   }
 }
 
-/*
-void am_format_for_tesexpr(char *s) {
-  int i;
-  for (i=0; s[i]; i++) {
-    if (s[i]=='$') { s[i] = 'x'; }
-    else if ((s[i] == 'x') || (s[i] == 'X')) { s[i] = '*'; }
-  }
-}
-*/
-
 void am_fill_eval_line(am_ll_node_t *nod, int n_eval_line, char *chp, int *end_pos, int skip_field) {
   int i, apos=0;
 
@@ -858,8 +1078,6 @@ void am_fill_eval_line(am_ll_node_t *nod, int n_eval_line, char *chp, int *end_p
     else { apos = end_pos[i+(skip_field-1)]+1; }
 
     nod->eval_line[i] = strndup(chp + apos, end_pos[i+skip_field] - apos);
-
-    //am_format_for_tesexpr(nod->eval_line[i]);
   }
 
 }
@@ -933,7 +1151,6 @@ am_ll_node_t * am_ll_node_create_var_n(char *s, int n) {
 
   nod->varname = strndup(chp, idx);
   nod->type = AM_ENUM_VAR;
-  //nod->varname[0] = 'x';
   chp += idx+1;
 
   for (idx=0; chp[idx] && (chp[idx] != '*'); idx++) ;
@@ -946,8 +1163,6 @@ am_ll_node_t * am_ll_node_create_var_n(char *s, int n) {
   nod->eval_line = (char **)malloc(sizeof(char *));
   nod->n_eval_line = 1;
   nod->eval_line[0] = strndup(chp, idx);
-
-  //am_format_for_tesexpr(nod->eval_line[0]);
 
   return nod;
 }
@@ -1177,7 +1392,6 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   dup_str = string_ll_dup_str(&(gs->string_ll_buf));
   string_ll_free(&(gs->string_ll_buf));
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("### AM %s\n", dup_str);
 #endif
@@ -1186,11 +1400,9 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   //
   chp = dup_str+3;
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("### chp: %s\n", chp);
 #endif
-
 
   // scan for end of line ('*' token denotes eol) and
   // save the macro name.
@@ -1201,7 +1413,6 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
 
   chp += n+1;
 
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   printf("## am_nod_head(%p) %s\n", am_nod_head, am_nod_head->name);
 #endif
@@ -1251,9 +1462,6 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   else                  { gs->am_lib_head       = am_lib_nod; }
   gs->am_lib_tail = am_lib_nod;
 
-
-
-  //DEBUG
 #ifdef DEBUG_INTERPRETER
   am_lib_print(gs);
 #endif
@@ -1271,23 +1479,39 @@ am_parse_error:
 
 //------------------------
 
-void parse_ln(gerber_state_t *gs, char *linebuf)
-{
+void parse_ln(gerber_state_t *gs, char *linebuf) {
   //printf("# ln '%s'\n", linebuf);
 }
 
 //------------------------
 
-void parse_lp(gerber_state_t *gs, char *linebuf)
-{
-  //printf("# lp '%s'\n", linebuf);
+void parse_lp(gerber_state_t *gs, char *linebuf) {
+  int polarity = -1;
+  int ch;
+
+  ch = *linebuf;
+  if ((ch != 'C') && (ch != 'D')) {
+    parse_error("invalid LP option. Expected 'C' or 'D' for LP comamnd", gs->line_no, NULL);
+  }
+
+  if (ch=='C') {
+    gs->polarity = 0;
+    gs->polarity_bit = 1;
+  }
+  else if (ch=='D') {
+    gs->polarity = 1;
+    gs->polarity_bit = 0;
+  }
+
 }
 
 //------------------------
 
-void parse_sr(gerber_state_t *gs, char *linebuf)
-{
-  //printf("# sr '%s'\n", linebuf);
+// TODO
+// step and repeat
+//
+void parse_sr(gerber_state_t *gs, char *linebuf) {
+
 }
 
 // File attributes
@@ -1360,17 +1584,20 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
   char *chp, ch, *tbuf;
   int max_buf, pos=0;
   int real_processed_count=0;
-  max_buf = fs_int + fs_real + 3;
 
+  max_buf = fs_int + fs_real + 3;
   tbuf = (char *)malloc(sizeof(char)*(max_buf));
 
   s++;
   
   // advance to non-digit portion
+  //
   for (chp = s; (*chp && (isdigit(*chp) || (*chp == '-') || (*chp == '+'))) ; chp++);
   if (!*chp) parse_error("unexpected eol", gs->line_no, NULL);
   k = (int)(chp - s);
-  if (k >= max_buf) parse_error("invalid coordinate", gs->line_no, NULL);
+  if (k >= max_buf) {
+    parse_error("invalid coordinate", gs->line_no, NULL);
+  }
 
   // that is, trailing zeros manditory
   //
@@ -1403,8 +1630,11 @@ char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_rea
   } else {
 
     chp = s;
-    if (*chp == '+') chp++;
-    if (*chp == '-') tbuf[pos++] = '-';
+    if (*chp == '+') { chp++; }
+    if (*chp == '-') {
+      chp++;
+      tbuf[pos++] = '-';
+    }
 
     for (i=0; i<fs_int; i++) {
       if (!isdigit(*chp)) { parse_error("expected number", gs->line_no, NULL); }
@@ -1561,6 +1791,18 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       chp = parse_single_int(gs, &(gs->d_state), chp);
     }
 
+    else if (*chp == 'I') {
+      if (state & 8) parse_error("multiple 'I' tokens found", gs->line_no, NULL);
+      state |= 2;
+      chp = parse_single_coord(gs, &(gs->cur_i), gs->fs_i_int, gs->fs_i_real, chp);
+    }
+
+    else if (*chp == 'J') {
+      if (state & 16) parse_error("multiple 'I' tokens found", gs->line_no, NULL);
+      state |= 2;
+      chp = parse_single_coord(gs, &(gs->cur_j), gs->fs_j_int, gs->fs_j_real, chp);
+    }
+
     else if (*chp == '*') {
       break;
     }
@@ -1569,11 +1811,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
     }
 
   }
-
-  //DEBUG
-  //printf(">>> fs %i %i\n", gs->fs_x_int, gs->fs_y_real);
-  //printf(">>> %f %f\n", (float)gs->cur_x, (float)gs->cur_y);
-
 
   // handle region
   //
@@ -1591,9 +1828,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
         contour_nod->next  = NULL;
 
         gs->contour_head = gs->contour_cur = contour_nod;
-
-        //printf("%g %g # %i\n", prev_x, prev_y, gs->d_state);
-
       }
 
       contour_nod = (contour_ll_t *)malloc(sizeof(contour_ll_t));
@@ -1605,8 +1839,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
       gs->contour_cur->next = contour_nod;
       gs->contour_cur = contour_nod;
-
-      //printf("%g %g # %i \n", gs->cur_x, gs->cur_y, gs->d_state);
     }
 
     // need to tie off region
@@ -1654,7 +1886,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
   }
 
 }
-
 
 //------------------------
 
@@ -1731,13 +1962,14 @@ void parse_g03(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // comment
+//
 void parse_g04(gerber_state_t *gs, char *linebuf) { 
-  //parse_error("unsuported g04", line_no, NULL);
 }
 
 //------------------------
 
 // start region
+//
 void parse_g36(gerber_state_t *gs, char *linebuf) { 
   gs->g_state = 36;
   gs->region = 1;
@@ -1755,17 +1987,19 @@ void parse_g37(gerber_state_t *gs, char *linebuf) {
   gs->region = 0;
 
   // tie off region
-  if (gs->contour_head)
-  {
+  //
+  if (gs->contour_head) {
     nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
     nod->next = NULL;
     nod->c = gs->contour_head;
     nod->n = 1;
 
-    if (!gs->contour_list_head)
+    if (!gs->contour_list_head) {
       gs->contour_list_head = nod;
-    else
+    }
+    else {
       gs->contour_list_cur->next = nod;
+    }
     gs->contour_list_cur = nod;
 
     gs->contour_head = NULL;
@@ -1777,14 +2011,12 @@ void parse_g37(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 void parse_g74(gerber_state_t *gs, char *linebuf) { 
-  //parse_error("unsuported g74", gs->line_no, NULL);
   gs->quadrent_mode = QUADRENT_MODE_SINGLE;
 }
 
 //------------------------
 
 void parse_g75(gerber_state_t *gs, char *linebuf) { 
-  //parse_error("unsuported g75", gs->line_no, NULL);
   gs->quadrent_mode = QUADRENT_MODE_MULTI;
 }
 
@@ -1810,6 +2042,7 @@ void parse_g55(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // deprecated untis to inches
+//
 void parse_g70(gerber_state_t *gs, char *linebuf) { 
   gs->units_metric = 0;
 }
@@ -1817,6 +2050,7 @@ void parse_g70(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // deprecated untis to mm
+//
 void parse_g71(gerber_state_t *gs, char *linebuf) { 
   gs->units_metric = 1;
 }
@@ -1824,6 +2058,7 @@ void parse_g71(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // deprecated absolute coordinate
+//
 void parse_g90(gerber_state_t *gs, char *linebuf) { 
   gs->fs_coord_absolute = 1;
 }
@@ -1831,6 +2066,7 @@ void parse_g90(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // deprecated incremental coordinate
+//
 void parse_g91(gerber_state_t *gs, char *linebuf) { 
   gs->fs_coord_absolute = 0;
 }
@@ -1838,6 +2074,7 @@ void parse_g91(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // deprecated program stop
+//
 void parse_m00(gerber_state_t *gs, char *linebuf) { 
   gs->eof = 1;
 }
@@ -1845,6 +2082,7 @@ void parse_m00(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 // deprecated optional stop
+//
 void parse_m01(gerber_state_t *gs, char *linebuf) { 
   gs->eof = 1;
 }
@@ -1859,7 +2097,7 @@ enum {
 } aperture_enum;
 
 void dump_information(gerber_state_t *gs) {
-  int i, j, k, n=0, verbose_print=0;
+  int i, j, k, n=0, verbose_print=1;
   int cur_contour_list = 0;
 
   aperture_data_t *adb;
@@ -1880,28 +2118,28 @@ void dump_information(gerber_state_t *gs) {
 
     if (adb->type == APERTURE_CIRCLE) {
       if (verbose_print)
-        printf("circle:");
+        printf("# circle:");
 
       n = adb->crop_type + 1;
     }
 
     else if (adb->type == APERTURE_RECTANGLE) {
       if (verbose_print)
-        printf("rectangle:");
+        printf("# rectangle:");
 
       n = adb->crop_type + 2;
     }
 
     else if (adb->type == APERTURE_OBROUND) {
       if (verbose_print)
-        printf("obround:");
+        printf("# obround:");
 
       n = adb->crop_type + 2;
     }
 
     else if (adb->type == APERTURE_POLYGON) {
       if (verbose_print)
-        printf("polygon:");
+        printf("# polygon:");
 
       n = adb->crop_type + 3;
     }
@@ -1929,7 +2167,7 @@ void dump_information(gerber_state_t *gs) {
     while (c) {
       if (verbose_print) {
         printf("#  [%i] contour d_name: %i, region: %i, x,y: (%g,%g)\n", k, c->d_name, c->region, c->x, c->y);
-        printf("%g %g\n", c->x, c->y);
+        printf("# %g %g\n", c->x, c->y);
       }
       c = c->next;
       k++;
@@ -1941,42 +2179,73 @@ void dump_information(gerber_state_t *gs) {
     if (verbose_print) { printf("\n"); }
   }
 
-
 }
 
 //-------------------------------
 
 // do any post processing that needs to be done
-int gerber_state_post_process(gerber_state_t *gs)
-{
+//
+int gerber_state_post_process(gerber_state_t *gs) {
 }
 
 //-------------------------------
 
-int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
-{
+int gerber_state_interpret_line(gerber_state_t *root_gs, char *linebuf) {
   int image_parameter_code;
   int function_code;
+
+  gerber_state_t *ab_gs, *gs;
+
+  gs = root_gs;
+  if (root_gs->ab_active) {
+
+    //DEBUG
+    printf("## cp.gsil root_gs->ab_active %i, '%s'\n", root_gs->ab_active, linebuf);
+    //gerber_report_ab_state(root_gs);
+
+
+    gs = root_gs->ab_lib_child_cur;
+  }
+
+  else {
+
+    //DEBUG
+    printf("## cp.gsil ... '%s'\n", linebuf);
+
+  }
 
   // multiline parsing
   //
   if      (gs->gerber_read_state == GRS_NONE) { }
   else if (gs->gerber_read_state == GRS_AD) { parse_ad(gs, linebuf); return 0; }
   else if (gs->gerber_read_state == GRS_AM) { parse_am(gs, linebuf); return 0; }
+  else if (gs->gerber_read_state == GRS_AB) { parse_ab(gs, linebuf); return 0; }
 
-  if ( linebuf[0] == '%' )  // it's an image parameter
-  {
+  // it's an image parameter
+  //
+  if ( linebuf[0] == '%' ) {
 
     image_parameter_code = get_image_parameter_code(linebuf);
 
-    switch (image_parameter_code)
-    {
+    switch (image_parameter_code) {
       case IMG_PARAM_FS: parse_fs(gs, linebuf); break;
       case IMG_PARAM_IN: parse_in(gs, linebuf); break;
       case IMG_PARAM_IP: parse_ip(gs, linebuf); break;
       case IMG_PARAM_MO: parse_mo(gs, linebuf); break;
       case IMG_PARAM_AD: parse_ad(gs, linebuf); break;
       case IMG_PARAM_AM: parse_am(gs, linebuf); break;
+      case IMG_PARAM_AB:
+                         parse_ab(gs, linebuf);
+
+
+                         //DEBUG
+                         printf("## root_gs->ab_active %i\n", root_gs->ab_active);
+                         if (root_gs->ab_active==0) {
+                           printf("### SHOULD BE OUT OF AB, reporting AB state\n");
+                           gerber_report_ab_state(root_gs);
+                         }
+
+                         break;
       case IMG_PARAM_LN: parse_ln(gs, linebuf); break;
       case IMG_PARAM_LP: parse_lp(gs, linebuf); break;
       case IMG_PARAM_SR: parse_sr(gs, linebuf); break;
@@ -1991,13 +2260,11 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
     }
 
   }
-  else
-  {
+  else {
 
     function_code = get_function_code(linebuf);
 
-    switch (function_code)
-    {
+    switch (function_code) {
       case FC_X:
       case FC_Y:
       case FC_I:
@@ -2037,42 +2304,44 @@ int gerber_state_interpret_line(gerber_state_t *gs, char *linebuf)
 
 //------------------------
 
-#define GERBER_STATE_LINEBUF 4099
-
 
 int gerber_state_load_file(gerber_state_t *gs, char *fn) {
   FILE *fp;
-  char linebuf[GERBER_STATE_LINEBUF];
+  //char linebuf[GERBER_STATE_LINEBUF];
+  char *linebuf=NULL;
 
-  if (strncmp(fn, "-", 2) == 0) 
-  {
+  linebuf = (char *)malloc(sizeof(char)*GERBER_STATE_LINEBUF);
+  if (linebuf==NULL) { return -2; }
+
+  if (strncmp(fn, "-", 2) == 0) {
     fp = stdin;
   } 
-  else if ( !(fp = fopen(fn, "r")) )  
-  {
+  else if ( !(fp = fopen(fn, "r")) )  {
+    free(linebuf);
     return -1;
   }
 
   gs->line_no = 0;
-  while (!feof(fp))
-  {
-    if (!munch_line(linebuf, GERBER_STATE_LINEBUF, fp)) 
+  while (!feof(fp)) {
+    if (!munch_line(linebuf, GERBER_STATE_LINEBUF, fp)) {
       continue;
+    }
     gs->line_no++;
 
-    if (linebuf[0] == '\0') {  // it's an empty line
+     // it's an empty line
+    if (linebuf[0] == '\0') {
       continue;
     }
 
     gerber_state_interpret_line(gs, linebuf);
   }
 
-  if (fp != stdin)
-  {
+  if (fp != stdin) {
     fclose(fp);
   }
 
   gerber_state_post_process(gs);
 
+  free(linebuf);
   return 0;
 }

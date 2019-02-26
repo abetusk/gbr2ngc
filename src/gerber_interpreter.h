@@ -34,78 +34,19 @@
 #include "tesexpr.h"
 #include "string_ll.h"
 
+//#define GERBER_STATE_LINEBUF 4099
+#define GERBER_STATE_LINEBUF 65537
+
 typedef struct point_link_double_2_type {
   double x, y;
   struct point_link_double_2_type *next;
 } point_link_double_2_t;
 
 
-typedef struct aperture_realization_type 
-{
-  int name;
-  int type;       // 0 - C, 1 - R, 2 - O, 3 - P
-  int crop_type;  // 0 - solid, 1 - circle cutout, 2 - rectangle cutout
-  double crop[5];
-                  // CROP  TYPE
-                  //  C    solid            crop[0] - diameter
-                  //  C    circle hole      crop[0] - diameter, 
-                  //                        crop[1] - hole diameter
-                  //  C    rect hole        copr[0] - diameter, 
-                  //                        crop[1] - hole x length, 
-                  //                        crop[2] - hole y length
-                  //
-                  //  R    solid            crop[0] - x length, 
-                  //                        crop[1] - y length
-                  //  R    circle hole      crop[0] - x length, 
-                  //                        crop[1] - y length, 
-                  //                        crop[2] - hole diameter
-                  //  R    rect hole        crop[0] - x length, 
-                  //                        crop[1] - y length, 
-                  //                        crop[2] - hole x length, 
-                  //                        crop[3] - hole y length
-                  //
-                  //  O    solid            crop[0] - x length, 
-                  //                        crop[1] - y length
-                  //  O    circle hole      crop[0] - x length, 
-                  //                        crop[1] - y length, 
-                  //                        crop[2] - hole diameter
-                  //  O    rect hole        crop[0] - x length, 
-                  //                        crop[1] - y length, 
-                  //                        crop[3] - hole x length, 
-                  //                        crop[4] - hole y length
-                  //
-                  //  P    solid            crop[0] - outer diameter (bounding circle), 
-                  //                        crop[1] - number of vertices (3 to 12), 
-                  //                        crop[2] - degree of rotation
-                  //  P    circle hole      crop[0] - outer diameter (bounding circle), 
-                  //                        crop[1] - number of vertices (3 to 12), 
-                  //                        crop[2] - degree of rotation, 
-                  //                        crop[3] - hole diameter
-                  //  P    rect hole        crop[0] - outer diameter (bounding circle), 
-                  //                        crop[1] - number of vertices (3 to 12), 
-                  //                        crop[2] - degree of rotation, 
-                  //                        crop[3] - hole x length, 
-                  //                        crop[4] - hole y length
-                  //
-
-  point_link_double_2_t *outer_boundary;
-  point_link_double_2_t *hole;
-} aperture_realization_t;
-
-// to be determined
-/*
-typedef struct aperture_macro_realization_type {
-  int size;
-  aperture_realization_t **aperture;
-} aperture_macro_realization_t;
-*/
-
-
-
 // a node in the linked list which contains
 // x, y information, d_name information, etc.
-typedef struct contour_ll_type
-{
+//
+typedef struct contour_ll_type {
   int d_name;
   int n;
   double x, y;
@@ -117,17 +58,59 @@ typedef struct contour_ll_type
 // each node contains a pointer to a contour_ll_types,
 // so basically a list of linked lists.
 //
-typedef struct contour_list_ll_type
-{
+typedef struct contour_list_ll_type {
   int n;
   contour_ll_t *c;
   struct contour_list_ll_type *next;
 } contour_list_ll_t;
 
+
+// CROP  TYPE
+//  C    solid            crop[0] - diameter
+//  C    circle hole      crop[0] - diameter, 
+//                        crop[1] - hole diameter
+//  C    rect hole        copr[0] - diameter, 
+//                        crop[1] - hole x length, 
+//                        crop[2] - hole y length
+//
+//  R    solid            crop[0] - x length, 
+//                        crop[1] - y length
+//  R    circle hole      crop[0] - x length, 
+//                        crop[1] - y length, 
+//                        crop[2] - hole diameter
+//  R    rect hole        crop[0] - x length, 
+//                        crop[1] - y length, 
+//                        crop[2] - hole x length, 
+//                        crop[3] - hole y length
+//
+//  O    solid            crop[0] - x length, 
+//                        crop[1] - y length
+//  O    circle hole      crop[0] - x length, 
+//                        crop[1] - y length, 
+//                        crop[2] - hole diameter
+//  O    rect hole        crop[0] - x length, 
+//                        crop[1] - y length, 
+//                        crop[3] - hole x length, 
+//                        crop[4] - hole y length
+//
+//  P    solid            crop[0] - outer diameter (bounding circle), 
+//                        crop[1] - number of vertices (3 to 12), 
+//                        crop[2] - degree of rotation
+//  P    circle hole      crop[0] - outer diameter (bounding circle), 
+//                        crop[1] - number of vertices (3 to 12), 
+//                        crop[2] - degree of rotation, 
+//                        crop[3] - hole diameter
+//  P    rect hole        crop[0] - outer diameter (bounding circle), 
+//                        crop[1] - number of vertices (3 to 12), 
+//                        crop[2] - degree of rotation, 
+//                        crop[3] - hole x length, 
+//                        crop[4] - hole y length
+//
+
+
 // linked list of aperture data.
 //
-typedef struct aperture_data_type
-{
+typedef struct aperture_data_type {
   int name;
   int type;       // 0 - C, 1 - R, 2 - O, 3 - P, 4 - extended (macro)
   int crop_type;  // 0 - solid, 1 - circle cutout, 2 - rectangle cutout
@@ -144,8 +127,15 @@ typedef struct aperture_data_type
   char *macro_name;
   int macro_param_count;
   double *macro_param;
+
+  int is_block;
+
   struct aperture_data_type *next;
+
 } aperture_data_t;
+
+typedef struct aperture_data_block_type {
+} aperture_data_block_t;
 
 enum GERBER_READ_STATE {
   GRS_NONE = 0,
@@ -160,7 +150,17 @@ enum GERBER_READ_STATE {
   GRS_AM_MACRO,
   GRS_AM_MODIFIER,
   GRS_AM_VAR,
+
+  GRS_AB,
+  GRS_AB_INIT,
+  GRS_AB_COMMENT,
+  GRS_AB_MODIFIER,
 } ;
+
+//----
+
+// Aperture Macro
+//
 
 enum AM_ENUM_TYPE {
   AM_ENUM_NAME,
@@ -185,17 +185,12 @@ typedef struct am_ll_node_type {
   struct am_ll_node_type *next;
 } am_ll_node_t;
 
-/*
-typedef struct am_ll_type {
-  int n;
-  am_ll_node_t *head, *last;
-} am_ll_t;
-*/
-
 typedef struct am_ll_lib_type {
   struct am_ll_lib_type *next;
   struct am_ll_node_type *am;
 } am_ll_lib_t;
+
+//----
 
 // current state of the gerber interpreter
 //
@@ -211,10 +206,9 @@ typedef struct gerber_state_type {
   int quadrent_mode;
 
   char *units_str[2];
-  //int units;  // 0 - metric, 1 - inches
   int units_metric;  // 1 - metric, 0 - inches
 
-  int polarity;
+  int polarity, polarity_bit;
   int eof;
   int line_no;
 
@@ -225,9 +219,13 @@ typedef struct gerber_state_type {
   char *fs_coord_value[2];
   int fs_coord_absolute;
 
-  int fs_x_int, fs_x_real, fs_y_int, fs_y_real;
+  int fs_x_int, fs_x_real;
+  int fs_y_int, fs_y_real;
+  int fs_i_int, fs_i_real;
+  int fs_j_int, fs_j_real;
 
   double cur_x, cur_y;
+  double cur_i, cur_j;
   int current_aperture;
 
 
@@ -236,29 +234,61 @@ typedef struct gerber_state_type {
   contour_ll_t *contour_head, *contour_cur;
   contour_list_ll_t *contour_list_head, *contour_list_cur;
 
-  //am_ll_t am;
   am_ll_lib_t *am_lib_head;
   am_ll_lib_t *am_lib_tail;
 
   string_ll_t string_ll_buf;
   int gerber_read_state;
 
-  //aperture_realization_t *aperture_realization;
+  // Root should only need to use ab_active to indicate
+  // we're in an AB block that still needs processing.
+  // 0 - out of AB block
+  // 1 - processing AB block
+  //
+  int ab_active;
+
+  // Name of AB block.
+  // Note: children can and will have different names than
+  //   their parent
+  //
+  int ab_name;
+
+  // AB child depth. 0 for root.
+  //
+  int ab_lib_depth;
+
+  // AB linked list in line with this structure.
+  // Should only be used for children.
+  // The root node should always have this as NULL
+  //
+  struct gerber_state_type *ab_lib_next;
+
+  // AB pointer to parent (parent's 'child' structure points to this).
+  // NULL for root.
+  //
+  struct gerber_state_type *ab_lib_parent;
+
+  // AB linked list of children
+  //
+  struct gerber_state_type *ab_lib_child_head;
+  struct gerber_state_type *ab_lib_child_last;
+
+  // root node will have a pointer to the current AB data structure
+  //
+  struct gerber_state_type *ab_lib_child_cur;
+
+  // All children AB linked lists have a pointer back to
+  // root for ease of access.
+  // By convention, the root node has thispoint to itself.
+  //
+  struct gerber_state_type *ab_lib_root;
 
 } gerber_state_t;
 
-
-
-int gerber_state_make_aperture_realizations(gerber_state_t *gs);
-
-//#define GERBER_STATE_INCHES 1
-//#define GERBER_STATE_MM 2
-
-
-
 void gerber_state_init(gerber_state_t *);
 void gerber_state_clear(gerber_state_t *);
-void geber_report_state(gerber_state_t *);
+void gerber_report_state(gerber_state_t *);
+void gerber_report_ab_state(gerber_state_t *);
 
 void gerber_state_set_units(gerber_state_t *gs, int units);
 extern int (*function_code_handler[13])(gerber_state_t *, char *);
@@ -269,6 +299,7 @@ void parse_ip(gerber_state_t *gs, char *linebuf);
 void parse_mo(gerber_state_t *gs, char *linebuf);
 void parse_ad(gerber_state_t *gs, char *linebuf_orig);
 void parse_am(gerber_state_t *gs, char *linebuf);
+void parse_ab(gerber_state_t *gs, char *linebuf);
 void parse_ln(gerber_state_t *gs, char *linebuf);
 void parse_lp(gerber_state_t *gs, char *linebuf);
 void parse_sr(gerber_state_t *gs, char *linebuf);
@@ -308,5 +339,7 @@ int gerber_state_load_file(gerber_state_t *gs, char *fn);
 void gerber_report_state(gerber_state_t *gs);
 
 int eval_ad_func(gerber_state_t *gs, aperture_data_t *ap_d);
+
+gerber_state_t *gerber_state_add_AB_child(gerber_state_t *gs_parent, int ab_name);
 
 #endif
