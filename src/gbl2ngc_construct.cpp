@@ -20,7 +20,7 @@
 
 #include "gbl2ngc.hpp"
 
-//#define DEBUG_CONSTRUCT
+#define DEBUG_CONSTRUCT
 
 class Gerber_point_2 {
   public:
@@ -314,18 +314,6 @@ void print_polygon_set(gerber_state_t *gs) {
       // overlap.
       //
 
-      /*
-      for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++) {
-        point_list.push_back( IntPoint( gAperture[ name ].m_outer_boundary[i].X + prev_pnt.X,
-                                        gAperture[ name ].m_outer_boundary[i].Y + prev_pnt.Y ) );
-      }
-
-      for (i=0; i<gAperture[ name ].m_outer_boundary.size(); i++) {
-        point_list.push_back( IntPoint( gAperture[ name ].m_outer_boundary[i].X + cur_pnt.X ,
-                                        gAperture[ name ].m_outer_boundary[i].Y + cur_pnt.Y ) );
-      }
-      */
-
       ConvexHull( point_list, res_point );
 
       if (res_point[ res_point.size() - 1] == res_point[0]) {
@@ -454,6 +442,11 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       prev_pnt = dtoc( prev_contour->x, prev_contour->y );
       cur_pnt = dtoc( contour->x, contour->y );
 
+      //DEBUG
+      //printf("##join_polygon_set d_name %i, n %i, region %i, (%lli,%lli)\n",
+      //    contour->d_name, contour->n, contour->region,
+      //    (long long int)cur_pnt.X, (long long int)cur_pnt.Y);
+
       // An informative example:
       // Consider drawing a line with rounded corners from position prev_contour->[xy] to contour->[xy].
       // This is done by first drawing a (linearized) circle (in general, an aperture) at prev_countour,
@@ -468,7 +461,8 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       if ( (cur_pnt.X != prev_pnt.X) ||
            (cur_pnt.Y != prev_pnt.Y) ) {
 
-        printf("## realizing aperture %i\n", name);
+        //DEBUG
+        //printf("## realizing aperture %i\n", name);
 
         point_list.clear();
         res_point.clear();
@@ -495,9 +489,9 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         else {
 
 #ifdef DEBUG_CONSTRUCT
-          for (i=0; i<res_point.size(); i++) {
-            printf("##+ %lli %lli\n", (long long int)res_point[i].X, (long long int)res_point[i].Y);
-          }
+          //for (i=0; i<res_point.size(); i++) {
+          //  printf("##+ %lli %lli\n", (long long int)res_point[i].X, (long long int)res_point[i].Y);
+          //}
 #endif
 
           if (!Orientation(res_point)) { ReversePath(res_point); }
@@ -508,79 +502,91 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         continue;
       }
 
-      aperture_clip.Clear();
-      aperture_geom.clear();
-      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
-
-        //DEBUG
-#ifdef DEBUG_CONSTRUCT
-        printf("##>> exposure %i\n", gAperture[name].m_exposure[ii]);
-#endif
-
-        tmp_path.clear();
-        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
-                                        gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
-        }
-        //bool tf = Orientation(gAperture[name].m_path[ii]);
-        //if (!tf) { ReversePath(tmp_path); }
-
-        if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
-
-        int last_idx = (int)(tmp_path.size()-1);
-        if ((tmp_path[0].X != tmp_path[last_idx].X) &&
-            (tmp_path[0].Y != tmp_path[last_idx].Y)) {
-          fprintf(stdout, "## WARNING, tmp_path for %i is not closed!\n", name); fflush(stdout);
-          tmp_path.push_back(tmp_path[0]);
-        }
-
-        if (gAperture[name].m_exposure[ii]) {
-
-#ifdef DEBUG_CONSTRUCT
-          printf("##++ exposure %i for name %i, orient %i\n", gAperture[name].m_exposure[ii], name, tf ? 1 : 0);
-#endif
-
-          aperture_clip.AddPath(tmp_path, ptSubject, true);
-        }
-        else {
-
-#ifdef DEBUG_CONSTRUCT
-          printf("##-- exposure %i for name %i, orient %i\n", gAperture[name].m_exposure[ii], name, tf ? 1 : 0);
-#endif
-
-          aperture_clip.AddPath(tmp_path, ptClip, true);
-          aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
-
-          aperture_clip.Clear();
-          aperture_clip.AddPaths(aperture_geom, ptSubject, true);
-
-          aperture_geom.clear();
-        }
-
+      if (gAperture.find(name) == gAperture.end()) {
+        fprintf(stderr, "## WARNING: name %i not found in aperture library. Ignoring.\n", name);
+        contour = contour->next;
+        continue;
       }
-      it_paths.clear();
-      aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
 
-      //DEBUG
 #ifdef DEBUG_CONSTRUCT
-      printf("##name%03i\n", name);
-      for (ii=0; ii<it_paths.size(); ii++) {
-        for (jj=0; jj<it_paths[ii].size(); jj++) {
-          printf("##name%03i %lli %lli\n", name, (long long int)it_paths[ii][jj].X, (long long int)it_paths[ii][jj].Y);
-        }
-        printf("##name%03i\n", name);
-      }
+      //fprintf(stderr, "## realizing aperture name %i\n", name);
+      //fprintf(stderr, "##   type: %i\n", gAperture[name].m_type);
+      //fflush(stderr);
 #endif
 
-      clip.AddPaths( it_paths, ptSubject, true );
-      contour = contour->next;
+      if (gAperture[name].m_type == AD_ENUM_BLOCK) {
+
+#ifdef DEBUG_CONSTRUCT
+        //printf("## realizing block aperture name %i, type %i\n", name, gAperture[name].m_type);
+        //for (ii=0; ii<gAperture[name].m_geom.size(); ii++) {
+        //  for (jj=0; jj<gAperture[name].m_geom[ii].size(); jj++) {
+        //    printf("##zzab%i %lli %lli\n", name, (long long int)gAperture[name].m_geom[ii][jj].X, (long long int)gAperture[name].m_geom[ii][jj].Y);
+        //  }
+        //  printf("##zzab%i\n", name);
+        //}
+#endif
+
+        it_paths.clear();
+        for (ii=0; ii<gAperture[name].m_geom.size(); ii++) {
+          tmp_path.clear();
+          for (jj=0; jj<gAperture[name].m_geom[ii].size(); jj++) {
+            tmp_path.push_back( IntPoint( gAperture[ name ].m_geom[ii][jj].X + prev_pnt.X,
+                                          gAperture[ name ].m_geom[ii][jj].Y + prev_pnt.Y ) );
+          }
+          it_paths.push_back(tmp_path);
+        }
+
+        //clip.AddPaths( gAperture[name].m_geom, ptSubject, true );
+        clip.AddPaths( it_paths, ptSubject, true );
+        contour = contour->next;
+      }
+      else {
+
+        aperture_clip.Clear();
+        aperture_geom.clear();
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+
+          tmp_path.clear();
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+            tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
+                                          gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
+          }
+
+          if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
+
+          int last_idx = (int)(tmp_path.size()-1);
+          if ((tmp_path[0].X != tmp_path[last_idx].X) &&
+              (tmp_path[0].Y != tmp_path[last_idx].Y)) {
+            fprintf(stdout, "## WARNING, tmp_path for %i is not closed!\n", name); fflush(stdout);
+            tmp_path.push_back(tmp_path[0]);
+          }
+
+          if (gAperture[name].m_exposure[ii]) {
+
+            aperture_clip.AddPath(tmp_path, ptSubject, true);
+          }
+          else {
+
+            aperture_clip.AddPath(tmp_path, ptClip, true);
+            aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
+
+            aperture_clip.Clear();
+            aperture_clip.AddPaths(aperture_geom, ptSubject, true);
+
+            aperture_geom.clear();
+          }
+
+        }
+        it_paths.clear();
+        aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
+
+        clip.AddPaths( it_paths, ptSubject, true );
+        contour = contour->next;
+      }
 
     }
 
   }
 
-  //for (i=0; i<temp_pwh_vec.size(); i++) { clip.AddPaths( temp_pwh_vec[i], ptSubject, true ); }
-
   clip.Execute( ctUnion, result, pftNonZero, pftNonZero  );
-
 }

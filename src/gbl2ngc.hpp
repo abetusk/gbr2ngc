@@ -67,21 +67,14 @@ using namespace ClipperLib;
 class Aperture_realization {
   public:
     Aperture_realization() { };
-    //~Aperture_realization() { } ;
 
     int m_name;
     int m_type;
     int m_crop_type;
     double m_crop[5];
 
-    //Path m_outer_boundary;
-    //Path m_hole;
-
     std::string m_macro_name;
     std::vector< double > m_macro_param;
-
-    //std::vector<Point_2> m_outer_boundary;
-    //std::vector<Point_2> m_hole;
 
     Paths m_macro_path;
     std::vector< int > m_macro_exposure;
@@ -100,8 +93,6 @@ class Aperture_realization {
     // Final realized geometry from m_path and m_exposure.
     //
     Paths m_geom;
-
-
 };
 
 typedef std::map<int, Aperture_realization> ApertureNameMap;
@@ -146,6 +137,11 @@ extern double gFillRadius;
 extern int gInvertFlag;
 extern int gSimpleInfill;
 extern int gDrawOutline;
+
+extern int gMinSegment;
+extern double gMinSegmentLengthInch;
+extern double gMinSegmentLengthMM;
+extern double gMinSegmentLength;
 
 
 extern std::vector<int> gApertureName;

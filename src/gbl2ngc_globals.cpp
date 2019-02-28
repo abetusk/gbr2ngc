@@ -56,6 +56,11 @@ int gInvertFlag = 0;
 int gSimpleInfill = 0;
 int gDrawOutline = 1;
 
+int gMinSegment = 8;
+double gMinSegmentLengthInch = 0.001;
+double gMinSegmentLengthMM = 0.1;
+double gMinSegmentLength = -1.0;
+
 /*
 Polygon_set_2 gPolygonSet;
 Offset_polygon_set_2 gOffsetPolygonSet;

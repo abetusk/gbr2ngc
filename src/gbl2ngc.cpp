@@ -57,6 +57,8 @@ struct option gLongOption[] =
   {"gcode-header", required_argument, 0, ARG_GCODE_HEADER},
   {"gcode-footer", required_argument, 0, ARG_GCODE_FOOTER},
 
+  {"segment-length", required_argument, 0, 'l'},
+
   {"metric" , no_argument       , 0, 'M'},
   {"inches" , no_argument       , 0, 'I'},
 //  {"scan"   , no_argument       , 0, 'H'},
@@ -203,8 +205,7 @@ bool bool_option(const char* optarg, bool default_ = true)
 
 bool set_option(const char option_char, const char* optarg) {
 
-  switch(option_char)
-  {
+  switch(option_char) {
     case 'C':
       gShowComments = bool_option(optarg, 0);
       break;
@@ -238,6 +239,11 @@ bool set_option(const char option_char, const char* optarg) {
       break;
     case ARG_GCODE_FOOTER:
       gGCodeFooter = strdup(optarg);
+      break;
+
+    case 'l':
+      gMinSegmentLength = atof(optarg);
+      break;
 
     case 'I':
       gMetricUnits = bool_option(optarg, 0);
@@ -351,9 +357,12 @@ void process_command_line_options(int argc, char **argv)
   // Now the cli args and be applied. 'c:' is still included in the
   // argstring so that it won't be defaulted as a bad option.
 
-  opterr = 1;  // this time extra arguments SHOULD raise errors
 
-  while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:P", gLongOption, &option_index)) >= 0) {
+  // this time extra arguments SHOULD raise errors
+  //
+  opterr = 1;
+
+  while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:Pl:", gLongOption, &option_index)) >= 0) {
     switch(ch) {
       case 0:
         // long option
@@ -386,20 +395,18 @@ void process_command_line_options(int argc, char **argv)
 
   }
 
-  if (gFillRadius <= 0.0)
+  if (gFillRadius <= 0.0) {
     gFillRadius = gRadius;
+  }
 
-  if (gOutputFilename)
-  {
-    if (!(gOutStream = fopen(gOutputFilename, "w")))
-    {
+  if (gOutputFilename) {
+    if (!(gOutStream = fopen(gOutputFilename, "w"))) {
       perror(gOutputFilename);
       exit(1);
     }
   }
 
-  if (!gInputFilename)
-  {
+  if (!gInputFilename) {
     fprintf(stderr, "ERROR: Must provide input file\n");
     show_help();
     exit(1);
@@ -424,8 +431,7 @@ void process_command_line_options(int argc, char **argv)
     exit(1);
   }
 
-  if (gVerboseFlag)
-  {
+  if (gVerboseFlag) {
     fprintf(gOutStream, "( radius %f )\n", gRadius);
   }
 
@@ -437,45 +443,32 @@ void process_command_line_options(int argc, char **argv)
 
 
 
-void cleanup(void)
-{
-  if (gOutStream != stdout)
-    fclose(gOutStream);
-  if (gOutputFilename)
-    free(gOutputFilename);
-  if (gInputFilename)
-    free(gInputFilename);
-  if (gConfigFilename)
-    free(gConfigFilename);
+void cleanup(void) {
+  if (gOutStream != stdout) { fclose(gOutStream); }
+  if (gOutputFilename)      { free(gOutputFilename); }
+  if (gInputFilename)       { free(gInputFilename); }
+  if (gConfigFilename)      { free(gConfigFilename); }
 
-  if (gGCodeHeader)
-    free(gGCodeHeader);
-  if (gGCodeFooter)
-    free(gGCodeFooter);
+  if (gGCodeHeader) { free(gGCodeHeader); }
+  if (gGCodeFooter) { free(gGCodeFooter); }
 }
 
 
 
-void construct_polygon_offset( Paths &src, Paths &soln )
-{
-
+void construct_polygon_offset( Paths &src, Paths &soln ) {
   ClipperOffset co;
 
   co.MiterLimit = 3.0;
 
-  //co.AddPaths( src, jtRound, etClosedPolygon);
   co.AddPaths( src, jtMiter, etClosedPolygon);
   co.Execute( soln, g_scalefactor * gRadius );
 }
 
-void print_paths( Paths &paths )
-{
+void print_paths( Paths &paths ) {
   unsigned int i, j;
 
-  for (i=0; i<paths.size(); i++)
-  {
-    for (j=0; j<paths[i].size(); j++)
-    {
+  for (i=0; i<paths.size(); i++) {
+    for (j=0; j<paths[i].size(); j++) {
       printf("%lli %lli\n", paths[i][j].X, paths[i][j].Y );
     }
     printf("\n\n");
@@ -483,8 +476,7 @@ void print_paths( Paths &paths )
 
 }
 
-void find_min_max_path(Path &src, IntPoint &minp, IntPoint &maxp)
-{
+void find_min_max_path(Path &src, IntPoint &minp, IntPoint &maxp) {
   int j, m;
   m = src.size();
 
@@ -493,10 +485,8 @@ void find_min_max_path(Path &src, IntPoint &minp, IntPoint &maxp)
   maxp.X = 0;
   maxp.Y = 0;
 
-  for (j=0; j<m; j++)
-  {
-    if (j==0)
-    {
+  for (j=0; j<m; j++) {
+    if (j==0) {
       minp.X = src[0].X;
       minp.Y = src[0].Y;
       maxp.X = src[0].X;
@@ -515,8 +505,7 @@ void find_min_max_path(Path &src, IntPoint &minp, IntPoint &maxp)
   maxp.Y++;
 }
 
-void find_min_max(Paths &src, IntPoint &minp, IntPoint &maxp)
-{
+void find_min_max(Paths &src, IntPoint &minp, IntPoint &maxp) {
   int i, j, n, m;
 
   minp.X = 0;
@@ -525,20 +514,17 @@ void find_min_max(Paths &src, IntPoint &minp, IntPoint &maxp)
   maxp.Y = 0;
 
   n = src.size();
-  for (i=0; i<n; i++)
-  {
+  for (i=0; i<n; i++) {
     m = src[i].size();
     if ( m == 0 ) continue;
-    if (i==0)
-    {
+    if (i==0) {
       minp.X = src[i][0].X;
       minp.Y = src[i][0].Y;
       maxp.X = src[i][0].X;
       maxp.Y = src[i][0].Y;
     }
 
-    for (j=0; j<m; j++)
-    {
+    for (j=0; j<m; j++) {
       if (minp.X > src[i][j].X) minp.X = src[i][j].X;
       if (minp.Y > src[i][j].Y) minp.Y = src[i][j].Y;
       if (maxp.X < src[i][j].X) maxp.X = src[i][j].X;
@@ -554,8 +540,7 @@ void find_min_max(Paths &src, IntPoint &minp, IntPoint &maxp)
 }
 
 
-void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
-{
+void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp ) {
   static int recur_count=0;
   int i, n, m;
   unsigned int k;
@@ -568,18 +553,19 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
   // We assume at least an outer boundary.  If only
   // the outer boundary is left, we've finished
   //
-  if (paths.size() <= 1)
-  {
+  if (paths.size() <= 1) {
     return;
   }
 
   co.MiterLimit = 3.0;
   recur_count++;
-  if(recur_count==400)
+  if(recur_count==400) {
     return;
+  }
 
-  if (paths.size() == 0)
+  if (paths.size() == 0) {
     return;
+  }
 
   co.AddPaths( paths, jtMiter, etClosedPolygon);
   co.Execute( soln, 2.0 * g_scalefactor * gFillRadius );
@@ -587,10 +573,9 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
   do_zen_r(soln, minp, maxp);
 
   n = soln.size();
-  for (i=0; i<n; i++)
-  {
+  for (i=0; i<n; i++) {
     m = soln[i].size();
-    if (m <= 2 ) continue;
+    if (m <= 2 ) { continue; }
 
 
     for (k=0; k<soln[i].size(); k++) {
@@ -602,14 +587,6 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
     }
     if (k<soln[i].size()) { continue; }
 
-    /*
-    if ( (soln[i][0].X < minp.X) ||
-         (soln[i][0].Y < minp.Y) ||
-         (soln[i][0].X > maxp.X) ||
-         (soln[i][0].Y > maxp.Y) )
-      continue;
-      */
-
     paths.push_back(soln[i]);
   }
 
@@ -619,8 +596,7 @@ void do_zen_r( Paths &paths, IntPoint &minp, IntPoint &maxp )
 
 // extends outwards.  Need to do a final intersect with final (rectangle) polygon
 //
-void do_zen( Paths &src, Paths &dst )
-{
+void do_zen( Paths &src, Paths &dst ) {
   static int recur_count=0;
   ClipperOffset co;
   Paths soln;
@@ -631,11 +607,9 @@ void do_zen( Paths &src, Paths &dst )
   co.MiterLimit = 3.0;
 
   recur_count++;
-  if(recur_count==400)
-    return;
+  if(recur_count==400) { return; }
 
-  if (src.size() == 0)
-    return;
+  if (src.size() == 0) { return; }
 
   find_min_max( src, minp, maxp );
 
@@ -647,8 +621,7 @@ void do_zen( Paths &src, Paths &dst )
   dst.insert( dst.end(), soln.begin(), soln.end() );
 }
 
-void do_horizontal( Paths &src, Paths &dst )
-{
+void do_horizontal( Paths &src, Paths &dst ) {
   Paths line_collection;
   cInt h;
   cInt cury;
@@ -661,8 +634,7 @@ void do_horizontal( Paths &src, Paths &dst )
 
   cury = minp.Y;
 
-  while ( cury < maxp.Y )
-  {
+  while ( cury < maxp.Y ) {
     Path line;
     Paths soln;
     Clipper clip;
@@ -684,8 +656,7 @@ void do_horizontal( Paths &src, Paths &dst )
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
 }
 
-void do_horizontal_infill( Paths &src, Paths &dst )
-{
+void do_horizontal_infill( Paths &src, Paths &dst ) {
   Paths line_collection;
   cInt h;
   cInt cury;
@@ -699,8 +670,7 @@ void do_horizontal_infill( Paths &src, Paths &dst )
 
   cury = minp.Y;
 
-  while ( cury < maxp.Y )
-  {
+  while ( cury < maxp.Y ) {
     Path line;
     Paths soln;
     Clipper clip;
@@ -728,8 +698,7 @@ void do_horizontal_infill( Paths &src, Paths &dst )
 }
 
 
-void do_vertical( Paths &src, Paths &dst  )
-{
+void do_vertical( Paths &src, Paths &dst  ) {
   Paths line_collection;
   cInt w;
   cInt curx;
@@ -741,8 +710,7 @@ void do_vertical( Paths &src, Paths &dst  )
   find_min_max( src, minp, maxp );
 
   curx = minp.X;
-  while ( curx < maxp.X )
-  {
+  while ( curx < maxp.X ) {
     Path line;
     Paths soln;
     Clipper clip;
@@ -764,8 +732,7 @@ void do_vertical( Paths &src, Paths &dst  )
   dst.insert( dst.end(), line_collection.begin(), line_collection.end() );
 }
 
-void do_vertical_infill( Paths &src, Paths &dst  )
-{
+void do_vertical_infill( Paths &src, Paths &dst  ) {
   Paths line_collection;
   cInt w;
   cInt curx;
@@ -777,8 +744,7 @@ void do_vertical_infill( Paths &src, Paths &dst  )
   find_min_max( src, minp, maxp );
 
   curx = minp.X;
-  while ( curx < maxp.X )
-  {
+  while ( curx < maxp.X ) {
     Path line;
     Paths soln;
     Clipper clip;
@@ -863,8 +829,7 @@ void dump_options() {
 }
 
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   int k;
   gerber_state_t gs;
 
@@ -874,14 +839,12 @@ int main(int argc, char **argv)
   Paths offset;
 
   process_command_line_options(argc, argv);
-  // dump_options();
 
   // Initalize and load gerber file
   //
   gerber_state_init(&gs);
   k = gerber_state_load_file(&gs, gInputFilename);
-  if (k < 0)
-  {
+  if (k < 0) {
     perror(argv[1]);
     exit(errno);
   }
@@ -898,7 +861,6 @@ int main(int argc, char **argv)
   join_polygon_set( pgn_union, &gs );
 
 
-
   if (gShowComments) {
     fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
   }
@@ -910,6 +872,15 @@ int main(int argc, char **argv)
     gMetricUnits = gs.units_metric;
   }
 
+  if (gMinSegmentLength <= 0.0) {
+    gMinSegmentLength = ( gMetricUnits ? gMinSegmentLengthMM : gMinSegmentLengthInch );
+  }
+  if (gShowComments) {
+    fprintf( gOutStream, "( segment length %f )\n", gMinSegmentLength );
+  }
+
+
+
   // G20 - inch
   // G21 - mm
   if (gHumanReadable) {
@@ -918,8 +889,7 @@ int main(int argc, char **argv)
     fprintf( gOutStream, "%s\nG90\n", ( gMetricUnits ? "G21" : "G20" ) );
   }
 
-  if ((gSimpleInfill>0) && (gFillRadius > eps))
-  {
+  if ((gSimpleInfill>0) && (gFillRadius > eps)) {
     Paths fin_polygons;
 
     //if      ( gScanLineZenGarden )  { do_zen( inverted_polygons, offset_polygons); }
@@ -935,8 +905,7 @@ int main(int argc, char **argv)
 
   // Offsetting is enabled if the tool radius is specified
   //
-  else if ((gRadius > eps) || (gFillRadius > eps))
-  {
+  else if ((gRadius > eps) || (gFillRadius > eps)) {
     construct_polygon_offset( pgn_union, offset_polygons );
 
     if (gInvertFlag) {
@@ -959,8 +928,7 @@ int main(int argc, char **argv)
 
     export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
   }
-  else
-  {
+  else {
     export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
   }
 
