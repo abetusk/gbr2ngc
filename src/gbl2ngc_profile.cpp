@@ -21,25 +21,20 @@
 #include "gbl2ngc.hpp"
 
 
-void profile_start(void)
-{
-  gettimeofday( gProfileStart, NULL );
+void profile_start(void) {
+  gettimeofday( &gProfileStart, NULL );
 }
 
-void profile_end(void)
-{
-  gettimeofday( gProfileEnd, NULL);
+void profile_end(void) {
+  gettimeofday( &gProfileEnd, NULL);
 }
 
-uint64_t profile_diff(void)
-{
+uint64_t profile_diff(void) {
   int64_t d_ms;
   uint64_t d;
 
   d = gProfileEnd.tv_sec - gProfileStart.tv_sec;
-  d_ms = gProfile_end.tv_usec - gProfileStart.tv_usec;
+  d_ms = gProfileEnd.tv_usec - gProfileStart.tv_usec;
   d_ms *= 1000000;
   d += d_ms;
-
-
 }

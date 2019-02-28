@@ -67,43 +67,43 @@ typedef struct contour_list_ll_type {
 
 // CROP  TYPE
 //  C    solid            crop[0] - diameter
-//  C    circle hole      crop[0] - diameter, 
+//  C    circle hole      crop[0] - diameter,
 //                        crop[1] - hole diameter
-//  C    rect hole        copr[0] - diameter, 
-//                        crop[1] - hole x length, 
+//  C    rect hole        copr[0] - diameter,
+//                        crop[1] - hole x length,
 //                        crop[2] - hole y length
 //
-//  R    solid            crop[0] - x length, 
+//  R    solid            crop[0] - x length,
 //                        crop[1] - y length
-//  R    circle hole      crop[0] - x length, 
-//                        crop[1] - y length, 
+//  R    circle hole      crop[0] - x length,
+//                        crop[1] - y length,
 //                        crop[2] - hole diameter
-//  R    rect hole        crop[0] - x length, 
-//                        crop[1] - y length, 
-//                        crop[2] - hole x length, 
+//  R    rect hole        crop[0] - x length,
+//                        crop[1] - y length,
+//                        crop[2] - hole x length,
 //                        crop[3] - hole y length
 //
-//  O    solid            crop[0] - x length, 
+//  O    solid            crop[0] - x length,
 //                        crop[1] - y length
-//  O    circle hole      crop[0] - x length, 
-//                        crop[1] - y length, 
+//  O    circle hole      crop[0] - x length,
+//                        crop[1] - y length,
 //                        crop[2] - hole diameter
-//  O    rect hole        crop[0] - x length, 
-//                        crop[1] - y length, 
-//                        crop[3] - hole x length, 
+//  O    rect hole        crop[0] - x length,
+//                        crop[1] - y length,
+//                        crop[3] - hole x length,
 //                        crop[4] - hole y length
 //
-//  P    solid            crop[0] - outer diameter (bounding circle), 
-//                        crop[1] - number of vertices (3 to 12), 
+//  P    solid            crop[0] - outer diameter (bounding circle),
+//                        crop[1] - number of vertices (3 to 12),
 //                        crop[2] - degree of rotation
-//  P    circle hole      crop[0] - outer diameter (bounding circle), 
-//                        crop[1] - number of vertices (3 to 12), 
-//                        crop[2] - degree of rotation, 
+//  P    circle hole      crop[0] - outer diameter (bounding circle),
+//                        crop[1] - number of vertices (3 to 12),
+//                        crop[2] - degree of rotation,
 //                        crop[3] - hole diameter
-//  P    rect hole        crop[0] - outer diameter (bounding circle), 
-//                        crop[1] - number of vertices (3 to 12), 
-//                        crop[2] - degree of rotation, 
-//                        crop[3] - hole x length, 
+//  P    rect hole        crop[0] - outer diameter (bounding circle),
+//                        crop[1] - number of vertices (3 to 12),
+//                        crop[2] - degree of rotation,
+//                        crop[3] - hole x length,
 //                        crop[4] - hole y length
 //
 

@@ -20,7 +20,7 @@
 
 #include "gbl2ngc.hpp"
 
-#define DEBUG_APERTURE
+//#define DEBUG_APERTURE
 
 #define _isnan std::isnan
 
@@ -1292,7 +1292,7 @@ aperture_data_t *flatten_aperture_list(gerber_state_t *gs) {
         // traverse to the end
         //
         for (ap_flatten_last = ap_flatten_head;
-             ap_flatten_last && (ap_flatten_last->next); 
+             ap_flatten_last && (ap_flatten_last->next);
              ap_flatten_last = ap_flatten_last->next) ;
 
         // do some linked list surgery to put the flattened list

@@ -21,6 +21,7 @@
 #include "gbl2ngc.hpp"
 
 // gbl2ngc will look here by default for a config file
+//
 #define DEFAULT_CONFIG_FILENAME "./gbl2ngc.ini"
 
 // Users should specify boolean options as "yes" or "no"
@@ -36,11 +37,11 @@
 // program grows in complexity and cabability, the letter choices available
 // for command-line arguments will get slim. One solution is to assign numbers
 // instead of letters for less-commonly used or advanced options.
+//
 #define ARG_GCODE_HEADER '2'
 #define ARG_GCODE_FOOTER '3'
 
-struct option gLongOption[] =
-{
+struct option gLongOption[] = {
   {"radius" , required_argument , 0, 'r'},
   {"fillradius" , required_argument , 0, 'F'},
 
@@ -102,6 +103,8 @@ char gOptionDescription[][1024] =
   "prepend custom G-code to the beginning of the program",
   "append custom G-code to the end of the program",
 
+  "minimum segment length",
+
   "units in metric",
   "units in inches",
 
@@ -128,8 +131,7 @@ char gOptionDescription[][1024] =
 
 int gPrintPolygon = 0;
 
-option lookup_option_by_name(const char* name)
-{
+option lookup_option_by_name(const char* name) {
   int i;
 
   for (i = 0; gLongOption[i].name; i++) {
@@ -144,40 +146,42 @@ option lookup_option_by_name(const char* name)
   return no_option;
 }
 
-void show_help(void)
-{
-  int i, j;
-  int len;
+void show_version(FILE *fp) {
+  fprintf(fp, "version %s\n", GBL2NGC_VERSION);
+}
 
-  printf("\ngbl2ngc: A gerber to gcode converter\n");
-  printf("Version %s\n", GBL2NGC_VERSION);
+void show_help(FILE *fp) {
+  int i, j, len;
 
-  for (i=0; gLongOption[i].name; i++)
-  {
+  fprintf(fp, "\ngbl2ngc: A gerber to gcode converter\n");
+  show_version(fp);
+  fprintf(fp, "\n");
+  fprintf(fp, "  usage: gbl2ngc [<options>] [<input_Gerber>] [-o <output_GCode_file>]\n");
+  fprintf(fp, "\n");
+
+  for (i=0; gLongOption[i].name; i++) {
     len = strlen(gLongOption[i].name);
 
     if (gLongOption[i].flag != 0) {
-      printf("  --%s", gLongOption[i].name);
+      fprintf(fp, "  --%s", gLongOption[i].name);
       len -= 4;
     } else {
-      printf("  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
+      fprintf(fp, "  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
     }
 
-    if (gLongOption[i].has_arg)
-    {
-      printf(" %s", gLongOption[i].name);
+    if (gLongOption[i].has_arg) {
+      fprintf(fp, " %s", gLongOption[i].name);
       len = 2*len + 3;
     }
-    else
-    {
+    else {
       len = len + 2;
     }
-    for (j=0; j<(32-len); j++) printf(" ");
+    for (j=0; j<(32-len); j++) fprintf(fp, " ");
 
-    printf("%s\n", gOptionDescription[i]);
+    fprintf(fp, "%s\n", gOptionDescription[i]);
   }
-  printf("\n");
 
+  fprintf(fp, "\n");
 }
 
 // Use as a go-between for the internal globals and optarg,
@@ -185,8 +189,9 @@ void show_help(void)
 // the option was given as a command line switch.
 // `default_` is the value that is returned if the option is
 // set to CONFIG_FILE_YES or given as a CLI switch.
-bool bool_option(const char* optarg, bool default_ = true)
-{
+//
+bool bool_option(const char* optarg, bool default_ = true) {
+
   if (optarg == NULL) {
     return default_;
   }
@@ -326,9 +331,7 @@ void process_config_file_options() {
   fclose(gCfgStream);
 }
 
-void process_command_line_options(int argc, char **argv)
-{
-
+void process_command_line_options(int argc, char **argv) {
   extern char *optarg;
   extern int optind, opterr;
   int option_index;
@@ -341,7 +344,9 @@ void process_command_line_options(int argc, char **argv)
   // those options need to be loaded before applying the command-line
   // options.
 
-  opterr = 0;  // disable error messages for extra arguments
+  // disable error messages for extra arguments
+  //
+  opterr = 0;
 
   while ((ch = getopt_long(argc, argv, "-c:", gLongOption, &option_index)) >= 0) {
     if (ch == 'c') {
@@ -368,9 +373,14 @@ void process_command_line_options(int argc, char **argv)
         // long option
         //
         break;
+      case 'v':
+        show_version(stdout);
+        exit(0);
+        break;
+
       case 'N':
       case 'h':
-        show_help();
+        show_help(stdout);
         exit(0);
         break;
 
@@ -386,8 +396,8 @@ void process_command_line_options(int argc, char **argv)
 
       default:
         if (!set_option(ch, optarg)) {
-          printf("bad option: -%c %s\n", ch, optarg);
-          show_help();
+          fprintf(stderr, "bad option: -%c %s\n", ch, optarg);
+          show_help(stderr);
           exit(1);
         }
         break;
@@ -395,8 +405,15 @@ void process_command_line_options(int argc, char **argv)
 
   }
 
-  if (gFillRadius <= 0.0) {
-    gFillRadius = gRadius;
+  if (!gInputFilename) {
+    if (optind < argc) {
+      gInputFilename = strdup(argv[optind]);
+    }
+    else {
+      fprintf(stderr, "ERROR: Must provide input file\n");
+      show_help(stderr);
+      exit(1);
+    }
   }
 
   if (gOutputFilename) {
@@ -406,28 +423,27 @@ void process_command_line_options(int argc, char **argv)
     }
   }
 
-  if (!gInputFilename) {
-    fprintf(stderr, "ERROR: Must provide input file\n");
-    show_help();
-    exit(1);
+  if (gFillRadius <= 0.0) {
+    gFillRadius = gRadius;
   }
+
 
   if ( ((gScanLineHorizontal + gScanLineVertical + gScanLineZenGarden)>0) &&
        ((gRadius < eps) && (gFillRadius < eps)) ) {
     fprintf(stderr, "ERROR: Radius (-r) or fill radius (-F) must be specified for fill options (-H, -V or -G)\n");
-    show_help();
+    show_help(stderr);
     exit(1);
   }
 
   if ((gSimpleInfill>0) && (gRadius >= eps)) {
     fprintf(stderr, "ERROR: Cannot specify offset radius (-r) for simple infills (-H or -V)\n");
-    show_help();
+    show_help(stderr);
     exit(1);
   }
 
   if ((gSimpleInfill>0) && (gScanLineZenGarden>0)) {
     fprintf(stderr, "ERROR: Currently simple infills do not support the zen garden fill pattern, please use -H or -V\n");
-    show_help();
+    show_help(stderr);
     exit(1);
   }
 
@@ -883,6 +899,7 @@ int main(int argc, char **argv) {
 
   // G20 - inch
   // G21 - mm
+  //
   if (gHumanReadable) {
     fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
   } else {
@@ -892,7 +909,6 @@ int main(int argc, char **argv) {
   if ((gSimpleInfill>0) && (gFillRadius > eps)) {
     Paths fin_polygons;
 
-    //if      ( gScanLineZenGarden )  { do_zen( inverted_polygons, offset_polygons); }
     if      ( gScanLineVertical )   { do_vertical_infill( pgn_union, fin_polygons); }
     else if ( gScanLineHorizontal ) { do_horizontal_infill( pgn_union, fin_polygons); }
     else { //error
