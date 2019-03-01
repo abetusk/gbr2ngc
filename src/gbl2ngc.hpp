@@ -143,9 +143,11 @@ extern double gMinSegmentLengthInch;
 extern double gMinSegmentLengthMM;
 extern double gMinSegmentLength;
 
-
 extern std::vector<int> gApertureName;
 extern ApertureNameMap gAperture;
+
+extern struct timeval gProfileStart;
+extern struct timeval gProfileEnd;
 
 //----- aperture functions
 

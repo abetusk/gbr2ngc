@@ -18,19 +18,16 @@
 * Dated May 20th 2013
 */
 
+#ifdef GERBER_TEST
 
 #include "gerber_interpreter.h"
 
 #define N_LINEBUF 4099
 
-//int line_no=0;
-
 //------------------------
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
   int i, j, k, n_line;
-  //char linebuf[N_LINEBUF], cmd[N_LINEBUF];
   char *chp, *ts;
   FILE *fp;
 
@@ -44,13 +41,11 @@ int main(int argc, char **argv)
   if (argc!=2) { printf("provide filename\n"); exit(0); }
 
   k = gerber_state_load_file(&gs, argv[1]);
-  if (k<0)
-  {
+  if (k<0) {
     perror(argv[1]);
   }
-  //printf("got %i\n", k);
 
   gerber_report_state(&gs);
-  //dump_information(&gs);
-
 }
+
+#endif
