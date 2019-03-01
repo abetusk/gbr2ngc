@@ -37,26 +37,15 @@ static int _get_segment_count(double r, double min_segment_length, int min_segme
     return min_segments;
   }
   return (int)z;
-
-  /*
-  theta = 2.0 * asin( min_segment_length / (2.0*r) );
-  if (_isnan(theta)) { return min_segments; }
-  if (_isnan(c/theta)) { return min_segments; }
-  segments = (int)(c / theta);
-  if (segments < min_segments) {
-    segments = min_segments;
-  }
-
-  return segments;
-  */
 }
 
 
-void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 ) {
+void realize_circle(Aperture_realization &ap,
+                    double r,
+                    int min_segments = 8,
+                    double min_segment_length = 0.01 ) {
   int i, idx, segments;
   double a;
-  //double c, theta, a;
-  //c = 2.0 * M_PI * r;
   Path empty_path;
 
   segments = _get_segment_count(r, min_segment_length, min_segments);
@@ -69,7 +58,6 @@ void realize_circle(Aperture_realization &ap, double r, int min_segments = 8, do
   ap.m_path.push_back(empty_path);
   for (i=0; i<segments; i++) {
     a = 2.0 * M_PI * (double)i / (double)segments ;
-    //ap.m_outer_boundary.push_back( dtoc( r*cos(a), r*sin(a) ) );
     ap.m_path[idx].push_back( dtoc( r*cos(a), r*sin(a) ) );
   }
   if (ap.m_path[idx].size() > 0) {
@@ -95,6 +83,7 @@ void realize_rectangle( Aperture_realization &ap, double x, double y ) {
   ap.m_path[idx].push_back( dtoc(  x, -y ) );
   ap.m_path[idx].push_back( dtoc(  x,  y ) );
   ap.m_path[idx].push_back( dtoc( -x,  y ) );
+  ap.m_path[idx].push_back( dtoc( -x, -y ) );
   ap.m_exposure.push_back(1);
 }
 
@@ -160,9 +149,12 @@ void realize_obround( Aperture_realization &ap, double x_len, double y_len, int 
     }
   }
 
+  if (ap.m_path[idx].size()>0) {
+    ap.m_path[idx].push_back( ap.m_path[idx][0] );
+  }
+
   ap.m_exposure.push_back(1);
 }
-
 
 void realize_polygon( Aperture_realization &ap, double r, int n_vert, double rot_deg) {
   int i, idx;
@@ -179,12 +171,18 @@ void realize_polygon( Aperture_realization &ap, double r, int n_vert, double rot
     a = (2.0 * M_PI * (double)i / (double)n_vert) + (rot_deg * M_PI / 180.0);
     ap.m_path[idx].push_back( dtoc( r*cos( a ), r*sin( a ) ) );
   }
-  ap.m_exposure.push_back(1);
 
+  if (ap.m_path[idx].size()>0) {
+    ap.m_path[idx].push_back( ap.m_path[idx][0] );
+  }
+
+  ap.m_exposure.push_back(1);
 }
 
-
-void realize_hole( Aperture_realization &ap, double r, int min_segments = 8, double min_segment_length = 0.01 ) {
+void realize_hole( Aperture_realization &ap,
+                   double r,
+                   int min_segments = 8,
+                   double min_segment_length = 0.01 ) {
   int i, idx, segments;
   double a;
   Path empty_path;
@@ -201,8 +199,12 @@ void realize_hole( Aperture_realization &ap, double r, int min_segments = 8, dou
     ap.m_path[idx].push_back( dtoc( r*cos( a ), r*sin( a ) ) );
 
   }
-  ap.m_exposure.push_back(0);
 
+  if (ap.m_path[idx].size()>0) {
+    ap.m_path[idx].push_back( ap.m_path[idx][0] );
+  }
+
+  ap.m_exposure.push_back(0);
 }
 
 
@@ -233,12 +235,17 @@ am_ll_node_t *aperture_macro_lookup(am_ll_lib_t *am_lib_nod, const char *am_name
 }
 
 // eval_line holds parameters to be interpreted
-// macro_param holds global variables (the hack to allow passed in varaibles to be seen by the macro 'function' call)
+// macro_param holds global variables (the hack
+// to allow passed in varaibles to be seen by the
+// macro 'function' call)
 // eval_param are the resuling variables
 //
 // return 0 on success, non-zero on error
 //
-int _eval_var(std::vector< double > &eval_param, char **eval_line, int n_eval_line, std::vector< double > &macro_param) {
+int _eval_var(std::vector< double > &eval_param,
+              char **eval_line,
+              int n_eval_line,
+              std::vector< double > &macro_param) {
   int i, err=0;
   tes_expr *expr=NULL;
   tes_variable *vars=NULL;
@@ -344,7 +351,10 @@ int eval_AM_var(am_ll_node_t *am_node, std::vector< double > &macro_param) {
   return 0;
 }
 
-int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_circle(am_ll_node_t *am_node,
+                  std::vector< double > &macro_param,
+                  Paths &paths,
+                  std::vector< int > &exposure) {
   int i, j, k, err=0;
 
   std::vector< double > eval_param;
@@ -419,7 +429,10 @@ int add_AM_circle(am_ll_node_t *am_node, std::vector< double > &macro_param, Pat
   return 0;
 }
 
-int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_vector_line(am_ll_node_t *am_node,
+                       std::vector< double > &macro_param,
+                       Paths &paths,
+                       std::vector< int > &exposure) {
   int i, j, k, err=0;
 
   Path path;
@@ -495,7 +508,10 @@ int add_AM_vector_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   return 0;
 }
 
-int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_center_line(am_ll_node_t *am_node,
+                       std::vector< double > &macro_param,
+                       Paths &paths,
+                       std::vector< int > &exposure) {
   int i, j, k, err=0;
 
   Path path;
@@ -556,7 +572,10 @@ int add_AM_center_line(am_ll_node_t *am_node, std::vector< double > &macro_param
   return 0;
 }
 
-int add_AM_polygon(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_polygon(am_ll_node_t *am_node,
+                   std::vector< double > &macro_param,
+                   Paths &paths,
+                   std::vector< int > &exposure) {
   int i, j, k, err=0;
 
   Path path;
@@ -617,7 +636,12 @@ int add_AM_polygon(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
   return 0;
 }
 
-void _line_path( Path &path, double cx, double cy, double width, double height, double ang) {
+void _line_path( Path &path,
+                 double cx,
+                 double cy,
+                 double width,
+                 double height,
+                 double ang ) {
   double c_a, s_a;
   double w2, h2;
 
@@ -636,7 +660,10 @@ void _line_path( Path &path, double cx, double cy, double width, double height, 
   path.push_back( path[0] );
 }
 
-int add_AM_moire(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_moire( am_ll_node_t *am_node,
+                  std::vector< double > &macro_param,
+                  Paths &paths,
+                  std::vector< int > &exposure ) {
   int i, j, k, err=0;
   int ii, jj;
 
@@ -765,7 +792,10 @@ int add_AM_moire(am_ll_node_t *am_node, std::vector< double > &macro_param, Path
   return 0;
 }
 
-int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_outline( am_ll_node_t *am_node,
+                    std::vector< double > &macro_param,
+                    Paths &paths,
+                    std::vector< int > &exposure ) {
   int i, j, k, err=0;
 
   Path path;
@@ -825,7 +855,13 @@ int add_AM_outline(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 // realize an arc
 // rotation is applied after (cx,cy) translation
 //
-static void _thermal_arc_path_ccw(Path &path, double cx, double cy, double r, double rad_beg, double rad_end, int segments) {
+static void _thermal_arc_path_ccw( Path &path,
+                                   double cx,
+                                   double cy,
+                                   double r,
+                                   double rad_beg,
+                                   double rad_end,
+                                   int segments ) {
   int i=0;
   double a=0.0, c_a=0.0, s_a=0.0;
   IntPoint prv_pnt, pnt;
@@ -867,7 +903,10 @@ static void _thermal_arc_path_ccw(Path &path, double cx, double cy, double r, do
 //
 // returns negative on error, 0 on success.
 //
-int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Paths &paths, std::vector< int > &exposure) {
+int add_AM_thermal( am_ll_node_t *am_node,
+                    std::vector< double > &macro_param,
+                    Paths &paths,
+                    std::vector< int > &exposure ) {
   int i, j, k, err=0;
 
   std::vector< double > eval_param;
@@ -1004,8 +1043,10 @@ int add_AM_thermal(am_ll_node_t *am_node, std::vector< double > &macro_param, Pa
 // Once all atomic gemoetry is realized, the final aperture is realized by going through
 // and progressively building up the union and difference of the atomic parts sequencially.
 //
-int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &macro_name, std::vector< double > &macro_param) {
-
+int realize_macro( gerber_state_t *gs,
+                   Aperture_realization &ap,
+                   std::string &macro_name,
+                   std::vector< double > &macro_param ) {
   int i, j, err=0, idx, segments, m_idx;
   am_ll_node_t *am_nod;
   std::vector< double > param_val;
@@ -1230,7 +1271,8 @@ int realize_macro(gerber_state_t *gs, Aperture_realization &ap, std::string &mac
 
 //----
 
-int realize_simple_block(aperture_data_t *aperture, Aperture_realization &ap) {
+int realize_simple_block( aperture_data_t *aperture,
+                          Aperture_realization &ap ) {
   int i, j;
 
   join_polygon_set(ap.m_geom, aperture->gs);

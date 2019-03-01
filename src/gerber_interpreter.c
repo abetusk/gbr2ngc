@@ -1530,10 +1530,12 @@ void parse_ln(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 void parse_lp(gerber_state_t *gs, char *linebuf) {
-  int polarity = -1;
-  int ch;
+  int polarity = -1, ch;
+  char *chp;
 
-  ch = *linebuf;
+  chp = linebuf + 3;
+
+  ch = *chp;
   if ((ch != 'C') && (ch != 'D')) {
     parse_error("invalid LP option. Expected 'C' or 'D' for LP comamnd", gs->line_no, NULL);
   }
@@ -1541,10 +1543,12 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
   if (ch=='C') {
     gs->polarity = 0;
     gs->polarity_bit = 1;
+
   }
   else if (ch=='D') {
     gs->polarity = 1;
     gs->polarity_bit = 0;
+
   }
 
 }
