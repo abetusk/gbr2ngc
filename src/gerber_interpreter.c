@@ -31,8 +31,6 @@
 
 int (*function_code_handler[13])(gerber_state_t *, char *);
 
-
-
 //------------------------
 
 enum {
@@ -45,13 +43,14 @@ void gerber_state_init(gerber_state_t *gs) {
   gs->g_state = -1;
   gs->d_state = -1;
   gs->region = 0;
+  gs->polarity = 1;
 
   gs->unit_init = 0;
   gs->pos_init = 0;
   gs->is_init = 0;
 
   gs->units_metric = -1;
-  gs->polarity = -1;
+  gs->polarity = 1;
   gs->polarity_bit = 0;
   gs->eof = 0;
   gs->line_no = 0;
@@ -96,23 +95,10 @@ void gerber_state_init(gerber_state_t *gs) {
   gs->ab_active = 0;
   gs->ab_lib_depth = 0;
 
-  //gs->ab_lib_child_cur = NULL;
   gs->ab_lib_active_gs = NULL;
   gs->ab_lib_parent_gs = NULL;
 
   gs->ab_lib_root_gs = gs;
-
-  /*
-  gs->ab_lib_depth = 0;
-  gs->ab_name = -1;
-
-  gs->ab_lib_next = NULL;
-  gs->ab_lib_parent = NULL;
-  gs->ab_lib_root = gs;
-
-  gs->ab_lib_child_head = NULL;
-  gs->ab_lib_child_last = NULL;
-  */
 
   //--
 
@@ -121,8 +107,8 @@ void gerber_state_init(gerber_state_t *gs) {
 }
 
 //
-//gerber_state_t *gerber_state_add_ab_child(gerber_state_t *gs_parent, int ab_name) {
-aperture_data_t *aperture_data_create_ab_node(int ab_name, gerber_state_t *gs_parent) {
+aperture_data_t *aperture_data_create_ab_node( int ab_name,
+                                               gerber_state_t *gs_parent ) {
   aperture_data_t *ap_nod = NULL;
   gerber_state_t *gs_child = NULL;
 
@@ -210,28 +196,6 @@ aperture_data_t *aperture_data_create_ab_node(int ab_name, gerber_state_t *gs_pa
   gs_child->ab_lib_root_gs->ab_lib_active_gs = gs_child;
   gs_child->ab_lib_active_gs = NULL;
 
-  /*
-  if (gs_parent->ab_lib_child_head == NULL) {
-    gs_parent->ab_lib_child_head = gs_child;
-  }
-  else {
-    gs_parent->ab_lib_child_last->ab_lib_next = gs_child;
-  }
-  gs_parent->ab_lib_child_cur = gs_child;
-
-  gs_parent->ab_lib_child_last = gs_child;
-
-  gs_child->ab_name = ab_name;
-  gs_child->ab_lib_depth = gs_parent->ab_lib_depth + 1;
-
-  gs_child->ab_lib_next = NULL;
-  gs_child->ab_lib_parent = gs_parent;
-
-  gs_child->ab_lib_child_head = NULL;
-  gs_child->ab_lib_child_cur  = NULL;
-  gs_child->ab_lib_child_last = NULL;
-  */
-
   //--
 
   string_ll_init(&(gs_child->string_ll_buf));
@@ -280,6 +244,8 @@ void gerber_state_clear(gerber_state_t *gs) {
 
 //------------------------
 
+//------------------------
+
 void _pps(FILE *fp, int n) {
   int i;
   for (i=0;i<n;i++) { fprintf(fp, "."); }
@@ -297,9 +263,6 @@ void gerber_report_ab_state(gerber_state_t *gs) {
 
   printf("# "); _pps(stdout, gs->ab_lib_depth);
   printf("ab_active: %i\n", gs->ab_active);
-
-  //printf("# "); _pps(stdout, gs->ab_lib_depth);
-  //printf("ab_name: %i\n", gs->ab_name);
 
   printf("# "); _pps(stdout, gs->ab_lib_depth);
   printf("ab_lib_depth: %i\n", gs->ab_lib_depth);
@@ -1560,6 +1523,115 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
 //
 void parse_sr(gerber_state_t *gs, char *linebuf) {
 
+  return;
+
+  /*
+  char *linebuf;
+  char *chp_beg, *chp, *s, ch;
+  char save_char;
+  int d_code, complete=0, n=0;
+
+  int begin_sr_block = -1;
+  aperture_data_t *ap_node;
+
+  // handle multi line AD
+  //
+  chp = linebuf_orig;
+  n = ( (gs->gerber_read_state == GRS_SR) ? 0 : 1 );
+
+  string_ll_add(&(gs->string_ll_buf), linebuf_orig);
+  gs->gerber_read_state = GRS_SR;
+
+  while (chp[n]) {
+    if (chp[n] == '%') { complete=1; break; }
+    n++;
+  }
+
+  if (!complete) { return; }
+
+  linebuf = string_ll_dup_str(&(gs->string_ll_buf));
+  string_ll_free(&(gs->string_ll_buf));
+
+  chp = linebuf + 3;
+
+  if (*chp == '*') { begin_sr_block = 0; }
+  else { begin_sr_block = 1; }
+  //else { parse_error("bad AB format", gs->line_no, linebuf); }
+
+  chp++;
+
+  // begin Aperture Block
+  //
+  if (begin_ab_block == 1) {
+    chp_beg = chp;
+
+    while (*chp) {
+      if ( (*chp < '0') || (*chp > '9') ) break;
+      chp++;
+    }
+    if (!(*chp)) { parse_error("bad SR format, expected character '*'", gs->line_no, linebuf); }
+
+    save_char = *chp;
+    *chp = '\0';
+    d_code = atoi(chp_beg);
+    if (d_code < 10) { parse_error("bad AB format, D code must be >= 10", gs->line_no, linebuf); }
+
+    if (save_char != '*') {
+      parse_error("bad AB format, expected character '*'", gs->line_no, linebuf);
+    }
+
+    chp++;
+    if (!(*chp)) { parse_error("bad AB format, expected character '%'", gs->line_no, linebuf); }
+    if (*chp != '%') { parse_error("bad AB format, expected character '%'", gs->line_no, linebuf); }
+
+    //new_gs = (gerber_state_t *)malloc(sizeof(gerber_state_t));
+    //gerber_state_init_AB(new_gs, gs);
+
+    ap_node = aperture_data_create_sr_node(gs);
+    if (!ap_node) {
+      fprintf(stderr, "ERROR: could not allocate ap_node (memory exhuastion?), exiting\n");
+      exit(-1);
+    }
+    ap_node->gs->sr_root_gs->sr_active = 1;
+    ap_node->gs->gerber_read_state = GRS_NONE;
+
+    if (!(gs->aperture_head)) { gs->aperture_head = ap_node; }
+    else                      { gs->aperture_cur->next = ap_node; }
+    gs->aperture_cur = ap_node;
+
+  }
+
+  // end Aperture Block
+  //
+  else {
+
+    if (gs->ab_lib_parent_gs == NULL) {
+      parse_error("found end of AB without beginning", gs->line_no, linebuf);
+    }
+
+    // Since we've tied off the AB, we go up the stack of ABs and make
+    // sure the root is pointing to the parent for further processing.
+    //
+    gs->ab_lib_root_gs->ab_lib_active_gs = gs->ab_lib_parent_gs;
+
+    gs->ab_active = 0;
+
+    // If we've tied the AB and we're one below the root, we've stopped processing
+    // the AB and need to updat the root accordingly.
+    //
+    if (gs->ab_lib_depth==1) {
+      gs->ab_lib_parent_gs->ab_active=0;
+    }
+    //new_gs->gerber_read_state = GRS_NONE;
+
+  }
+
+  gs->gerber_read_state = GRS_NONE;
+
+  free(linebuf);
+  */
+
+
 }
 
 // File attributes
@@ -1754,6 +1826,7 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   contour_nod->x = prev_x;
   contour_nod->y = prev_y;
   contour_nod->region = 0;
+  contour_nod->polarity = gs->polarity;
 
   contour_list_nod->c = contour_nod;
 
@@ -1762,8 +1835,9 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   contour_nod->d_name = aperture_name;
   contour_nod->x = cur_x;
   contour_nod->y = cur_y;
-  contour_nod->next = NULL;
   contour_nod->region = 0;
+  contour_nod->polarity = gs->polarity;
+  contour_nod->next = NULL;
 
   if (gs->contour_list_head == NULL) {
     gs->contour_list_head = contour_list_nod;
@@ -1789,6 +1863,7 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
   contour_nod->x = cur_x;
   contour_nod->y = cur_y;
   contour_nod->region = 0;
+  contour_nod->polarity = gs->polarity;
 
   contour_nod->next = NULL;
 
@@ -1873,6 +1948,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
         contour_nod->x = prev_x;
         contour_nod->y = prev_y;
         contour_nod->region = 1;
+        contour_nod->polarity = gs->polarity;
         contour_nod->next  = NULL;
 
         gs->contour_head = gs->contour_cur = contour_nod;
@@ -1883,6 +1959,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       contour_nod->x = gs->cur_x;
       contour_nod->y = gs->cur_y;
       contour_nod->region = 1;
+      contour_nod->polarity = gs->polarity;
       contour_nod->next = NULL;
 
       gs->contour_cur->next = contour_nod;
@@ -2234,7 +2311,7 @@ void dump_information(gerber_state_t *gs) {
 
     while (c) {
       if (verbose_print) {
-        printf("#  [%i] contour d_name: %i, region: %i, x,y: (%g,%g)\n", k, c->d_name, c->region, c->x, c->y);
+        printf("#  [%i] contour d_name: %i, region: %i, x,y: (%g,%g), polarity: %i\n", k, c->d_name, c->region, c->x, c->y, c->polarity);
         printf("# %g %g\n", c->x, c->y);
       }
       c = c->next;

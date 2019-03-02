@@ -20,6 +20,8 @@
 
 #include "gbl2ngc.hpp"
 
+int gDebug = 0;
+
 int gVerboseFlag = 0;
 int gMetricUnits = 0;
 int gUnitsDefault = 1;
@@ -74,3 +76,16 @@ ApertureNameMap gAperture;
 
 struct timeval gProfileStart;
 struct timeval gProfileEnd;
+
+// local_exposure - { 1 - add, 0 - remove }
+// global_exposure - { 1 - additive, 0 - subtractive}
+//
+//int _expose_bit(int local_exposure, int global_exposure = 1) {
+int _expose_bit(int local_exposure, int global_exposure) {
+  int gbit=0;
+  local_exposure  = ( (local_exposure  > 0) ? 1 : 0);
+  gbit = ( (global_exposure > 0) ? 0 : 1);
+
+  return local_exposure ^ gbit;
+}
+

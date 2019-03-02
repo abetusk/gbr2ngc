@@ -67,6 +67,7 @@ using namespace ClipperLib;
 class Aperture_realization {
   public:
     Aperture_realization() { };
+    ~Aperture_realization() { };
 
     int m_name;
     int m_type;
@@ -101,6 +102,8 @@ typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 
 
 //------------- GLOBALS
+
+extern int gDebug;
 
 extern int gVerboseFlag;
 extern int gMetricUnits;
@@ -166,5 +169,9 @@ void join_polygon_set(Paths &result, gerber_state_t *gs);
 
 void export_paths_to_gcode( FILE *ofp, Paths &paths);
 void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in);
+
+//int _expose_bit(int local_exposure, int global_exposure = 1);
+int _expose_bit(int local_exposure, int global_exposure = 1);
+//int _expose_bit(int,int);
 
 #endif

@@ -251,7 +251,6 @@ int construct_contour_region( PathSet &pwh_vec, contour_ll_t *contour ) {
 
   pwh_vec.push_back( soln );
 
-  //if (!res) { return -1; }
   return 0;
 }
 
@@ -401,7 +400,8 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
   Clipper clip;
   int n=0;
 
-  int clip_count=0, name=0;
+  int name=0;
+  int _path_polarity=1;
 
   Path point_list, res_point, tmp_path;
   Paths aperture_geom, it_paths;
@@ -416,14 +416,11 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
     if (contour->region) {
 
       temp_pwh_vec.clear();
-
       construct_contour_region(temp_pwh_vec, contour);
 
-      //clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
-      //clip.AddPath( temp_pwh_vec, ptSubject, true );
-      for (i=0; i<temp_pwh_vec.size(); i++) { clip.AddPaths( temp_pwh_vec[i], ptSubject, true ); }
-
-      clip_count++;
+      for (i=0; i<temp_pwh_vec.size(); i++) {
+        clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
+      }
 
       continue;
     }
@@ -442,10 +439,11 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       prev_pnt = dtoc( prev_contour->x, prev_contour->y );
       cur_pnt = dtoc( contour->x, contour->y );
 
-      //DEBUG
-      //printf("##join_polygon_set d_name %i, n %i, region %i, (%lli,%lli)\n",
-      //    contour->d_name, contour->n, contour->region,
-      //    (long long int)cur_pnt.X, (long long int)cur_pnt.Y);
+      if (gAperture.find(name) == gAperture.end()) {
+        fprintf(stderr, "## WARNING: name %i not found in aperture library. Ignoring.\n", name);
+        contour = contour->next;
+        continue;
+      }
 
       // An informative example:
       // Consider drawing a line with rounded corners from position prev_contour->[xy] to contour->[xy].
@@ -458,11 +456,11 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       //
       //
 
+      // "simple" geometry, consisting of a simple shape or aperture 'streaked' across
+      // a linear motion.
+      //
       if ( (cur_pnt.X != prev_pnt.X) ||
            (cur_pnt.Y != prev_pnt.Y) ) {
-
-        //DEBUG
-        //printf("## realizing aperture %i\n", name);
 
         point_list.clear();
         res_point.clear();
@@ -488,43 +486,45 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         }
         else {
 
-#ifdef DEBUG_CONSTRUCT
-          //for (i=0; i<res_point.size(); i++) {
-          //  printf("##+ %lli %lli\n", (long long int)res_point[i].X, (long long int)res_point[i].Y);
-          //}
-#endif
-
           if (!Orientation(res_point)) { ReversePath(res_point); }
-          clip.AddPath( res_point, ptSubject, true );
+
+          if (_expose_bit(contour->polarity, gAperture[name].m_exposure[ii])) {
+            clip.AddPath( res_point, ptSubject, true );
+          }
+          else {
+            clip.AddPath(res_point, ptClip, true);
+
+            it_paths.clear();
+            clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+
+            clip.Clear();
+            clip.AddPaths(it_paths, ptSubject, true);
+          }
+
         }
 
         contour = contour->next;
         continue;
       }
 
-      if (gAperture.find(name) == gAperture.end()) {
-        fprintf(stderr, "## WARNING: name %i not found in aperture library. Ignoring.\n", name);
-        contour = contour->next;
-        continue;
+      if ( (gAperture[name].m_type != AD_ENUM_BLOCK) &&
+           (gAperture[name].m_type != AD_ENUM_MACRO) )  {
       }
 
-#ifdef DEBUG_CONSTRUCT
-      //fprintf(stderr, "## realizing aperture name %i\n", name);
-      //fprintf(stderr, "##   type: %i\n", gAperture[name].m_type);
-      //fflush(stderr);
-#endif
+      // Otherwise, we've doing a flash of either an aperture block or a
+      // 'simle' aperture.
+      //
 
+      // If it's an aperture block, we've already rendered the geometry
+      // and put it into `m_geom`.
+      //
       if (gAperture[name].m_type == AD_ENUM_BLOCK) {
 
-#ifdef DEBUG_CONSTRUCT
-        //printf("## realizing block aperture name %i, type %i\n", name, gAperture[name].m_type);
-        //for (ii=0; ii<gAperture[name].m_geom.size(); ii++) {
-        //  for (jj=0; jj<gAperture[name].m_geom[ii].size(); jj++) {
-        //    printf("##zzab%i %lli %lli\n", name, (long long int)gAperture[name].m_geom[ii][jj].X, (long long int)gAperture[name].m_geom[ii][jj].Y);
-        //  }
-        //  printf("##zzab%i\n", name);
-        //}
-#endif
+        if (gAperture[name].m_geom.size() < 1) {
+          fprintf(stderr, "WARNING: aperture block %i empty, skipping\n", name);
+          contour = contour->next;
+          continue;
+        }
 
         it_paths.clear();
         for (ii=0; ii<gAperture[name].m_geom.size(); ii++) {
@@ -536,10 +536,23 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
           it_paths.push_back(tmp_path);
         }
 
-        //clip.AddPaths( gAperture[name].m_geom, ptSubject, true );
+        if ( ! _expose_bit(contour->polarity, gAperture[name].m_exposure[0]) ) {
+
+          clip.AddPaths(it_paths, ptClip, true);
+
+          it_paths.clear();
+          clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+
+          clip.Clear();
+        }
+
         clip.AddPaths( it_paths, ptSubject, true );
         contour = contour->next;
       }
+
+      // If it's not an aperture block, it's held in the `m_path` and we
+      // evaluate each in turn.
+      //
       else {
 
         aperture_clip.Clear();
@@ -562,11 +575,12 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
           }
 
           if (gAperture[name].m_exposure[ii]) {
+          //if (_expose_bit(contour->polarity, gAperture[name].m_exposure[ii])) {
 
             aperture_clip.AddPath(tmp_path, ptSubject, true);
+
           }
           else {
-
             aperture_clip.AddPath(tmp_path, ptClip, true);
             aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
 
@@ -580,8 +594,18 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
         it_paths.clear();
         aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
 
+        if ( ! _expose_bit(contour->polarity) ) {
+          clip.AddPaths(it_paths, ptClip, true);
+
+          it_paths.clear();
+          clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+
+          clip.Clear();
+        }
+
         clip.AddPaths( it_paths, ptSubject, true );
         contour = contour->next;
+
       }
 
     }

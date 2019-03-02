@@ -3,6 +3,7 @@ INSTALLDIR=/usr/local/bin
 src = $(wildcard *.cpp *.c)
 obj_cpp = $(src:.cpp=.o)
 obj = $(obj_cpp:.c=.o)
+hdr = $(wildcard *.h *.hpp)
 
 CC=gcc
 

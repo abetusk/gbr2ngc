@@ -51,6 +51,7 @@ typedef struct contour_ll_type {
   int n;
   double x, y;
   int region;
+  int polarity;
 
   struct contour_ll_type *next;
 } contour_ll_t;
@@ -176,6 +177,8 @@ enum GERBER_READ_STATE {
   GRS_AB_INIT,
   GRS_AB_COMMENT,
   GRS_AB_MODIFIER,
+
+  GRS_SR,
 } ;
 
 //----
@@ -190,6 +193,7 @@ enum AD_ENUM_TYPE {
   AD_ENUM_POLYGON,
   AD_ENUM_MACRO,
   AD_ENUM_BLOCK,
+  AD_ENUM_STEP_REPEAT,
 };
 
 // Aperture Macro

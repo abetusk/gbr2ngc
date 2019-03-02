@@ -246,6 +246,10 @@ bool set_option(const char option_char, const char* optarg) {
       gGCodeFooter = strdup(optarg);
       break;
 
+    case 'D':
+      gDebug=1;
+      break;
+
     case 'l':
       gMinSegmentLength = atof(optarg);
       break;
@@ -367,7 +371,7 @@ void process_command_line_options(int argc, char **argv) {
   //
   opterr = 1;
 
-  while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:Pl:", gLongOption, &option_index)) >= 0) {
+  while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:Pl:D", gLongOption, &option_index)) >= 0) {
     switch(ch) {
       case 0:
         // long option
@@ -382,6 +386,10 @@ void process_command_line_options(int argc, char **argv) {
       case 'h':
         show_help(stdout);
         exit(0);
+        break;
+
+      case 'D':
+        gDebug=1;
         break;
 
       case 'i':
@@ -863,6 +871,11 @@ int main(int argc, char **argv) {
   if (k < 0) {
     perror(argv[1]);
     exit(errno);
+  }
+
+  if (gDebug) {
+    dump_information(&gs);
+    exit(1);
   }
 
   // Construct library of atomic shapes and create polygons
