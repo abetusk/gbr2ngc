@@ -6,23 +6,24 @@ obj = $(obj_cpp:.c=.o)
 hdr = $(wildcard *.h *.hpp)
 
 CC=gcc
+COPT=-g
 
 CXX=g++
-CXXOPT = --std=c++11
+CXXOPT = -g --std=c++11
 CXXLIB = -lstdc++ -lboost_thread -lm
 
 CCFN = $(wildcard *.c)
 CPPFN = $(wildcard *.cpp)
 
 %.o: %.c
-	$(CC) -c $< -o $@ -lm
+	$(CC) $(COPT) -c $< -o $@ -lm
 
 %.o: %.cpp
 	$(CXX) $(CXXOPT) -c $< -o $@
 #	$(CXX) $(CXXOPT) -c $< -o $@ $(CXXLIB)
 
 gbl2ngc: $(obj) $(hdr)
-	$(CXX) -o $@ $^ $(CXXLIBS)
+	$(CXX) $(CXXOPT) -o $@ $^ $(CXXLIBS)
 
 .PHONY: debug
 debug: $(obj) $(hdr)

@@ -1106,6 +1106,54 @@ int realize_simple_block( gerber_state_t *gs,
 
 //----
 
+int realize_step_repeat( gerber_state_t *gs,
+                         aperture_data_t *aperture,
+                         Aperture_realization &ap ) {
+  int _x, _y, ii, jj;
+  double dx=0.0, dy=0.0;
+  Paths paths, p;
+  Path empty_path;
+  IntPoint dpnt, pnt;
+
+  join_polygon_set(paths, aperture->gs);
+
+  ap.m_geom.clear();
+  for (_x=0; _x < aperture->x_rep; _x++) {
+    for (_y=0; _y < aperture->y_rep; _y++) {
+
+      dx = ((double)_x) * aperture->i_distance;
+      dy = ((double)_y) * aperture->j_distance;
+      dpnt = dtoc( dx, dy );
+
+      for (ii=0; ii<paths.size(); ii++) {
+        ap.m_geom.push_back(empty_path);
+        for (jj=0; jj<paths[ii].size(); jj++) {
+          pnt.X = paths[ii][jj].X + dpnt.X;
+          pnt.Y = paths[ii][jj].Y + dpnt.Y;
+          ap.m_geom[ii].push_back( pnt );
+        }
+      }
+
+    }
+
+  }
+
+  printf("##sr%i.%i\n", gs->name, aperture->name);
+  for (ii=0; ii<ap.m_geom.size(); ii++) {
+    for (jj=0; jj<ap.m_geom[ii].size(); jj++) {
+      printf("##sr%i.%i %lli %lli\n",
+          gs->name, aperture->name,
+          (long long int)ap.m_geom[ii][jj].X,
+          (long long int)ap.m_geom[ii][jj].Y);
+    }
+    printf("##sr%i.%i\n", gs->name, aperture->name);
+  }
+
+  ap.m_exposure.push_back( _expose_bit(1) );
+}
+
+//----
+
 void print_aperture_list(aperture_data_t *ap) {
   printf("\n");
   while (ap) {
@@ -1118,11 +1166,57 @@ void print_aperture_list(aperture_data_t *ap) {
   }
 }
 
-aperture_data_t *flatten_aperture_list(gerber_state_t *gs) {
+static void _pst(int n) {
+  int i;
+  for (i=0; i<n; i++) { printf(" "); }
+}
+
+void print_aperture_tree(gerber_state_t *gs, int level) {
+  aperture_data_t *ap;
+  gerber_state_t *par;
+
+  ap = gs->aperture_head;
+
+  printf("# gs:%i ", gs->id);
+  _pst(level+1);
+  printf("...\n");
+  dump_information(gs, 0);
+  while (ap) {
+
+    par=NULL;
+    if (ap->gs) {
+      par = ap->gs->absr_lib_parent_gs;
+    }
+
+    printf("# gs:%i ", gs->id);
+    _pst(level+1);
+    printf("aperture(%i): %i, type %i, crop_type %i (%f,%f,%f,%f,%f) (gs %i, parent %i)\n",
+        ap->id,
+        ap->name, ap->type, ap->crop_type,
+        (float)ap->crop[0], (float)ap->crop[1],
+        (float)ap->crop[2], (float)ap->crop[3],
+        (float)ap->crop[4],
+        (ap->gs ? ap->gs->id : -1), (par ? par->id : -1));
+
+    if (ap->gs) {
+      print_aperture_tree(ap->gs, level+1);
+    }
+
+    ap = ap->next;
+
+  }
+
+}
+
+//----
+
+aperture_data_t *flatten_aperture_list(gerber_state_t *gs, int level) {
   aperture_data_t *ap_node_prev;
   aperture_data_t *ap_node;
   aperture_data_t *ap_flatten_head;
   aperture_data_t *ap_flatten_last;
+
+  aperture_data_t *_ap;
 
   if (!gs) { return NULL; }
 
@@ -1135,9 +1229,10 @@ aperture_data_t *flatten_aperture_list(gerber_state_t *gs) {
     // we've found an aperture block, so recur and get
     // the flattened aperture linked list
     //
-    if (ap_node->type == AD_ENUM_BLOCK) {
+    if ((ap_node->type == AD_ENUM_BLOCK) ||
+        (ap_node->type == AD_ENUM_STEP_REPEAT)) {
 
-      ap_flatten_head = flatten_aperture_list(ap_node->gs);
+      ap_flatten_head = flatten_aperture_list(ap_node->gs, level+1);
 
       if (ap_flatten_head) {
 
@@ -1151,10 +1246,8 @@ aperture_data_t *flatten_aperture_list(gerber_state_t *gs) {
         // in line with the current list.
         //
         ap_flatten_last->next = ap_node;
-        if (ap_node_prev) {
-          ap_node_prev->next = ap_flatten_head;
-        }
-
+        if (ap_node_prev) { ap_node_prev->next = ap_flatten_head; }
+        else              { gs->aperture_head  = ap_flatten_head; }
       }
 
     }
@@ -1170,10 +1263,29 @@ int realize_apertures(gerber_state_t *gs) {
   int min_segments = 8;
   int base_mapping[] = {1, 2, 3, 3};
   int i;
+  int ii, jj;
 
   aperture_data_t *aperture;
 
-  flatten_aperture_list(gs);
+  //DEBUG
+  printf("###>>>BEFORE (%i)\n", gs->absr_lib_depth);
+  print_aperture_list(gs->aperture_head);
+  printf("###\n");
+  print_aperture_tree(gs, 0);
+  printf("###\n");
+  dump_information(gs, 0);
+  printf("###<<<BEFORE\n");
+  
+  flatten_aperture_list(gs, 0);
+
+  //DEBUG
+  printf("###>>>AFTER (%i)\n", gs->absr_lib_depth);
+  print_aperture_list(gs->aperture_head);
+  printf("###\n");
+  dump_information(gs, 0);
+  //print_aperture_tree(gs, 0);
+  printf("###<<<AFTER\n");
+  
 
   if (gMinSegmentLength > 0.0) { min_segment_length=gMinSegmentLength; }
 
@@ -1226,6 +1338,31 @@ int realize_apertures(gerber_state_t *gs) {
 
       case AD_ENUM_BLOCK:
         realize_simple_block( gs, aperture, ap );
+        break;
+
+      case AD_ENUM_STEP_REPEAT:
+
+        printf("##SR realize aperture %i\n", ap.m_name);
+
+        printf("#####################################\n");
+        printf("#####################################\n");
+        printf("#####################################\n");
+
+        dump_information(gs, 0);
+
+        printf("#####################################\n");
+        printf("#####################################\n");
+        printf("#####################################\n");
+
+        realize_step_repeat( gs, aperture, ap );
+
+        for (ii=0; ii<ap.m_geom.size(); ii++) {
+          for (jj=0; jj<ap.m_geom[ii].size(); jj++) {
+            printf("##sr%i %lli %lli\n", ap.m_name, (long long int)ap.m_geom[ii][jj].X, (long long int)ap.m_geom[ii][jj].Y);
+          }
+          printf("##sr%i\n", ap.m_name);
+        }
+
         break;
 
       default: break;

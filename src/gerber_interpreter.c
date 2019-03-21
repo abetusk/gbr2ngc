@@ -27,6 +27,8 @@
 
 #include "gerber_interpreter.h"
 
+void dump_contour(gerber_state_t *gs, int level);
+
 //#define DEBUG_INTERPRETER
 
 int (*function_code_handler[13])(gerber_state_t *, char *);
@@ -40,6 +42,11 @@ enum {
 } quadrent_mode_enum;
 
 void gerber_state_init(gerber_state_t *gs) {
+
+  gs->id = rand()%65536;
+
+  gs->name = 0;
+
   gs->g_state = -1;
   gs->d_state = -1;
   gs->region = 0;
@@ -78,10 +85,14 @@ void gerber_state_init(gerber_state_t *gs) {
 
   gs->fs_init = 0;
 
-  gs->aperture_head = gs->aperture_cur = NULL;
+  gs->aperture_head = NULL;
+  gs->aperture_cur = NULL;
 
   gs->cur_x = 0.0;
   gs->cur_y = 0.0;
+
+  gs->gerber_item_head = NULL;
+  gs->gerber_item_tail = NULL;
 
   gs->contour_head = gs->contour_cur = NULL;
   gs->contour_list_head = gs->contour_list_cur = NULL;
@@ -89,16 +100,19 @@ void gerber_state_init(gerber_state_t *gs) {
   gs->am_lib_head = NULL;
   gs->am_lib_tail = NULL;
 
-  // AB init
+  // AB / SR init
   //
 
-  gs->ab_active = 0;
-  gs->ab_lib_depth = 0;
+  gs->absr_active = 0;
+  gs->absr_code = 0;
+  gs->absr_lib_depth = 0;
 
-  gs->ab_lib_active_gs = NULL;
-  gs->ab_lib_parent_gs = NULL;
+  gs->absr_lib_active_gs = NULL;
+  gs->absr_lib_parent_gs = NULL;
 
-  gs->ab_lib_root_gs = gs;
+  gs->absr_lib_root_gs = gs;
+
+  gs->sr_name = -1;
 
   //--
 
@@ -107,8 +121,9 @@ void gerber_state_init(gerber_state_t *gs) {
 }
 
 //
-aperture_data_t *aperture_data_create_ab_node( int ab_name,
-                                               gerber_state_t *gs_parent ) {
+aperture_data_t *aperture_data_create_absr_node( int absr_name,
+                                                 gerber_state_t *gs_parent,
+                                                 int is_ab ) {
   aperture_data_t *ap_nod = NULL;
   gerber_state_t *gs_child = NULL;
 
@@ -117,8 +132,11 @@ aperture_data_t *aperture_data_create_ab_node( int ab_name,
   gs_child = (gerber_state_t *)malloc(sizeof(gerber_state_t));
   memset(gs_child, 0, sizeof(gerber_state_t));
 
-  ap_nod->name = ab_name;
-  ap_nod->type = AD_ENUM_BLOCK;
+  ap_nod->id = rand()%65536;
+
+
+  ap_nod->name = absr_name;
+  ap_nod->type = ( is_ab ? AD_ENUM_BLOCK : AD_ENUM_STEP_REPEAT );
   ap_nod->crop_type = -1;
   ap_nod->macro_name = NULL;
   ap_nod->macro_param_count=0;
@@ -126,9 +144,19 @@ aperture_data_t *aperture_data_create_ab_node( int ab_name,
   ap_nod->next = NULL;
   ap_nod->gs = gs_child;
 
+  ap_nod->x_rep = 0;
+  ap_nod->y_rep = 0;
+
+  ap_nod->i_distance = 0.0;
+  ap_nod->i_distance = 0.0;
+
   gs_child->g_state   = gs_parent->g_state;
   gs_child->d_state   = gs_parent->d_state;
   gs_child->region    = gs_parent->region;
+
+  gs_child->id = rand()%65536;
+
+  gs_child->name = 0;
 
   gs_child->unit_init = gs_parent->unit_init;
   gs_child->pos_init  = gs_parent->pos_init;
@@ -176,6 +204,9 @@ aperture_data_t *aperture_data_create_ab_node( int ab_name,
   gs_child->cur_x = gs_parent->cur_x;
   gs_child->cur_y = gs_parent->cur_y;
 
+  gs_child->item_head = NULL;
+  gs_child->item_tail = NULL;
+
   gs_child->contour_head = NULL;
   gs_child->contour_cur = NULL;
   gs_child->contour_list_head = NULL;
@@ -187,14 +218,23 @@ aperture_data_t *aperture_data_create_ab_node( int ab_name,
   // Aperture Block
   //
 
-  gs_child->ab_active = 1;
-  gs_child->ab_lib_depth = gs_parent->ab_lib_depth + 1;
+  gs_child->absr_active = 1;
+  gs_child->absr_lib_depth = gs_parent->absr_lib_depth + 1;
 
-  gs_child->ab_lib_parent_gs = gs_parent;
-  gs_child->ab_lib_root_gs = gs_parent->ab_lib_root_gs;
+  gs_child->absr_lib_parent_gs = gs_parent;
+  gs_child->absr_lib_root_gs = gs_parent->absr_lib_root_gs;
 
-  gs_child->ab_lib_root_gs->ab_lib_active_gs = gs_child;
-  gs_child->ab_lib_active_gs = NULL;
+  gs_child->absr_lib_root_gs->absr_lib_active_gs = gs_child;
+  gs_child->absr_lib_active_gs = NULL;
+
+  gs_child->absr_code = ( is_ab ? AD_ENUM_BLOCK : AD_ENUM_STEP_REPEAT );
+
+  gs_parent->absr_lib_root_gs->sr_name--;
+
+
+  //DEBUG
+  printf("###### gs_child->absr_lib_root_gs %p\n", gs_child->absr_lib_root_gs);
+
 
   //--
 
@@ -251,78 +291,45 @@ void _pps(FILE *fp, int n) {
   for (i=0;i<n;i++) { fprintf(fp, "."); }
 }
 
-void gerber_report_ab_state(gerber_state_t *gs) {
+void gerber_report_absr_state(gerber_state_t *gs) {
   gerber_state_t *_nod;
   aperture_data_t *_ap;
 
   if (!gs) { return; }
 
   printf("\n");
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("gerber_report_ab_state: %p\n", gs);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("gerber_report_absr_state: %p\n", gs);
 
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_active: %i\n", gs->ab_active);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("absr_active: %i\n", gs->absr_active);
 
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_depth: %i\n", gs->ab_lib_depth);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("absr_lib_depth: %i\n", gs->absr_lib_depth);
 
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_root_gs: %p\n", gs->ab_lib_root_gs);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("absr_lib_root_gs: %p\n", gs->absr_lib_root_gs);
 
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_active_gs: %p\n", gs->ab_lib_active_gs);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("absr_lib_active_gs: %p\n", gs->absr_lib_active_gs);
 
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_parent_gs: %p\n", gs->ab_lib_parent_gs);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("absr_lib_parent_gs: %p\n", gs->absr_lib_parent_gs);
 
   for (_ap = gs->aperture_head; _ap ; _ap = _ap->next) {
     if (_ap->type == AD_ENUM_BLOCK) {
       printf("\n");
-      printf("# "); _pps(stdout, gs->ab_lib_depth);
+      printf("# "); _pps(stdout, gs->absr_lib_depth);
       printf("ab %i found, recurring", _ap->name);
-      gerber_report_ab_state(_ap->gs);
+      gerber_report_absr_state(_ap->gs);
     }
   }
 
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("()(%i)\n", gs->ab_lib_depth);
+  printf("# "); _pps(stdout, gs->absr_lib_depth);
+  printf("()(%i)\n", gs->absr_lib_depth);
   printf("\n");
 
   return;
-
-  //--
-
-  /*
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_child_head: %p\n", gs->ab_lib_child_head);
-
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_child_last: %p\n", gs->ab_lib_child_last);
-
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_child_cur: %p\n", gs->ab_lib_child_cur);
-
-  printf("# "); _pps(stdout, gs->ab_lib_depth);
-  printf("ab_lib_root: %p\n", gs->ab_lib_root);
-
-  printf("\n");
-
-  dump_information(gs);
-
-  _nod = gs->ab_lib_child_head;
-  while (_nod) {
-    gerber_report_ab_state(_nod);
-    _nod = _nod->ab_lib_next;
-  }
-
-  _nod = gs->ab_lib_next;
-  while (_nod) {
-    gerber_report_ab_state(_nod);
-    _nod = _nod->ab_lib_next;
-  }
-*/
-
 }
 
 
@@ -407,7 +414,33 @@ int parse_nums(double *rop, char *s, char sep, char term, int max_rop) {
 
   if (ch != term) { return -1; }
   return max_rop;
+}
 
+int parse_int(int *rop, char *s) {
+  char *end_chp=NULL;
+  long int v;
+
+  v = strtol(s, &end_chp, 10);
+  if (errno==ERANGE) { return -2; }
+  if (end_chp == s) { return -1; }
+
+  *rop = (int)v;
+  v = (end_chp - s);
+  return v;
+}
+
+int parse_double(double *rop, char *s) {
+  char *end_chp=NULL;
+  double v;
+  int l;
+
+  v = strtod(s, &end_chp);
+  if (errno==ERANGE) { return -2; }
+  if (end_chp == s) { return -1; }
+
+  *rop = v;
+  l = (end_chp - s);
+  return l;
 }
 
 //------------------------
@@ -963,6 +996,9 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
 
   chp = linebuf + 3;
 
+  //DEBUG
+  printf("#parse_ab chp '%s'\n", chp);
+
   if (*chp == 'D') { begin_ab_block = 1; }
   else if (*chp == '*') { begin_ab_block = 0; }
   else { parse_error("bad AB format", gs->line_no, linebuf); }
@@ -996,12 +1032,12 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
     //new_gs = (gerber_state_t *)malloc(sizeof(gerber_state_t));
     //gerber_state_init_AB(new_gs, gs);
 
-    ap_node = aperture_data_create_ab_node(d_code, gs);
+    ap_node = aperture_data_create_absr_node(d_code, gs, 1);
     if (!ap_node) {
       fprintf(stderr, "ERROR: could not allocate ap_node (memory exhuastion?), exiting\n");
       exit(-1);
     }
-    ap_node->gs->ab_lib_root_gs->ab_active = 1;
+    ap_node->gs->absr_lib_root_gs->absr_active = 1;
     ap_node->gs->gerber_read_state = GRS_NONE;
 
     if (!(gs->aperture_head)) { gs->aperture_head = ap_node; }
@@ -1014,22 +1050,26 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
   //
   else {
 
-    if (gs->ab_lib_parent_gs == NULL) {
+    if (gs->absr_lib_parent_gs == NULL) {
       parse_error("found end of AB without beginning", gs->line_no, linebuf);
+    }
+
+    if (gs->absr_code != AD_ENUM_BLOCK) {
+      parse_error("found end of AB without beginning (inside SR?)", gs->line_no, linebuf);
     }
 
     // Since we've tied off the AB, we go up the stack of ABs and make
     // sure the root is pointing to the parent for further processing.
     //
-    gs->ab_lib_root_gs->ab_lib_active_gs = gs->ab_lib_parent_gs;
+    gs->absr_lib_root_gs->absr_lib_active_gs = gs->absr_lib_parent_gs;
 
-    gs->ab_active = 0;
+    gs->absr_active = 0;
 
     // If we've tied the AB and we're one below the root, we've stopped processing
     // the AB and need to updat the root accordingly.
     //
-    if (gs->ab_lib_depth==1) {
-      gs->ab_lib_parent_gs->ab_active=0;
+    if (gs->absr_lib_depth==1) {
+      gs->absr_lib_parent_gs->absr_active=0;
     }
     //new_gs->gerber_read_state = GRS_NONE;
 
@@ -1518,14 +1558,7 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
 
 //------------------------
 
-// TODO
-// step and repeat
-//
-void parse_sr(gerber_state_t *gs, char *linebuf) {
-
-  return;
-
-  /*
+void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   char *linebuf;
   char *chp_beg, *chp, *s, ch;
   char save_char;
@@ -1533,6 +1566,16 @@ void parse_sr(gerber_state_t *gs, char *linebuf) {
 
   int begin_sr_block = -1;
   aperture_data_t *ap_node;
+
+  int dn;
+
+  int _x_rep=0, _y_rep=0;
+  double _i_distance=0.0, _j_distance=0.0;
+
+  int name=0;
+
+  contour_ll_t *contour_nod;
+  contour_list_ll_t *contour_list_nod;
 
   // handle multi line AD
   //
@@ -1554,46 +1597,77 @@ void parse_sr(gerber_state_t *gs, char *linebuf) {
 
   chp = linebuf + 3;
 
-  if (*chp == '*') { begin_sr_block = 0; }
-  else { begin_sr_block = 1; }
-  //else { parse_error("bad AB format", gs->line_no, linebuf); }
+  if (*chp == '*') {
+    begin_sr_block = 0;
+    chp++;
+  }
+  else {
+    begin_sr_block = 1;
+  }
 
-  chp++;
+
+  //DEBUG
+  printf("##### '%s'\n", chp);
+
+
 
   // begin Aperture Block
   //
-  if (begin_ab_block == 1) {
+  if (begin_sr_block == 1) {
     chp_beg = chp;
 
-    while (*chp) {
-      if ( (*chp < '0') || (*chp > '9') ) break;
-      chp++;
-    }
-    if (!(*chp)) { parse_error("bad SR format, expected character '*'", gs->line_no, linebuf); }
+    chp = skip_whitespace(chp);
 
-    save_char = *chp;
-    *chp = '\0';
-    d_code = atoi(chp_beg);
-    if (d_code < 10) { parse_error("bad AB format, D code must be >= 10", gs->line_no, linebuf); }
+    //DEBUG
+    printf("### chp '%s'\n", chp);
 
-    if (save_char != '*') {
-      parse_error("bad AB format, expected character '*'", gs->line_no, linebuf);
-    }
-
+    if ((!chp) || (!(*chp)) || ((*chp)!='X')) { parse_error("bad SR format, expected character 'X'", gs->line_no, linebuf); }
     chp++;
-    if (!(*chp)) { parse_error("bad AB format, expected character '%'", gs->line_no, linebuf); }
-    if (*chp != '%') { parse_error("bad AB format, expected character '%'", gs->line_no, linebuf); }
+    dn = parse_int(&_x_rep, chp);
+    if (dn<=0) { parse_error("bad SR format, expected number after 'X'", gs->line_no, linebuf); }
 
-    //new_gs = (gerber_state_t *)malloc(sizeof(gerber_state_t));
-    //gerber_state_init_AB(new_gs, gs);
+    chp += dn;
+    if ( (!(*chp)) || ((*chp) != 'Y') ) { parse_error("bad SR format, expected number after 'Y'", gs->line_no, linebuf); }
+    chp ++;
+    dn = parse_int(&_y_rep, chp);
+    if (dn<=0) { parse_error("bad SR format, expected number after 'Y'", gs->line_no, linebuf); }
+    chp += dn;
 
-    ap_node = aperture_data_create_sr_node(gs);
+    if ( (!(*chp)) || ((*chp) != 'I') ) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+    chp ++;
+    dn = parse_double(&_i_distance, chp);
+    if (dn<=0) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+    chp += dn;
+
+    if ( (!(*chp)) || ((*chp) != 'J') ) { parse_error("bad SR format, expected number after 'J'", gs->line_no, linebuf); }
+    chp ++;
+    dn = parse_double(&_j_distance, chp);
+    if (dn<=0) { parse_error("bad SR format, expected number after 'J'", gs->line_no, linebuf); }
+    chp += dn;
+
+    //DEBUG
+    printf("## SR start (%i,%i,%f,%f)\n",
+        _x_rep, _y_rep,
+        _i_distance, _j_distance);
+
+    if (*chp != '*') { parse_error("bad SR format, expected end of line '*'", gs->line_no, linebuf); }
+    chp++;
+    if (*chp != '%') { parse_error("bad SR format, expected end of line '%'", gs->line_no, linebuf); }
+
+    name = gs->absr_lib_root_gs->sr_name;
+    ap_node = aperture_data_create_absr_node(name, gs, 0);
     if (!ap_node) {
       fprintf(stderr, "ERROR: could not allocate ap_node (memory exhuastion?), exiting\n");
       exit(-1);
     }
-    ap_node->gs->sr_root_gs->sr_active = 1;
+    ap_node->gs->absr_lib_root_gs->absr_active = 1;
     ap_node->gs->gerber_read_state = GRS_NONE;
+    ap_node->gs->name = name;
+
+    ap_node->x_rep = _x_rep;
+    ap_node->y_rep = _y_rep;
+    ap_node->i_distance = _i_distance;
+    ap_node->j_distance = _j_distance;
 
     if (!(gs->aperture_head)) { gs->aperture_head = ap_node; }
     else                      { gs->aperture_cur->next = ap_node; }
@@ -1601,37 +1675,63 @@ void parse_sr(gerber_state_t *gs, char *linebuf) {
 
   }
 
-  // end Aperture Block
+  // end Step Repeat
   //
   else {
 
-    if (gs->ab_lib_parent_gs == NULL) {
-      parse_error("found end of AB without beginning", gs->line_no, linebuf);
+    //DEBUG
+    printf("## parse_sr end\n");
+
+    if (gs->absr_lib_parent_gs == NULL) {
+      parse_error("found end of SR without beginning", gs->line_no, linebuf);
     }
 
-    // Since we've tied off the AB, we go up the stack of ABs and make
+    if (gs->absr_code != AD_ENUM_STEP_REPEAT) {
+      parse_error("found end of SR without beginning (inside AB?)", gs->line_no, linebuf);
+    }
+
+    // Since we've tied off the SR, we go up the stack of SRs and make
     // sure the root is pointing to the parent for further processing.
     //
-    gs->ab_lib_root_gs->ab_lib_active_gs = gs->ab_lib_parent_gs;
+    gs->absr_lib_root_gs->absr_lib_active_gs = gs->absr_lib_parent_gs;
 
-    gs->ab_active = 0;
+    gs->absr_active = 0;
 
     // If we've tied the AB and we're one below the root, we've stopped processing
     // the AB and need to updat the root accordingly.
     //
-    if (gs->ab_lib_depth==1) {
-      gs->ab_lib_parent_gs->ab_active=0;
+    if (gs->absr_lib_depth==1) {
+      gs->absr_lib_parent_gs->absr_active=0;
     }
-    //new_gs->gerber_read_state = GRS_NONE;
+
+    //---
+
+    //WIP
+    add_flash(gs, 0,0, gs->name);
+
+    /*
+    contour_list_nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
+    contour_list_nod->next = NULL;
+
+    contour_nod = (contour_ll_t *)malloc(sizeof(contour_ll_t));
+    memset(contour_nod, 0, sizeof(contour_ll_t));
+    contour_nod->d_name = gs->sr_name;
+    contour_nod->polarity = gs->polarity;
+    contour_list_nod->c = contour_nod;
+
+    if (gs->contour_list_head == NULL) { gs->contour_list_head = contour_list_nod; }
+    else                               { gs->contour_list_cur->next = contour_list_nod; }
+
+    gs->contour_list_cur = contour_list_nod;
+    */
+
+    //---
 
   }
 
   gs->gerber_read_state = GRS_NONE;
 
   free(linebuf);
-  */
-
-
 }
 
 // File attributes
@@ -1851,7 +1951,40 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
 
 //------------------------
 
+gerber_item_ll_t *gerber_item_create(int type) {
+  gerber_item_ll_t *item;
+
+  item = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item->type = type;
+
+  return item;
+}
+
+gerber_item_ll_t *gerber_item_add(gerber_state_t *gs, gerber_item_ll_t *item) {
+  if (!gs->item_head) {
+    gs->item_head = item;
+    gs->item_tail = item;
+    return item;
+  }
+
+  gs->item_tail->next = item;
+  gs->item_tail = item;
+  return item;
+}
+
+void add_lp(gerber_state_t *gs, int polarity) {
+  gerber_item_ll_t *nod;
+
+  nod = gerber_item_create(GERBER_LP);
+  nod->polarity = polarity;
+
+  gerber_item_add(gs, nod);
+}
+
 void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name) {
+
+  gerber_item_ll_t *item_nod;
+
   contour_ll_t *contour_nod;
   contour_list_ll_t *contour_list_nod;
 
@@ -1876,6 +2009,16 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
     gs->contour_list_cur->next = contour_list_nod;
   }
   gs->contour_list_cur = contour_list_nod;
+
+  //---
+
+  item_nod = gerber_item_create(GERBER_D3);
+  item_nod->d_name = aperture_name;
+  item_nod->x = cur_x;
+  item_nod->y = cur_y;
+  item_nod->polarity = gs->polarity;
+
+  gerber_item_add(gs, item_nod);
 }
 
 //------------------------
@@ -1887,6 +2030,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
   contour_ll_t *contour_nod;
   contour_list_ll_t *contour_list_nod;
   int prev_d_state;
+
+  gerber_item_ll_t *item_nod;
 
   prev_x = gs->cur_x;
   prev_y = gs->cur_y;
@@ -1952,6 +2097,16 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
         contour_nod->next  = NULL;
 
         gs->contour_head = gs->contour_cur = contour_nod;
+
+        //--
+
+        item_nod = gerber_item_create(GERBER_G36);
+        item_nod->d_name = gs->current_aperture;
+        item_nod->x = prev_x;
+        item_nod->y = prev_y;
+        item_nod->polarity = gs->polarity;
+        gerber_item_add(gs, item_nod);
+
       }
 
       contour_nod = (contour_ll_t *)malloc(sizeof(contour_ll_t));
@@ -1964,6 +2119,17 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
       gs->contour_cur->next = contour_nod;
       gs->contour_cur = contour_nod;
+
+      //--
+
+      item_nod = gerber_item_create(GERBER_G36);
+      item_nod->d_name = gs->current_aperture;
+      item_nod->x = cur_x;
+      item_nod->y = cur_x;
+      item_nod->polarity = gs->polarity;
+      gerber_item_add(gs, item_nod);
+
+
     }
 
     // need to tie off region
@@ -2148,6 +2314,59 @@ void parse_g75(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 void parse_m02(gerber_state_t *gs, char *linebuf) {
+  gerber_state_t *gs_root=NULL;
+  int xx=0;
+
+  gs->eof = 1;
+
+  // allow for slobby AB and SR....
+  //
+  gs_root = gs->absr_lib_root_gs;
+  if (gs_root->absr_active) {
+
+    // There's not much to do except go up the chain
+    //
+    while (gs) {
+
+      if (gs->absr_lib_depth==0) {
+        //printf("## adding root flash %i\n", gs->name);
+        //add_flash(gs, 0,0, gs->name);
+        break;
+      }
+
+      //DEBUG
+      if (gs->absr_code == AD_ENUM_BLOCK) {
+
+        printf("## sloppy end of AB\n");
+
+      }
+      else if (gs->absr_code == AD_ENUM_STEP_REPEAT) {
+
+        printf("# >>>adding flash %i to %i\n", gs->name, gs->absr_lib_parent_gs->id);
+        add_flash(gs->absr_lib_parent_gs, 0,0, gs->name);
+
+        dump_contour(gs, xx);
+        xx++;
+
+        printf("## sloppy end of SR\n");
+      }
+      else { printf("## sloppy end of what %i?\n", gs->absr_code); }
+
+      if (gs->absr_lib_parent_gs == NULL) {
+        parse_error("cleaning up sloppy AB/SR at M02, found end of AB/SR without beginning", gs->line_no, linebuf);
+      }
+      gs->absr_lib_root_gs->absr_lib_active_gs = gs->absr_lib_parent_gs;
+      gs->absr_active = 0;
+      if (gs->absr_lib_depth==1) {
+        gs->absr_lib_parent_gs->absr_active=0;
+      }
+
+      gs = gs->absr_lib_parent_gs;
+
+    }
+
+  }
+
   gs->eof = 1;
 }
 
@@ -2223,7 +2442,48 @@ enum {
   APERTURE_BLOCK,
 } aperture_enum;
 
-void dump_information(gerber_state_t *gs) {
+void dump_contour(gerber_state_t *gs, int level) {
+  int i, j, k, n=0, verbose_print=1;
+  int cur_contour_list = 0;
+
+  aperture_data_t *adb;
+  contour_list_ll_t *cl;
+  contour_ll_t *c;
+
+  printf("\n");
+  for (i=0; i<level; i++){ printf(" "); }
+  printf("# lvl:%i contour_list\n", level);
+
+  cur_contour_list = 0;
+  cl = gs->contour_list_head;
+  while (cl) {
+
+    for (i=0; i<level; i++){ printf(" "); }
+
+    printf("# lvl:%i [%i] contour_list\n", level, cur_contour_list);
+
+    k=0;
+    c = cl->c;
+
+    for (i=0; i<level; i++){ printf(" "); }
+    printf("#  [%i] contour d_name: %i, region: %i, x,y: (%g,%g), polarity: %i, [", k, c->d_name, c->region, c->x, c->y, c->polarity);
+    while (c) {
+      printf("(%g %g)", c->x, c->y);
+      c = c->next;
+      k++;
+    }
+    printf("]\n");
+
+    cl = cl->next;
+    cur_contour_list++;
+
+  }
+
+  printf("\n");
+
+}
+
+void dump_information(gerber_state_t *gs, int level) {
   int i, j, k, n=0, verbose_print=1;
   int cur_contour_list = 0;
 
@@ -2232,15 +2492,17 @@ void dump_information(gerber_state_t *gs) {
   contour_ll_t *c;
 
   if (verbose_print) {
-    printf("# aperture list:\n");
+    printf("# lvl:%i aperture list:\n", level);
   }
 
   adb = gs->aperture_head;
   k=0;
   while (adb) {
 
+    for (i=0; i<level; i++){ printf(" "); }
+
     if (verbose_print) {
-      printf("#  [%i] name: %i, type: %i, crop_type %i, ", k, adb->name, adb->type, adb->crop_type);
+      printf("# lvl:%i [%i] name: %i, type: %i, crop_type %i, ", level, k, adb->name, adb->type, adb->crop_type);
     }
 
     if (adb->type == APERTURE_CIRCLE) {
@@ -2289,6 +2551,13 @@ void dump_information(gerber_state_t *gs) {
       n = 0;
     }
 
+    else if (adb->type == APERTURE_BLOCK) {
+      if (verbose_print) {
+        printf("# step-repeat: (%i)", adb->name);
+      }
+      n = 0;
+    }
+
     if (verbose_print) {
       for (i=0; i<n; i++) printf(" %g", adb->crop[i]);
       printf("\n");
@@ -2298,12 +2567,16 @@ void dump_information(gerber_state_t *gs) {
     k++;
   }
 
+  printf("# lvl:%i contour_list\n", level);
+
   cur_contour_list = 0;
   cl = gs->contour_list_head;
   while (cl) {
 
+    for (i=0; i<level; i++){ printf(" "); }
+
     if (verbose_print) {
-      printf("# [%i] contour_list\n", cur_contour_list);
+      printf("# lvl:%i [%i] contour_list\n", level, cur_contour_list);
     }
 
     k=0;
@@ -2339,11 +2612,11 @@ int gerber_state_interpret_line(gerber_state_t *root_gs, char *linebuf) {
   int image_parameter_code;
   int function_code;
 
-  gerber_state_t *ab_gs, *gs;
+  gerber_state_t *gs;
 
   gs = root_gs;
-  if (root_gs->ab_active) {
-    gs = root_gs->ab_lib_active_gs;
+  if (root_gs->absr_active) {
+    gs = root_gs->absr_lib_active_gs;
   }
   else {
   }

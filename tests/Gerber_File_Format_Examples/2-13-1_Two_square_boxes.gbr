@@ -1,9 +1,9 @@
-G04 Ucamco ex. 1: Two square boxes* 
-%FSLAX25Y25*%	
-%MOMM*%	
+G04 Ucamco ex. 1: Two square boxes*
+%FSLAX25Y25*%
+%MOMM*%
 %TF.Part,Other,example*%
 %LPD*%
-%ADD10C,0.010*%	
+%ADD10C,0.010*%
 D10*
 X0Y0D02*
 G01*
@@ -11,7 +11,7 @@ X500000Y0D01*
 Y500000D01*
 X0D01*
 Y0D01*
-X600000D02*	
+X600000D02*
 X1100000D01*
 Y500000D01*
 X600000D01*

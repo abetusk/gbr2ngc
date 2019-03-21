@@ -407,13 +407,28 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
   Paths aperture_geom, it_paths;
   Clipper aperture_clip;
 
+  //DEBUG
+  printf("## join_polygon_set\n");
+  debug_gAperture();
+
+  printf("## gs %i [%i] (%p), gs->contour_list_head %p\n",
+      gs->id, gs->name, gs,
+
+      gs->contour_list_head);
+
   for (contour_list = gs->contour_list_head;
        contour_list;
        contour_list = contour_list->next) {
     prev_contour = NULL;
     contour = contour_list->c;
 
+    //DEBUG
+    printf("## cp...\n");
+
     if (contour->region) {
+
+      //DEBUG
+      printf("## cp.region ...\n");
 
       temp_pwh_vec.clear();
       construct_contour_region(temp_pwh_vec, contour);
@@ -438,6 +453,11 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 
       prev_pnt = dtoc( prev_contour->x, prev_contour->y );
       cur_pnt = dtoc( contour->x, contour->y );
+
+      printf("## contour name %i, pnt (%lli,%lli)\n",
+          name,
+          (long long int)cur_pnt.X,
+          (long long int)cur_pnt.Y);
 
       if (gAperture.find(name) == gAperture.end()) {
         fprintf(stderr, "## WARNING: name %i not found in aperture library. Ignoring.\n", name);
@@ -518,7 +538,8 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
       // If it's an aperture block, we've already rendered the geometry
       // and put it into `m_geom`.
       //
-      if (gAperture[name].m_type == AD_ENUM_BLOCK) {
+      if ( (gAperture[name].m_type == AD_ENUM_BLOCK) ||
+           (gAperture[name].m_type == AD_ENUM_STEP_REPEAT) ) {
 
         if (gAperture[name].m_geom.size() < 1) {
           fprintf(stderr, "WARNING: aperture block %i empty, skipping\n", name);

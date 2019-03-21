@@ -867,6 +867,7 @@ int main(int argc, char **argv) {
   // Initalize and load gerber file
   //
   gerber_state_init(&gs);
+
   k = gerber_state_load_file(&gs, gInputFilename);
   if (k < 0) {
     perror(argv[1]);
@@ -874,7 +875,7 @@ int main(int argc, char **argv) {
   }
 
   if (gDebug) {
-    dump_information(&gs);
+    dump_information(&gs, 0);
     exit(1);
   }
 

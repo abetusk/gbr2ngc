@@ -124,7 +124,6 @@ G04 Donut with Square Outside and Round Inside, without rotation*
 G04 Circle aperture creating background*
 %ADD34C,0.001*%
 
-%SRX1Y1I0.00000J0.00000*%
 G04 layer name: sample_macro*
 %LPD*%
 G04 Define background pattern*
@@ -141,15 +140,16 @@ X-20000Y278000D02*
 X143000Y278000D01*
 X180000Y278000D02*
 X343000Y278000D01*
+%SR*%
 %SRX54Y1I0.00300J0.00000*%
 X-18000Y276000D02*
 X-18000Y514000D01*
 X182000Y276000D02*
 X182000Y514000D01*
+%SR*%
 
 G04 flashes, using dark polarity, with macro definitions*
 %SRX1Y2I0.00000J0.30000*%
-G04 *
 D10*
 X0Y0D03*
 D11*
@@ -201,8 +201,6 @@ X120000D03*
 
 G04 flashes, using clear polarity, with macro definitions*
 %LPC*%
-%SRX1Y2I0.00000J0.30000*%
-G04 *
 D10*
 X200000Y0D03*
 D11*
@@ -251,6 +249,7 @@ D32*
 X280000D03*
 D33*
 X320000D03*
+%SR*%
 %LPD*%
-%TF.MD5,E8AE6D42456C556383306C422637E43C*%
+%TF.MD5,E531659D3E7F89B6A3F499A12603E406*%
 M02*
