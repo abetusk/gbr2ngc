@@ -20,6 +20,7 @@
 
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,9 +28,85 @@
 
 #include "gerber_interpreter.h"
 
-void dump_contour(gerber_state_t *gs, int level);
+//void dump_contour(gerber_state_t *gs, int level);
 
 //#define DEBUG_INTERPRETER
+
+void gerber_state_add_item(gerber_state_t *gs, gerber_item_ll_t *item_nod) {
+
+  printf("## adding item %i\n", item_nod->type);
+
+  if (gs->item_head == NULL) { gs->item_head = item_nod; }
+  else                       { gs->item_tail->next = item_nod; }
+  gs->item_tail = item_nod;
+}
+
+gerber_item_ll_t *gerber_item_create(int type, ...) {
+  va_list valist;
+  gerber_item_ll_t *item;
+
+  va_start(valist, type);
+
+  item = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item->type = type;
+  switch (type) {
+
+    case GERBER_MO:
+      item->units_metric = va_arg(valist, int);
+      break;
+
+    case GERBER_AD:
+    case GERBER_ADE:
+      item->aperture = va_arg(valist, aperture_data_t *);
+      break;
+
+    case GERBER_AM:
+      item->aperture_macro = va_arg(valist, am_ll_lib_t *);
+      break;
+
+    case GERBER_LP:
+      item->polarity = va_arg(valist, int);
+      break;
+
+    case GERBER_SR:
+      item->step_repeat = va_arg(valist, gerber_state_t *);
+      break;
+
+    case GERBER_AB:
+      item->aperture_block = va_arg(valist, gerber_state_t *);
+      break;
+
+    case GERBER_D10P:
+      item->d_name = va_arg(valist, int);
+      break;
+
+    case GERBER_SEGMENT:
+      item->region_head = va_arg(valist, gerber_region_t *);
+      item->region_tail = item->region_head;
+      break;
+
+    case GERBER_REGION:
+      item->region_head = va_arg(valist, gerber_region_t *);
+      item->region_tail = va_arg(valist, gerber_region_t *);
+      break;
+
+    default: break;
+  }
+
+  va_end(valist);
+
+  return item;
+}
+
+gerber_item_ll_t *gerber_item_create_xx(int type) {
+  gerber_item_ll_t *item;
+
+  item = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item->type = type;
+
+  return item;
+}
+
 
 int (*function_code_handler[13])(gerber_state_t *, char *);
 
@@ -90,12 +167,14 @@ void gerber_state_init(gerber_state_t *gs) {
 
   gs->cur_x = 0.0;
   gs->cur_y = 0.0;
+  gs->cur_i = 0.0;
+  gs->cur_j = 0.0;
 
-  gs->gerber_item_head = NULL;
-  gs->gerber_item_tail = NULL;
+  gs->item_head = NULL;
+  gs->item_tail = NULL;
 
-  gs->contour_head = gs->contour_cur = NULL;
-  gs->contour_list_head = gs->contour_list_cur = NULL;
+  //gs->contour_head = gs->contour_cur = NULL;
+  //gs->contour_list_head = gs->contour_list_cur = NULL;
 
   gs->am_lib_head = NULL;
   gs->am_lib_tail = NULL;
@@ -207,10 +286,10 @@ aperture_data_t *aperture_data_create_absr_node( int absr_name,
   gs_child->item_head = NULL;
   gs_child->item_tail = NULL;
 
-  gs_child->contour_head = NULL;
-  gs_child->contour_cur = NULL;
-  gs_child->contour_list_head = NULL;
-  gs_child->contour_list_cur = NULL;
+  //gs_child->contour_head = NULL;
+  //gs_child->contour_cur = NULL;
+  //gs_child->contour_list_head = NULL;
+  //gs_child->contour_list_cur = NULL;
 
   gs_child->am_lib_head = NULL;
   gs_child->am_lib_tail = NULL;
@@ -231,11 +310,6 @@ aperture_data_t *aperture_data_create_absr_node( int absr_name,
 
   gs_parent->absr_lib_root_gs->sr_name--;
 
-
-  //DEBUG
-  printf("###### gs_child->absr_lib_root_gs %p\n", gs_child->absr_lib_root_gs);
-
-
   //--
 
   string_ll_init(&(gs_child->string_ll_buf));
@@ -248,9 +322,19 @@ aperture_data_t *aperture_data_create_absr_node( int absr_name,
 //------------------------
 
 void gerber_state_clear(gerber_state_t *gs) {
-  contour_list_ll_t *contour_list_nod, *prev_contour_list_nod;
-  contour_ll_t *contour_nod, *prev_contour_nod;
-  aperture_data_t *aperture_nod, *prev_aperture_nod;
+  gerber_item_ll_t *item_nod;
+  gerber_item_ll_t *item_prv;
+
+  gerber_region_t *region_nod;
+  gerber_region_t *region_prv;
+
+  //contour_list_ll_t *contour_list_nod;
+  //contour_list_ll_t *prev_contour_list_nod;
+  //contour_ll_t *contour_nod;
+  //contour_ll_t *prev_contour_nod;
+
+  aperture_data_t *aperture_nod;
+  aperture_data_t *prev_aperture_nod;
 
   if (gs->units_str[0])       { free(gs->units_str[0]); }
   if (gs->units_str[1])       { free(gs->units_str[1]); }
@@ -259,6 +343,21 @@ void gerber_state_clear(gerber_state_t *gs) {
   if (gs->fs_coord_value[0])  { free(gs->fs_coord_value[0]); }
   if (gs->fs_coord_value[1])  { free(gs->fs_coord_value[1]); }
 
+  item_nod = gs->item_head;
+  while (item_nod) {
+    region_nod = item_nod->region_head;
+    while (region_nod) {
+      region_prv = region_nod;
+      region_nod = region_nod->next;
+      free(region_prv);
+    }
+
+    item_prv = item_nod;
+    item_nod = item_nod->next;
+    free(item_prv);
+  }
+
+  /*
   contour_list_nod = gs->contour_list_head;
   while (contour_list_nod) {
     contour_nod = contour_list_nod->c;
@@ -272,6 +371,7 @@ void gerber_state_clear(gerber_state_t *gs) {
     contour_list_nod = contour_list_nod->next;
     free(prev_contour_list_nod);
   }
+  */
 
   aperture_nod = gs->aperture_head;
   while (aperture_nod) {
@@ -698,12 +798,19 @@ void parse_ip(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 void parse_mo(gerber_state_t *gs, char *linebuf) {
+  gerber_item_ll_t *item_nod;
   char *chp;
 
   chp = linebuf+3;
-  if      ( (chp[0] == 'I') && (chp[1] = 'N') ) gs->units_metric = 0;
-  else if ( (chp[0] == 'M') && (chp[1] = 'N') ) gs->units_metric = 1;
-  else parse_error("bad MO format", gs->line_no, linebuf);
+  if      ( (chp[0] == 'I') && (chp[1] = 'N') ) { gs->units_metric = 0; }
+  else if ( (chp[0] == 'M') && (chp[1] = 'N') ) { gs->units_metric = 1; }
+  else {parse_error("bad MO format", gs->line_no, linebuf); }
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_MO;
+  item_nod->units_metric = gs->units_metric;
+
+  gerber_state_add_item(gs, item_nod);
 
   gs->unit_init = 1;
 }
@@ -747,20 +854,14 @@ void print_aperture_data(gerber_state_t *gs) {
 // The array of numbers are separated by an 'X'.
 //
 void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
+  int i, complete=0, n=0, param_count=0;
   char *chp, *s, ch, *chp_end=NULL;
   long int d_code;
-  int complete=0, n=0, param_count=0;
 
-  int i;
-
+  gerber_item_ll_t *item_nod;
   aperture_data_t *ap_db;
 
   chp = linebuf + 3;
-
-#ifdef DEBUG_INTERPRETER
-  printf("## parse extended ad : %s\n", linebuf);
-  printf("## parse extended chp: %s\n", chp);
-#endif
 
   if (*chp != 'D') { parse_error("bad AD format", gs->line_no, linebuf); }
   chp++;
@@ -778,10 +879,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   if (!chp[n]) { parse_error("bad AD format, premature eol", gs->line_no, linebuf); }
   if (n<2) { parse_error("bad AD format, expected aperture macro name", gs->line_no, linebuf); }
 
-#ifdef DEBUG_INTERPRETER
-  printf("## dcode %i\n", (int)d_code);
-#endif
-
   ap_db = (aperture_data_t *)malloc(sizeof(aperture_data_t));
   memset(ap_db, 0, sizeof(aperture_data_t));
   ap_db->next = NULL;
@@ -791,15 +888,7 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   ap_db->type = AD_ENUM_MACRO;
   ap_db->gs = NULL;
 
-#ifdef DEBUG_INTERPRETER
-  printf("## ap_db->macro_name: %s\n", ap_db->macro_name); fflush(stdout);
-#endif
-
   chp += n;
-
-#ifdef DEBUG_INTERPRETER
-  printf("## chp: %s\n", chp); fflush(stdout);
-#endif
 
   param_count=0;
   for (n=0; (chp[n]) && (chp[n]!='*'); n++) {
@@ -807,10 +896,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
       param_count++;
     }
   }
-
-#ifdef DEBUG_INTERPRETER
-  printf("## param_count: %i\n", param_count); fflush(stdout);
-#endif
 
   ap_db->macro_param_count = param_count;
   if (param_count>0) {
@@ -826,10 +911,6 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
       ch = *chp_end;
       *chp_end = '\0';
 
-#ifdef DEBUG_INTERPRETER
-      printf("# converting %s\n", chp); fflush(stdout);
-#endif
-
       ap_db->macro_param[i] = strtod(chp, NULL);
 
       *chp_end = ch;
@@ -842,16 +923,10 @@ void parse_extended_ad(gerber_state_t *gs, char *linebuf) {
   else                      { gs->aperture_cur->next = ap_db; }
   gs->aperture_cur = ap_db;
 
-#ifdef DEBUG_INTERPRETER
-  printf("## mactro_param[%i]:", ap_db->macro_param_count);
-  for (i=0; i<ap_db->macro_param_count; i++) {
-    printf(" %f", ap_db->macro_param[i]);
-  }
-  printf("\n");
-  printf("## ad end\n");
-  print_aperture_data(gs);
-  fflush(stdout);
-#endif
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_ADE;
+  item_nod->aperture = ap_db;
+  gerber_state_add_item(gs, item_nod);
 
   gs->gerber_read_state = GRS_NONE;
 }
@@ -862,6 +937,7 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   char aperture_code;
   int d_code, complete=0, n=0;
 
+  gerber_item_ll_t *item_nod;
   aperture_data_t *ap_db;
 
   // handle multi line AD
@@ -952,6 +1028,11 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig) {
   gs->aperture_cur = ap_db;
 
   gs->gerber_read_state = GRS_NONE;
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_AD;
+  item_nod->aperture = ap_db;
+  gerber_state_add_item(gs, item_nod);
 
   free(linebuf);
 }
@@ -1420,6 +1501,8 @@ void am_lib_print(gerber_state_t *gs) {
 void parse_am(gerber_state_t *gs, char *linebuf) {
   char *chp=NULL, *dup_str=NULL;
   int i, n=0, complete=0;
+
+  gerber_item_ll_t *item_nod;
   am_ll_node_t *am_nod, *am_nod_head;
   am_ll_lib_t *am_lib_nod;
 
@@ -1439,17 +1522,9 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   dup_str = string_ll_dup_str(&(gs->string_ll_buf));
   string_ll_free(&(gs->string_ll_buf));
 
-#ifdef DEBUG_INTERPRETER
-  printf("### AM %s\n", dup_str);
-#endif
-
   // skip "%AM"
   //
   chp = dup_str+3;
-
-#ifdef DEBUG_INTERPRETER
-  printf("### chp: %s\n", chp);
-#endif
 
   // scan for end of line ('*' token denotes eol) and
   // save the macro name.
@@ -1459,10 +1534,6 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   am_nod = am_nod_head;
 
   chp += n+1;
-
-#ifdef DEBUG_INTERPRETER
-  printf("## am_nod_head(%p) %s\n", am_nod_head, am_nod_head->name);
-#endif
 
   while ((*chp) && ((*chp) != '%')) {
 
@@ -1509,9 +1580,11 @@ void parse_am(gerber_state_t *gs, char *linebuf) {
   else                  { gs->am_lib_head       = am_lib_nod; }
   gs->am_lib_tail = am_lib_nod;
 
-#ifdef DEBUG_INTERPRETER
-  am_lib_print(gs);
-#endif
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_AM;
+  item_nod->aperture_macro = am_lib_nod;
+  gerber_state_add_item(gs, item_nod);
 
   return;
 
@@ -1526,15 +1599,22 @@ am_parse_error:
 
 //------------------------
 
+// deprecated.
+// ignored.
+//
 void parse_ln(gerber_state_t *gs, char *linebuf) {
   //printf("# ln '%s'\n", linebuf);
 }
 
 //------------------------
 
+// load polarity
+//
 void parse_lp(gerber_state_t *gs, char *linebuf) {
   int polarity = -1, ch;
   char *chp;
+
+  gerber_item_ll_t *item_nod;
 
   chp = linebuf + 3;
 
@@ -1554,28 +1634,26 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
 
   }
 
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_LP;
+  item_nod->polarity = gs->polarity;
+  gerber_state_add_item(gs, item_nod);
+
+  return;
 }
 
 //------------------------
 
+// step repeat.
+//
 void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
-  char *linebuf;
-  char *chp_beg, *chp, *s, ch;
-  char save_char;
-  int d_code, complete=0, n=0;
-
-  int begin_sr_block = -1;
-  aperture_data_t *ap_node;
-
-  int dn;
-
-  int _x_rep=0, _y_rep=0;
+  char *linebuf, *chp_beg, *chp, *s, ch, save_char;
+  int name=0, d_code, complete=0, n=0, dn;
+  int begin_sr_block = -1, _x_rep=0, _y_rep=0;
   double _i_distance=0.0, _j_distance=0.0;
 
-  int name=0;
-
-  contour_ll_t *contour_nod;
-  contour_list_ll_t *contour_list_nod;
+  aperture_data_t *ap_node;
+  gerber_item_ll_t *item_nod;
 
   // handle multi line AD
   //
@@ -1606,20 +1684,12 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   }
 
 
-  //DEBUG
-  printf("##### '%s'\n", chp);
-
-
-
   // begin Aperture Block
   //
   if (begin_sr_block == 1) {
     chp_beg = chp;
 
     chp = skip_whitespace(chp);
-
-    //DEBUG
-    printf("### chp '%s'\n", chp);
 
     if ((!chp) || (!(*chp)) || ((*chp)!='X')) { parse_error("bad SR format, expected character 'X'", gs->line_no, linebuf); }
     chp++;
@@ -1644,11 +1714,6 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
     dn = parse_double(&_j_distance, chp);
     if (dn<=0) { parse_error("bad SR format, expected number after 'J'", gs->line_no, linebuf); }
     chp += dn;
-
-    //DEBUG
-    printf("## SR start (%i,%i,%f,%f)\n",
-        _x_rep, _y_rep,
-        _i_distance, _j_distance);
 
     if (*chp != '*') { parse_error("bad SR format, expected end of line '*'", gs->line_no, linebuf); }
     chp++;
@@ -1678,9 +1743,6 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   // end Step Repeat
   //
   else {
-
-    //DEBUG
-    printf("## parse_sr end\n");
 
     if (gs->absr_lib_parent_gs == NULL) {
       parse_error("found end of SR without beginning", gs->line_no, linebuf);
@@ -1730,6 +1792,11 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   }
 
   gs->gerber_read_state = GRS_NONE;
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_SR;
+  item_nod->step_repeat = gs;
+  gerber_state_add_item(gs, item_nod);
 
   free(linebuf);
 }
@@ -1785,6 +1852,7 @@ void parse_d03(gerber_state_t *gs, char *linebuf) {
 //------------------------
 
 void parse_d10p(gerber_state_t *gs, char *linebuf) {
+  gerber_item_ll_t *item_nod;
   int d_code = -1;
 
   if (*linebuf != 'D') parse_error("expected D op code", gs->line_no, NULL);
@@ -1792,9 +1860,15 @@ void parse_d10p(gerber_state_t *gs, char *linebuf) {
 
   d_code = atoi(linebuf);
 
-  if (d_code < 10) parse_error("D code < 10", gs->line_no, NULL);
+  if (d_code < 10) { parse_error("D code < 10", gs->line_no, NULL); }
   gs->current_aperture = d_code;
 
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_D10P;
+  item_nod->d_name = d_code;
+  gerber_state_add_item(gs, item_nod);
+
+  return;
 }
 
 //------------------------
@@ -1915,6 +1989,47 @@ char *parse_single_int(gerber_state_t *gs, int *val, char *s) {
 //------------------------
 
 void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, int aperture_name) {
+
+  gerber_item_ll_t *item_nod;
+  gerber_region_t *region_nod;
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  //item_nod->next = NULL;
+
+  region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+  //region_nod->next = NULL;
+
+  item_nod->type = GERBER_REGION;
+  item_nod->d_name = aperture_name;
+  item_nod->polarity = gs->polarity;
+  //item_nod->region = 0;
+
+  //region_nod->type = GERBER_REGION;
+  //region_nod->d_name = aperture_name;
+  region_nod->x = prev_x;
+  region_nod->y = prev_y;
+  //region_nod->region = 0;
+  //region_nod->polarity = gs->polarity;
+
+  item_nod->region_head = region_nod;
+  item_nod->region_tail = region_nod;
+
+  region_nod->next = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+  region_nod = region_nod->next;
+  //region_nod->d_name = aperture_name;
+  region_nod->x = cur_x;
+  region_nod->y = cur_y;
+  //region_nod->region = 0;
+  //region_nod->polarity = gs->polarity;
+  region_nod->next = NULL;
+
+  gerber_state_add_item(gs, item_nod);
+
+  return;
+
+  //--
+
+  /*
   contour_ll_t *contour_nod;
   contour_list_ll_t *contour_list_nod;
 
@@ -1946,20 +2061,13 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
     gs->contour_list_cur->next = contour_list_nod;
   }
   gs->contour_list_cur = contour_list_nod;
+  */
 
 }
 
 //------------------------
 
-gerber_item_ll_t *gerber_item_create(int type) {
-  gerber_item_ll_t *item;
-
-  item = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-  item->type = type;
-
-  return item;
-}
-
+/*
 gerber_item_ll_t *gerber_item_add(gerber_state_t *gs, gerber_item_ll_t *item) {
   if (!gs->item_head) {
     gs->item_head = item;
@@ -1971,6 +2079,7 @@ gerber_item_ll_t *gerber_item_add(gerber_state_t *gs, gerber_item_ll_t *item) {
   gs->item_tail = item;
   return item;
 }
+*/
 
 void add_lp(gerber_state_t *gs, int polarity) {
   gerber_item_ll_t *nod;
@@ -1978,12 +2087,31 @@ void add_lp(gerber_state_t *gs, int polarity) {
   nod = gerber_item_create(GERBER_LP);
   nod->polarity = polarity;
 
-  gerber_item_add(gs, nod);
+  gerber_state_add_item(gs, nod);
 }
 
 void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name) {
 
   gerber_item_ll_t *item_nod;
+
+  //item_nod = (gerber_item_ll_t *)malloc(sizeof(gerber_item_ll_t));
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+
+  item_nod->type = GERBER_D3;
+  item_nod->d_name = aperture_name;
+  item_nod->x = cur_x;
+  item_nod->y = cur_y;
+  item_nod->polarity = gs->polarity;
+
+  if (gs->item_head == NULL) { gs->item_head = item_nod; }
+  else                       { gs->item_tail->next = item_nod; }
+  gs->item_tail = item_nod;
+
+  return;
+
+  //---
+
+  /*
 
   contour_ll_t *contour_nod;
   contour_list_ll_t *contour_list_nod;
@@ -2019,6 +2147,8 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
   item_nod->polarity = gs->polarity;
 
   gerber_item_add(gs, item_nod);
+  */
+
 }
 
 //------------------------
@@ -2026,15 +2156,18 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
 void parse_data_block(gerber_state_t *gs, char *linebuf) {
   char *chp;
   unsigned char state=0;
-  double prev_x, prev_y;
-  contour_ll_t *contour_nod;
-  contour_list_ll_t *contour_list_nod;
+  double prev_x, prev_y, prev_i, prev_j;
+  //contour_ll_t *contour_nod;
+  //contour_list_ll_t *contour_list_nod;
   int prev_d_state;
 
   gerber_item_ll_t *item_nod;
+  gerber_region_t *region_nod;
 
   prev_x = gs->cur_x;
   prev_y = gs->cur_y;
+  prev_i = gs->cur_i;
+  prev_j = gs->cur_j;
   prev_d_state = gs->d_state;
 
   chp = linebuf;
@@ -2080,82 +2213,75 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
   }
 
+  printf("# data block: d:%i, x:%f, y:%f, i:%f, j:%f\n",
+      gs->d_state, (float)gs->cur_x, (float)gs->cur_y, (float)gs->cur_i, (float)gs->cur_j);
+
   // handle region
+  // _item_cur holds the built up item node and region pointers
   //
   if (gs->region) {
 
-    if (gs->d_state == 1) {
+    if (gs->d_state == 2) {
 
-      if (gs->contour_head == NULL) {
+      // Close off previous region, if available
+      //
+      if (gs->_item_cur != NULL) {
+        gerber_state_add_item(gs, gs->_item_cur);
+        gs->_item_cur = NULL;
+      }
 
-        contour_nod = (contour_ll_t *)malloc(sizeof(contour_ll_t));
-        contour_nod->d_name = gs->current_aperture;
-        contour_nod->x = prev_x;
-        contour_nod->y = prev_y;
-        contour_nod->region = 1;
-        contour_nod->polarity = gs->polarity;
-        contour_nod->next  = NULL;
+      // Start a new region
+      //
+      region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+      region_nod->x = gs->cur_x;
+      region_nod->y = gs->cur_y;
+      gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod);
 
-        gs->contour_head = gs->contour_cur = contour_nod;
+    }
 
-        //--
+    else if (gs->d_state == 1) {
 
-        item_nod = gerber_item_create(GERBER_G36);
+      // A region has been started without an initial D02?
+      // Use the previous x/y position to create the starting point
+      // for the region...
+      //
+      if (gs->_item_cur == NULL) {
+
+        region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+        region_nod->x = prev_x;
+        region_nod->y = prev_y;
+        gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod);
+
+        /*
+        item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+        item_nod->type = GERBER_REGION;
         item_nod->d_name = gs->current_aperture;
         item_nod->x = prev_x;
         item_nod->y = prev_y;
+        item_nod->region = 1;
         item_nod->polarity = gs->polarity;
-        gerber_item_add(gs, item_nod);
+
+        gs->_item_cur = item_nod;
+        */
 
       }
 
-      contour_nod = (contour_ll_t *)malloc(sizeof(contour_ll_t));
-      contour_nod->d_name = gs->current_aperture;
-      contour_nod->x = gs->cur_x;
-      contour_nod->y = gs->cur_y;
-      contour_nod->region = 1;
-      contour_nod->polarity = gs->polarity;
-      contour_nod->next = NULL;
+      item_nod = gs->_item_cur;
 
-      gs->contour_cur->next = contour_nod;
-      gs->contour_cur = contour_nod;
+      region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+      region_nod->x = gs->cur_x;
+      region_nod->y = gs->cur_y;
 
-      //--
-
-      item_nod = gerber_item_create(GERBER_G36);
-      item_nod->d_name = gs->current_aperture;
-      item_nod->x = cur_x;
-      item_nod->y = cur_x;
-      item_nod->polarity = gs->polarity;
-      gerber_item_add(gs, item_nod);
-
+      if (item_nod->region_head == NULL) { item_nod->region_head = region_nod; }
+      else                               { item_nod->region_tail->next = region_nod; }
+      item_nod->region_tail = region_nod;
 
     }
 
-    // need to tie off region
-    //
     else {
-
-      if (gs->contour_head) {
-
-        contour_list_nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
-        contour_list_nod->n = 1;
-        contour_list_nod->next = NULL;
-        contour_list_nod->c = gs->contour_head;
-
-        if (!gs->contour_list_head) {
-          gs->contour_list_head = contour_list_nod;
-        }
-        else {
-          gs->contour_list_cur->next = contour_list_nod;
-        }
-        gs->contour_list_cur = contour_list_nod;
-
-        gs->contour_head = NULL;
-        gs->contour_cur= NULL;
-      }
-
+      parse_error("error parsing region block", gs->line_no, NULL);
     }
+
 
   }
   else {
@@ -2164,16 +2290,16 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       add_segment(gs, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->current_aperture);
     }
 
-  }
+    // Move without any realization
+    //
+    else if (gs->d_state == 2) {
 
-  // Move without any realization
-  //
-  if (gs->d_state == 2) {
+    }
 
-  }
+    else if (gs->d_state == 3) {
+      add_flash(gs, gs->cur_x, gs->cur_y, gs->current_aperture);
+    }
 
-  if (gs->d_state == 3) {
-    add_flash(gs, gs->cur_x, gs->cur_y, gs->current_aperture);
   }
 
 }
@@ -2207,7 +2333,7 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
   unsigned int state = 0;
 
   double prev_x, prev_y;
-  contour_ll_t *contour_nod;
+  //contour_ll_t *contour_nod;
 
   prev_x = gs->cur_x;
   prev_y = gs->cur_y;
@@ -2262,21 +2388,39 @@ void parse_g04(gerber_state_t *gs, char *linebuf) {
 // start region
 //
 void parse_g36(gerber_state_t *gs, char *linebuf) {
+
+  gerber_item_ll_t *item_nod;
+
+  /*
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_REGION;
+  item_nod->region = 1;
+  */
+
   gs->g_state = 36;
   gs->region = 1;
-  gs->contour_head = gs->contour_cur = NULL;
 
+  gs->_item_cur = NULL;
 }
 
 //------------------------
 
 void parse_g37(gerber_state_t *gs, char *linebuf) {
 
-  contour_list_ll_t *nod;
+  //contour_list_ll_t *nod;
+  //gerber_item_ll_t *item_nod;
 
   gs->g_state = 37;
   gs->region = 0;
 
+  printf("## g37...\n");
+
+  if (gs->_item_cur != NULL) {
+    gerber_state_add_item(gs, gs->_item_cur);
+    gs->_item_cur = NULL;
+  }
+
+  /*
   // tie off region
   //
   if (gs->contour_head) {
@@ -2296,19 +2440,40 @@ void parse_g37(gerber_state_t *gs, char *linebuf) {
     gs->contour_head = NULL;
     gs->contour_cur = NULL;
   }
+  */
 
 }
 
 //------------------------
 
 void parse_g74(gerber_state_t *gs, char *linebuf) {
+  gerber_item_ll_t *item_nod;
+
   gs->quadrent_mode = QUADRENT_MODE_SINGLE;
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_G74;
+
+  if (gs->item_head == NULL) { gs->item_head = item_nod; }
+  else                       { gs->item_tail->next = item_nod; }
+  gs->item_tail = item_nod;
+
 }
 
 //------------------------
 
 void parse_g75(gerber_state_t *gs, char *linebuf) {
+  gerber_item_ll_t *item_nod;
+
   gs->quadrent_mode = QUADRENT_MODE_MULTI;
+
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  item_nod->type = GERBER_G74;
+
+  if (gs->item_head == NULL) { gs->item_head = item_nod; }
+  else                       { gs->item_tail->next = item_nod; }
+  gs->item_tail = item_nod;
+
 }
 
 //------------------------
@@ -2345,7 +2510,7 @@ void parse_m02(gerber_state_t *gs, char *linebuf) {
         printf("# >>>adding flash %i to %i\n", gs->name, gs->absr_lib_parent_gs->id);
         add_flash(gs->absr_lib_parent_gs, 0,0, gs->name);
 
-        dump_contour(gs, xx);
+        //dump_contour(gs, xx);
         xx++;
 
         printf("## sloppy end of SR\n");
@@ -2442,6 +2607,7 @@ enum {
   APERTURE_BLOCK,
 } aperture_enum;
 
+/*
 void dump_contour(gerber_state_t *gs, int level) {
   int i, j, k, n=0, verbose_print=1;
   int cur_contour_list = 0;
@@ -2482,14 +2648,18 @@ void dump_contour(gerber_state_t *gs, int level) {
   printf("\n");
 
 }
+*/
 
 void dump_information(gerber_state_t *gs, int level) {
   int i, j, k, n=0, verbose_print=1;
   int cur_contour_list = 0;
 
   aperture_data_t *adb;
-  contour_list_ll_t *cl;
-  contour_ll_t *c;
+  //contour_list_ll_t *cl;
+  //contour_ll_t *c;
+
+  gerber_item_ll_t *item_nod;
+  gerber_region_t *region_nod;
 
   if (verbose_print) {
     printf("# lvl:%i aperture list:\n", level);
@@ -2570,8 +2740,9 @@ void dump_information(gerber_state_t *gs, int level) {
   printf("# lvl:%i contour_list\n", level);
 
   cur_contour_list = 0;
-  cl = gs->contour_list_head;
-  while (cl) {
+  //cl = gs->contour_list_head;
+  item_nod = gs->item_head;
+  while (item_nod) {
 
     for (i=0; i<level; i++){ printf(" "); }
 
@@ -2580,18 +2751,20 @@ void dump_information(gerber_state_t *gs, int level) {
     }
 
     k=0;
-    c = cl->c;
+    region_nod = item_nod->region_head;
 
-    while (c) {
+    while (region_nod) {
       if (verbose_print) {
-        printf("#  [%i] contour d_name: %i, region: %i, x,y: (%g,%g), polarity: %i\n", k, c->d_name, c->region, c->x, c->y, c->polarity);
-        printf("# %g %g\n", c->x, c->y);
+        printf("#  [%i] (%g,%g)\n",
+            k,
+            region_nod->x, region_nod->y);
+        //printf("# %g %g\n", c->x, c->y);
       }
-      c = c->next;
+      region_nod = region_nod->next;
       k++;
     }
 
-    cl = cl->next;
+    item_nod = item_nod->next;
     cur_contour_list++;
 
     if (verbose_print) { printf("\n"); }

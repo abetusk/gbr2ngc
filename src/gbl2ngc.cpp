@@ -879,6 +879,9 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  //DEBUG
+  fprintf(stdout, "## cpXXX\n");
+
   // Construct library of atomic shapes and create polygons
   //
   realize_apertures(&gs);

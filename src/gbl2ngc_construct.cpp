@@ -461,6 +461,7 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 
       if (gAperture.find(name) == gAperture.end()) {
         fprintf(stderr, "## WARNING: name %i not found in aperture library. Ignoring.\n", name);
+        fprintf(stdout, "## WARNING: name %i not found in aperture library. Ignoring.\n", name);
         contour = contour->next;
         continue;
       }

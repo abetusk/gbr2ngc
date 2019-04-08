@@ -37,29 +37,44 @@
 //#define GERBER_STATE_LINEBUF 4099
 #define GERBER_STATE_LINEBUF 65537
 
-typedef struct point_link_double_2_type {
-  double x, y;
-  struct point_link_double_2_type *next;
-} point_link_double_2_t;
+struct gerber_item_ll_type;
 
+enum GERBER_ITEM {
+  GERBER_NONE = 0,
+  GERBER_MO,
+  GERBER_D1,
+  GERBER_D2,
+  GERBER_D3,
+  GERBER_D10P,
+  GERBER_AD,
+  GERBER_ADE,
+  GERBER_G36,
+  GERBER_AM,
+  GERBER_G37,
+  GERBER_AB,
+  GERBER_SR,
+  GERBER_LP,
+  GERBER_LM,
+  GERBER_LR,
+  GERBER_LS,
+
+  GERBER_G74,
+  GERBER_G75,
+
+
+  GERBER_SEGMENT,
+  GERBER_REGION,
+};
+
+typedef struct gerber_region_type {
+  double x, y;
+  struct gerber_region_type *next;
+} gerber_region_t;
 
 // a node in the linked list which contains
 // x, y information, d_name information, etc.
 //
-typedef struct gerber_item_ll_type {
-  int type;
-  int d_name;
-  int n;
-  double x, y;
-  int region;
-  int polarity;
-
-  struct gerber_item_ll_type *next;
-} gerber_item_ll_t;
-
-// a node in the linked list which contains
-// x, y information, d_name information, etc.
-//
+/*
 typedef struct contour_ll_type {
   int d_name;
   int n;
@@ -69,15 +84,18 @@ typedef struct contour_ll_type {
 
   struct contour_ll_type *next;
 } contour_ll_t;
+*/
 
 // each node contains a pointer to a contour_ll_types,
 // so basically a list of linked lists.
 //
+/*
 typedef struct contour_list_ll_type {
   int n;
   contour_ll_t *c;
   struct contour_list_ll_type *next;
 } contour_list_ll_t;
+*/
 
 
 // CROP  TYPE
@@ -156,8 +174,6 @@ typedef struct aperture_data_type {
 
 } aperture_data_t;
 
-typedef struct aperture_data_block_type {
-} aperture_data_block_t;
 
 enum GERBER_READ_STATE {
   GRS_NONE = 0,
@@ -185,22 +201,6 @@ enum GERBER_READ_STATE {
 
 // Aperture Definition
 //
-
-enum GERBER_ITEM {
-  GERBER_D1 = 0,
-  GERBER_D2,
-  GERBER_D3,
-  GERBER_AD,
-  GERBER_G36,
-  GERBER_G37,
-  GERBER_AB,
-  GERBER_SR,
-  GERBER_LP,
-  GERBER_LM,
-  GERBER_LR,
-  GERBER_LS,
-
-};
 
 enum AD_ENUM_TYPE {
   AD_ENUM_CIRCLE = 0,
@@ -284,12 +284,19 @@ typedef struct gerber_state_type {
   double cur_i, cur_j;
   int current_aperture;
 
-  aperture_data_t *aperture_head, *aperture_cur;
+  aperture_data_t *aperture_head;
+  aperture_data_t *aperture_cur;
 
-  gerber_item_t *item_head, *item_tail;
+  struct gerber_item_ll_type *item_head;
+  struct gerber_item_ll_type *item_tail;
 
-  contour_ll_t *contour_head, *contour_cur;
-  contour_list_ll_t *contour_list_head, *contour_list_cur;
+  struct gerber_item_ll_type *_item_cur;
+
+  // WIP
+  //contour_ll_t *contour_head;
+  //contour_ll_t *contour_cur;
+  //contour_list_ll_t *contour_list_head;
+  //contour_list_ll_t *contour_list_cur;
 
   am_ll_lib_t *am_lib_head;
   am_ll_lib_t *am_lib_tail;
@@ -324,6 +331,33 @@ typedef struct gerber_state_type {
   struct gerber_state_type *absr_lib_parent_gs;
 
 } gerber_state_t;
+
+// a node in the linked list which contains
+// x, y information, d_name information, etc.
+//
+typedef struct gerber_item_ll_type {
+  int type;
+  int d_name;
+  int n;
+  double x, y;
+  int region;
+  int polarity;
+
+  int units_metric;
+
+  aperture_data_t *aperture;
+  am_ll_lib_t *aperture_macro;
+
+  gerber_region_t *region_head;
+  gerber_region_t *region_tail;
+
+  gerber_state_t *step_repeat;
+  gerber_state_t *aperture_block;
+
+  struct gerber_item_ll_type *next;
+} gerber_item_ll_t;
+
+
 
 void gerber_state_init(gerber_state_t *);
 void gerber_state_clear(gerber_state_t *);

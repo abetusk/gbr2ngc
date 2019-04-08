@@ -1115,6 +1115,12 @@ int realize_step_repeat( gerber_state_t *gs,
   Path empty_path;
   IntPoint dpnt, pnt;
 
+  //DEBUG
+  fprintf(stdout, "##realize_step_repeat...\n");
+  for (ii=0; ii<gApertureName.size(); ii++) {
+    fprintf(stdout, "### gAperture %i\n", gApertureName[ii]);
+  }
+
   join_polygon_set(paths, aperture->gs);
 
   ap.m_geom.clear();
@@ -1287,7 +1293,9 @@ int realize_apertures(gerber_state_t *gs) {
   printf("###<<<AFTER\n");
   
 
-  if (gMinSegmentLength > 0.0) { min_segment_length=gMinSegmentLength; }
+  if (gMinSegmentLength > 0.0) {
+    min_segment_length = gMinSegmentLength;
+  }
 
   for ( aperture = gs->aperture_head ;
         aperture ;
@@ -1401,6 +1409,9 @@ int realize_apertures(gerber_state_t *gs) {
       }
 
     }
+
+    //DEBUG
+    fprintf(stdout, "### adding aperture %i\n", ap.m_name);
 
     gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
     gApertureName.push_back(ap.m_name);

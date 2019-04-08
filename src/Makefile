@@ -1,12 +1,13 @@
 INSTALLDIR=/usr/local/bin
 
 src = $(wildcard *.cpp *.c)
+csrc = $(wildcard *.c)
 obj_cpp = $(src:.cpp=.o)
 obj = $(obj_cpp:.c=.o)
 hdr = $(wildcard *.h *.hpp)
 
 CC=gcc
-COPT=-g
+COPT=-g -lm -DGERBER_TEST
 
 CXX=g++
 CXXOPT = -g --std=c++11
@@ -24,6 +25,9 @@ CPPFN = $(wildcard *.cpp)
 
 gbl2ngc: $(obj) $(hdr)
 	$(CXX) $(CXXOPT) -o $@ $^ $(CXXLIBS)
+
+test_gerber_interpreter: $(csrc)
+	$(CC) $(COPT) -o $@ $^ $(COPT)
 
 .PHONY: debug
 debug: $(obj) $(hdr)
