@@ -33,9 +33,6 @@
 //#define DEBUG_INTERPRETER
 
 void gerber_state_add_item(gerber_state_t *gs, gerber_item_ll_t *item_nod) {
-
-  printf("## adding item %i\n", item_nod->type);
-
   if (gs->item_head == NULL) { gs->item_head = item_nod; }
   else                       { gs->item_tail->next = item_nod; }
   gs->item_tail = item_nod;
@@ -88,6 +85,9 @@ gerber_item_ll_t *gerber_item_create(int type, ...) {
     case GERBER_REGION:
       item->region_head = va_arg(valist, gerber_region_t *);
       item->region_tail = va_arg(valist, gerber_region_t *);
+      break;
+
+    case GERBER_M02:
       break;
 
     default: break;
@@ -1738,6 +1738,14 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
     else                      { gs->aperture_cur->next = ap_node; }
     gs->aperture_cur = ap_node;
 
+    //---
+
+    gs->_item_cur = gerber_item_create(GERBER_SR, ap_node->gs);
+    gs->_item_cur->sr_x = _x_rep;
+    gs->_item_cur->sr_y = _y_rep;
+    gs->_item_cur->sr_i = _i_distance;
+    gs->_item_cur->sr_j = _j_distance;
+
   }
 
   // end Step Repeat
@@ -1751,6 +1759,17 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
     if (gs->absr_code != AD_ENUM_STEP_REPEAT) {
       parse_error("found end of SR without beginning (inside AB?)", gs->line_no, linebuf);
     }
+
+    //----
+
+    //WIP
+    //add_flash(gs, 0,0, gs->name);
+
+    gerber_state_add_item(gs->absr_lib_parent_gs, gs->absr_lib_parent_gs->_item_cur);
+    gs->absr_lib_parent_gs->_item_cur = NULL;
+
+    //----
+
 
     // Since we've tied off the SR, we go up the stack of SRs and make
     // sure the root is pointing to the parent for further processing.
@@ -1767,9 +1786,6 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
     }
 
     //---
-
-    //WIP
-    add_flash(gs, 0,0, gs->name);
 
     /*
     contour_list_nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
@@ -1793,10 +1809,12 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
 
   gs->gerber_read_state = GRS_NONE;
 
+  /*
   item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
   item_nod->type = GERBER_SR;
   item_nod->step_repeat = gs;
   gerber_state_add_item(gs, item_nod);
+  */
 
   free(linebuf);
 }
@@ -1999,7 +2017,7 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
   //region_nod->next = NULL;
 
-  item_nod->type = GERBER_REGION;
+  item_nod->type = GERBER_SEGMENT;
   item_nod->d_name = aperture_name;
   item_nod->polarity = gs->polarity;
   //item_nod->region = 0;
@@ -2094,18 +2112,17 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
 
   gerber_item_ll_t *item_nod;
 
+
   //item_nod = (gerber_item_ll_t *)malloc(sizeof(gerber_item_ll_t));
   item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
 
-  item_nod->type = GERBER_D3;
+  item_nod->type = GERBER_FLASH;
   item_nod->d_name = aperture_name;
   item_nod->x = cur_x;
   item_nod->y = cur_y;
   item_nod->polarity = gs->polarity;
 
-  if (gs->item_head == NULL) { gs->item_head = item_nod; }
-  else                       { gs->item_tail->next = item_nod; }
-  gs->item_tail = item_nod;
+  gerber_state_add_item(gs, item_nod);
 
   return;
 
@@ -2157,8 +2174,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
   char *chp;
   unsigned char state=0;
   double prev_x, prev_y, prev_i, prev_j;
-  //contour_ll_t *contour_nod;
-  //contour_list_ll_t *contour_list_nod;
   int prev_d_state;
 
   gerber_item_ll_t *item_nod;
@@ -2213,8 +2228,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
   }
 
-  printf("# data block: d:%i, x:%f, y:%f, i:%f, j:%f\n",
-      gs->d_state, (float)gs->cur_x, (float)gs->cur_y, (float)gs->cur_i, (float)gs->cur_j);
+  //printf("# data block: d:%i, x:%f, y:%f, i:%f, j:%f\n",
+  //    gs->d_state, (float)gs->cur_x, (float)gs->cur_y, (float)gs->cur_i, (float)gs->cur_j);
 
   // handle region
   // _item_cur holds the built up item node and region pointers
@@ -2235,7 +2250,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
       region_nod->x = gs->cur_x;
       region_nod->y = gs->cur_y;
-      gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod);
+
+      gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod, region_nod);
 
     }
 
@@ -2250,19 +2266,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
         region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
         region_nod->x = prev_x;
         region_nod->y = prev_y;
-        gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod);
 
-        /*
-        item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-        item_nod->type = GERBER_REGION;
-        item_nod->d_name = gs->current_aperture;
-        item_nod->x = prev_x;
-        item_nod->y = prev_y;
-        item_nod->region = 1;
-        item_nod->polarity = gs->polarity;
-
-        gs->_item_cur = item_nod;
-        */
+        gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod, region_nod);
 
       }
 
@@ -2391,12 +2396,6 @@ void parse_g36(gerber_state_t *gs, char *linebuf) {
 
   gerber_item_ll_t *item_nod;
 
-  /*
-  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-  item_nod->type = GERBER_REGION;
-  item_nod->region = 1;
-  */
-
   gs->g_state = 36;
   gs->region = 1;
 
@@ -2407,40 +2406,13 @@ void parse_g36(gerber_state_t *gs, char *linebuf) {
 
 void parse_g37(gerber_state_t *gs, char *linebuf) {
 
-  //contour_list_ll_t *nod;
-  //gerber_item_ll_t *item_nod;
-
   gs->g_state = 37;
   gs->region = 0;
-
-  printf("## g37...\n");
 
   if (gs->_item_cur != NULL) {
     gerber_state_add_item(gs, gs->_item_cur);
     gs->_item_cur = NULL;
   }
-
-  /*
-  // tie off region
-  //
-  if (gs->contour_head) {
-    nod = (contour_list_ll_t *)malloc(sizeof(contour_list_ll_t));
-    nod->next = NULL;
-    nod->c = gs->contour_head;
-    nod->n = 1;
-
-    if (!gs->contour_list_head) {
-      gs->contour_list_head = nod;
-    }
-    else {
-      gs->contour_list_cur->next = nod;
-    }
-    gs->contour_list_cur = nod;
-
-    gs->contour_head = NULL;
-    gs->contour_cur = NULL;
-  }
-  */
 
 }
 
@@ -2480,6 +2452,7 @@ void parse_g75(gerber_state_t *gs, char *linebuf) {
 
 void parse_m02(gerber_state_t *gs, char *linebuf) {
   gerber_state_t *gs_root=NULL;
+  gerber_item_ll_t *item_nod;
   int xx=0;
 
   gs->eof = 1;
@@ -2531,6 +2504,10 @@ void parse_m02(gerber_state_t *gs, char *linebuf) {
     }
 
   }
+
+
+  item_nod = gerber_item_create(GERBER_M02);
+  gerber_state_add_item(gs, item_nod);
 
   gs->eof = 1;
 }

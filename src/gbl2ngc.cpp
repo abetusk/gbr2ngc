@@ -887,7 +887,7 @@ int main(int argc, char **argv) {
   realize_apertures(&gs);
 
   if (gPrintPolygon) {
-    print_polygon_set(&gs);
+    //print_polygon_set(&gs);
     exit(0);
   }
 

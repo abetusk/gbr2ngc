@@ -7,7 +7,8 @@ obj = $(obj_cpp:.c=.o)
 hdr = $(wildcard *.h *.hpp)
 
 CC=gcc
-COPT=-g -lm -DGERBER_TEST
+COPT=-g -lm
+COPT2=-g -lm -DGERBER_TEST
 
 CXX=g++
 CXXOPT = -g --std=c++11
@@ -27,7 +28,7 @@ gbl2ngc: $(obj) $(hdr)
 	$(CXX) $(CXXOPT) -o $@ $^ $(CXXLIBS)
 
 test_gerber_interpreter: $(csrc)
-	$(CC) $(COPT) -o $@ $^ $(COPT)
+	$(CC) $(COPT2) -o $@ $^ $(COPT2)
 
 .PHONY: debug
 debug: $(obj) $(hdr)

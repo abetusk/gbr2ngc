@@ -163,7 +163,7 @@ typedef std::vector< Paths > PathSet;
 
 
 void print_polygon_set(gerber_state_t *gs);
-void join_polygon_set(Paths &result, gerber_state_t *gs);
+int join_polygon_set(Paths &result, gerber_state_t *gs);
 
 //----- export functions
 

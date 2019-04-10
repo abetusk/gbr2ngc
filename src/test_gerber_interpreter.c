@@ -28,6 +28,8 @@
 
 #define N_LINEBUF 4099
 
+void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl);
+
 static void _pws(FILE *fp, int n) {
   int i;
   for (i=0; i<n; i++) { fprintf(fp, " "); }
@@ -62,6 +64,7 @@ char *lookup_type_name(int type) {
     case GERBER_LS: strncpy(buf, "ls", 1+strlen("ls")); break;
     case GERBER_G74: strncpy(buf, "g74", 1+strlen("g74")); break;
     case GERBER_G75: strncpy(buf, "g75", 1+strlen("g75")); break;
+    case GERBER_FLASH: strncpy(buf, "flash", 1+strlen("flash")); break;
     case GERBER_SEGMENT: strncpy(buf, "segment", 1+strlen("segment")); break;
     case GERBER_REGION: strncpy(buf, "region", 1+strlen("region")); break;
     default:
@@ -77,11 +80,11 @@ void _print_mo(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
 }
 
 void _print_d10p(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
-  fprintf(fp, "%%ADD%i ... *%%\n", item->d_name);
+  fprintf(fp, "D%i*\n", item->d_name);
 }
 
 void _print_am(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
-  int i, initial_comma=1;
+  int i, initial_comma=1, n=0;
   char *typs[10] = {
     "AM_ENUM_NAME",
     "AM_ENUM_COMMENT",
@@ -101,15 +104,20 @@ void _print_am(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
   am = item->aperture_macro;
   while (am) {
 
+    n=0;
+
     am_nod = am->am;
     while (am_nod) {
 
+
       if (am_nod->type == AM_ENUM_NAME) {
-        fprintf(fp, "%%AM%s*\n", am_nod->name);
+        fprintf(fp, "%%AM%s*", am_nod->name);
       }
       else if (am_nod->type == AM_ENUM_COMMENT) {
       }
       else {
+
+        if (n>0) { fprintf(fp, "\n"); }
 
         initial_comma=1;
 
@@ -126,11 +134,13 @@ void _print_am(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
           if (initial_comma || (i>0)) { fprintf(fp, ","); }
           fprintf(fp, "%s", am_nod->eval_line[i]);
         }
-        fprintf(fp, "*\n");
+        //fprintf(fp, "*\n");
+        fprintf(fp, "*");
       }
 
       am_nod = am_nod->next;
 
+      n++;
     }
 
     fprintf(fp, "%%\n");
@@ -214,9 +224,118 @@ void _print_lp(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
       (item->polarity ? 'D' : 'C'));
 }
 
-void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
+void _print_flash(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
+  int _ix, _iy;
+  double C;
+
+  C =  1000000.0;
+  _ix = (int)(item_nod->x * C);
+  _iy = (int)(item_nod->y * C);
+
+  fprintf(fp, "X%iY%iD03*\n", _ix, _iy);
+}
+
+void _print_segment(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   int n=0, m=0;
   double C = 1000000.0;
+
+  int _ix, _iy, _ii, _ij;
+  int _ixprv, _iyprv;
+
+  gerber_region_t *region_nod;
+
+  region_nod = item_nod->region_head;
+  m=0;
+
+  while (region_nod) {
+
+    _ix = (int)(region_nod->x * C);
+    _iy = (int)(region_nod->y * C);
+
+    if (m==0) {
+      fprintf(fp, "X%iY%iD02*\n", _ix, _iy);
+    } else if (m==1) {
+      fprintf(fp, "X%iY%iD01*\n", _ix, _iy);
+    }
+    else {
+      fprintf(fp, "##???\n");
+    }
+
+    _ixprv = _ix;
+    _iyprv = _iy;
+
+    region_nod = region_nod->next;
+    m++;
+  }
+
+
+}
+
+void _print_region(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
+  int n=0, m=0;
+  double C = 1000000.0;
+
+  int _ix, _iy, _ii, _ij;
+  int _ixprv, _iyprv;
+
+  gerber_region_t *region_nod;
+
+  region_nod = item_nod->region_head;
+  m=0;
+
+  fprintf(fp, "G36*\n");
+
+  while (region_nod) {
+
+    _ix = (int)(region_nod->x * C);
+    _iy = (int)(region_nod->y * C);
+
+    if (m==0) {
+      fprintf(fp, "X%iY%iD02*\n", _ix, _iy);
+    } else if (m==1) {
+      if ((_ix != _ixprv) && (_iy != _iyprv)) { fprintf(fp, "X%iY%iD01*\n", _ix, _iy); }
+      else if (_ix != _ixprv) { fprintf(fp, "X%iD01*\n", _ix); }
+      else if (_iy != _iyprv) { fprintf(fp, "Y%iD01*\n", _iy); }
+
+    } else {
+      if ((_ix != _ixprv) && (_iy != _iyprv)) { fprintf(fp, "X%iY%i*\n", _ix, _iy); }
+      else if (_ix != _ixprv) { fprintf(fp, "X%i*\n", _ix); }
+      else if (_iy != _iyprv) { fprintf(fp, "Y%i*\n", _iy); }
+    }
+
+    _ixprv = _ix;
+    _iyprv = _iy;
+
+    region_nod = region_nod->next;
+    m++;
+  }
+
+  fprintf(fp, "G37*\n");
+}
+
+void _print_sr(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod, int lvl) {
+
+
+  fprintf(fp, "%%SRX%iY%iI%0.5fJ%0.5f*%%\n",
+      item_nod->sr_x, item_nod->sr_y,
+      (float)item_nod->sr_i, (float)item_nod->sr_j);
+
+  _print_gerber_state_r(fp, item_nod->step_repeat, lvl+1);
+
+  fprintf(fp, "%%SR*%%\n");
+
+  fprintf(fp, "\n");
+
+}
+
+void _print_m02(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
+  fprintf(fp, "M02*\n");
+}
+
+//void _print_d10p(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) { fprintf(fp, "D%i*\n", item_nod->d_name); }
+
+void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
+  int n=0, m=0;
 
   gerber_item_ll_t *item_nod;
   gerber_region_t *region_nod;
@@ -224,13 +343,8 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
   item_nod = gs->item_head;
 
   while (item_nod) {
-    fprintf(fp, "\n");
-
-    _pws(fp, lvl);
-    fprintf(fp, "[%i] %s (%i)\n",
-        n,
-        lookup_type_name(item_nod->type),
-        item_nod->type);
+    //fprintf(fp, "\n");
+    //_pws(fp, lvl); fprintf(fp, "[%i] %s (%i)\n", n, lookup_type_name(item_nod->type), item_nod->type);
 
     switch (item_nod->type) {
       case GERBER_MO: _print_mo(fp, gs, item_nod); break;
@@ -238,41 +352,25 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
       case GERBER_AM: _print_am(fp, gs, item_nod); break;
       case GERBER_AD: _print_ad(fp, gs, item_nod); break;
       case GERBER_ADE: _print_ade(fp, gs, item_nod); break;
+
+      case GERBER_D10P: _print_d10p(fp, gs, item_nod); break;
+
+      case GERBER_SR: _print_sr(fp, gs, item_nod, lvl); break;
+
+      case GERBER_D3:
+      case GERBER_FLASH: _print_flash(fp, gs, item_nod); break;
+      case GERBER_SEGMENT: _print_segment(fp, gs, item_nod); break;
+      case GERBER_REGION: _print_region(fp, gs, item_nod); break;
+
+      case GERBER_M02: _print_m02(fp, gs, item_nod); break;
       default: break;
-    }
-
-    if (item_nod->region) {
-      region_nod = item_nod->region_head;
-      m=0;
-
-      fprintf(fp, "G36*\n");
-
-      //fprintf(fp, "X%iY%iD02*\n", (int)(item_nod->x*C), (int)(item_nod->y*C));
-
-      while (region_nod) {
-
-        //_pws(fp,lvl); fprintf(fp, ".[%i] %f %f\n", m, (float)region_nod->x, (float)region_nod->y);
-
-        if (m==0) {
-          fprintf(fp, "X%iY%iD02*\n", (int)(region_nod->x * C), (int)(region_nod->y * C));
-        } else if (m==1) {
-          fprintf(fp, "X%iY%iD01*\n", (int)(region_nod->x * C), (int)(region_nod->y * C));
-        } else {
-          fprintf(fp, "X%iY%i*\n", (int)(region_nod->x * C), (int)(region_nod->y * C));
-        }
-
-
-        region_nod = region_nod->next;
-        m++;
-      }
-
-      fprintf(fp, "G37*\n");
-
     }
 
     item_nod = item_nod->next;
     n++;
   }
+
+
 
 }
 
@@ -304,6 +402,8 @@ int main(int argc, char **argv) {
   print_gerber_state(&gs);
 
   //gerber_report_state(&gs);
+
+  gerber_state_clear(&gs);
 }
 
 #endif

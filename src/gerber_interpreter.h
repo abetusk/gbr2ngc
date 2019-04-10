@@ -62,8 +62,11 @@ enum GERBER_ITEM {
   GERBER_G75,
 
 
+  GERBER_FLASH,
   GERBER_SEGMENT,
   GERBER_REGION,
+
+  GERBER_M02,
 };
 
 typedef struct gerber_region_type {
@@ -344,6 +347,10 @@ typedef struct gerber_item_ll_type {
   int polarity;
 
   int units_metric;
+
+  int sr_x, sr_y;
+  double sr_i, sr_j;
+
 
   aperture_data_t *aperture;
   am_ll_lib_t *aperture_macro;
