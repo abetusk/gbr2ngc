@@ -891,8 +891,13 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
+  //DEBUG
+  printf("## cp.m1\n"); fflush(stdout);
+
   join_polygon_set( pgn_union, &gs );
 
+  //DEBUG
+  printf("## cp.m2\n"); fflush(stdout);
 
   if (gShowComments) {
     fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());

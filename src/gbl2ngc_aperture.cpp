@@ -1322,6 +1322,9 @@ int realize_apertures(gerber_state_t *gs) {
     else {
     }
 
+    //DEBUG
+    if ((aperture->type == AD_ENUM_BLOCK) || (aperture->type == AD_ENUM_STEP_REPEAT)) { continue; }
+
     switch (aperture->type) {
 
       case AD_ENUM_CIRCLE:
@@ -1350,6 +1353,7 @@ int realize_apertures(gerber_state_t *gs) {
 
       case AD_ENUM_STEP_REPEAT:
 
+        /*
         printf("##SR realize aperture %i\n", ap.m_name);
 
         printf("#####################################\n");
@@ -1370,6 +1374,7 @@ int realize_apertures(gerber_state_t *gs) {
           }
           printf("##sr%i\n", ap.m_name);
         }
+        */
 
         break;
 
@@ -1412,6 +1417,7 @@ int realize_apertures(gerber_state_t *gs) {
 
     //DEBUG
     fprintf(stdout, "### adding aperture %i\n", ap.m_name);
+    if (ap.m_name < 0) { printf("## SKIPPING APERTURE %i\n", ap.m_name); continue; }
 
     gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
     gApertureName.push_back(ap.m_name);

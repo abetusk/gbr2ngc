@@ -856,7 +856,7 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 //
 int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
-  unsigned int i, ii, jj;
+  unsigned int i, ii, jj, _i, _j;
   //contour_list_ll_t *contour_list;
   //contour_ll_t      *contour, *prev_contour;
 
@@ -882,9 +882,19 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
   double dx, dy;
 
+
+  printf("##>> join_polygon_set gs %p\n", gs);
+
+
   for (item_nod = gs->item_head;
        item_nod;
        item_nod = item_nod->next) {
+
+
+    //DEBUG
+    printf("##>> join_polygon_set type %i (flash %i, seg %i, reg %i)\n",
+        item_nod->type,
+        GERBER_FLASH, GERBER_SEGMENT, GERBER_REGION);
 
     if (item_nod->type == GERBER_REGION) {
 
@@ -905,12 +915,20 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
       region = item_nod->region_head;
       if (!region) { fprintf(stderr, "error (0)"); return -1; }
 
+      dx = region->x;
+      dy = region->y;
+
       prev_pnt = dtoc( region->x, region->y );
 
       region = region->next;
       if (!region) { fprintf(stderr, "error (1)"); return -1; }
 
       cur_pnt = dtoc( region->x, region->y );
+
+
+      //DEBUG
+      printf("## name:%i, seg: (%f,%f) -> (%f,%f)\n", name, dx, dy, region->x, region->y);
+
 
       point_list.clear();
       res_point.clear();
@@ -929,9 +947,13 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
         }
       }
 
+      //DEBUG
+      printf("##cp.0\n"); fflush(stdout);
+
       ConvexHull( point_list, res_point );
 
       if (res_point.size() == 0) {
+        fprintf(stdout, "# WARNING: empty polygon found for name %i, skipping\n", name);
         fprintf(stderr, "# WARNING: empty polygon found for name %i, skipping\n", name);
       }
       else {
@@ -952,6 +974,9 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
         }
 
       }
+
+      //DEBUG
+      printf("##cp.1\n"); fflush(stdout);
 
 
     }
@@ -1012,12 +1037,31 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
     else if (item_nod->type == GERBER_SR) {
 
-      printf("##>> wip, skipping GERBER_SR\n");
+      printf("##>> wip, GERBER_SR\n");
 
       for (jj=0; jj<item_nod->sr_y; jj++) {
         for (ii=0; ii<item_nod->sr_x; ii++) {
+
           dx = (double) (((double)ii) * (item_nod->sr_i));
           dy = (double) (((double)jj) * (item_nod->sr_j));
+
+          it_paths.clear();
+
+          //DEBUG
+          fprintf(stderr, "##>> sr recur dx %f, dy %f\n", dx, dy);
+          join_polygon_set(it_paths, item_nod->step_repeat);
+
+
+
+          cur_pnt = dtoc( region->x, region->y );
+          for (_i=0; _i<it_paths.size(); _i++) {
+            for (_j=0;  _j<it_paths[_i].size(); _j++) {
+              it_paths[_i][_j].X += cur_pnt.X;
+              it_paths[_i][_j].X += cur_pnt.Y;
+            }
+          }
+
+          clip.AddPaths(it_paths, ptSubject, true);
 
         }
       }
@@ -1031,5 +1075,13 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
   }
 
+  //DEBUG
+  printf("##cp.x\n"); fflush(stdout);
+
+
   clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+
+  //DEBUG
+  printf("##cp.xx\n"); fflush(stdout);
+
 }
