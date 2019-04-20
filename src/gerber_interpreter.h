@@ -39,6 +39,8 @@
 
 struct gerber_item_ll_type;
 
+// consider renaming this to GERBER_ITEM or GERBER_AST or something
+//
 enum GERBER_ITEM {
   GERBER_NONE = 0,
   GERBER_MO,
@@ -74,32 +76,6 @@ typedef struct gerber_region_type {
   double x, y;
   struct gerber_region_type *next;
 } gerber_region_t;
-
-// a node in the linked list which contains
-// x, y information, d_name information, etc.
-//
-/*
-typedef struct contour_ll_type {
-  int d_name;
-  int n;
-  double x, y;
-  int region;
-  int polarity;
-
-  struct contour_ll_type *next;
-} contour_ll_t;
-*/
-
-// each node contains a pointer to a contour_ll_types,
-// so basically a list of linked lists.
-//
-/*
-typedef struct contour_list_ll_type {
-  int n;
-  contour_ll_t *c;
-  struct contour_list_ll_type *next;
-} contour_list_ll_t;
-*/
 
 
 // CROP  TYPE
@@ -148,6 +124,9 @@ struct gerber_state_type;
 
 // linked list of aperture data.
 //
+//
+// TODO: consider renaming to gerber_aperture_data_type ...
+//
 typedef struct aperture_data_type {
   int id;
 
@@ -178,7 +157,8 @@ typedef struct aperture_data_type {
 
 } aperture_data_t;
 
-
+// TODO: consider renaming GERBER_READ_STATE_...
+//
 enum GERBER_READ_STATE {
   GRS_NONE = 0,
 
@@ -206,6 +186,8 @@ enum GERBER_READ_STATE {
 // Aperture Definition
 //
 
+// TODO: consider renaming to GGERBER_AD_...
+//
 enum AD_ENUM_TYPE {
   AD_ENUM_CIRCLE = 0,
   AD_ENUM_RECTANGLE,
@@ -219,6 +201,8 @@ enum AD_ENUM_TYPE {
 // Aperture Macro
 //
 
+// TODO: consider renaming to GGERBER_AM_...
+//
 enum AM_ENUM_TYPE {
   AM_ENUM_NAME,
   AM_ENUM_COMMENT,
@@ -232,6 +216,8 @@ enum AM_ENUM_TYPE {
   AM_ENUM_THERMAL,
 };
 
+// TODO: consider renaming to gerber_am_ll_node_type...
+//
 typedef struct am_ll_node_type {
   int type;
   char *name;
@@ -296,12 +282,6 @@ typedef struct gerber_state_type {
 
   struct gerber_item_ll_type *_item_cur;
 
-  // WIP
-  //contour_ll_t *contour_head;
-  //contour_ll_t *contour_cur;
-  //contour_list_ll_t *contour_list_head;
-  //contour_list_ll_t *contour_list_cur;
-
   am_ll_lib_t *am_lib_head;
   am_ll_lib_t *am_lib_tail;
 
@@ -314,25 +294,28 @@ typedef struct gerber_state_type {
   // 1 - processing AB or SR block
   //
   int absr_active;
-  int absr_code;
-  int sr_name;
+  //int absr_code;
 
   // AB child depth. 0 for root.
   //
-  int absr_lib_depth;
+  //int absr_lib_depth;
+  int depth;
 
   // Global parent/root gerber_state_t
   //
-  struct gerber_state_type *absr_lib_root_gs;
+  //struct gerber_state_type *absr_lib_root_gs;
+  struct gerber_state_type *_root_gerber_state;
 
   // Current active AB lib child (only valid for root gerber_state_t)
   //
-  struct gerber_state_type *absr_lib_active_gs;
+  //struct gerber_state_type *absr_lib_active_gs;
+  struct gerber_state_type *_active_gerber_state;
 
   // Parent gerber_state_t data.
   // NULL iff root
   //
-  struct gerber_state_type *absr_lib_parent_gs;
+  //struct gerber_state_type *absr_lib_parent_gs;
+  struct gerber_state_type *_parent_gerber_state;
 
 } gerber_state_t;
 
@@ -351,7 +334,6 @@ typedef struct gerber_item_ll_type {
 
   int sr_x, sr_y;
   double sr_i, sr_j;
-
 
   aperture_data_t *aperture;
   am_ll_lib_t *aperture_macro;

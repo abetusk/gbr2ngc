@@ -37,6 +37,7 @@ debug: $(obj) $(hdr)
 .PHONY: clean
 clean:
 	rm -f *.o gbl2ngc
+	rm -f *.o test_gerber_interpreter
 
 .PHONY: install
 install: gbl2ngc

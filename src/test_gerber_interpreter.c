@@ -375,6 +375,10 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
 }
 
 void print_gerber_state(gerber_state_t *gs) {
+
+  fprintf(stdout, "%%FSLAX%i%iY%i%i*%%\n",
+      gs->fs_x_int, gs->fs_x_real,
+      gs->fs_y_int, gs->fs_y_real);
   _print_gerber_state_r(stdout, gs, 0);
 }
 
