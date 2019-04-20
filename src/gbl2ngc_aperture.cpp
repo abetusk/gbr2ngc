@@ -1191,7 +1191,8 @@ void print_aperture_tree(gerber_state_t *gs, int level) {
 
     par=NULL;
     if (ap->gs) {
-      par = ap->gs->absr_lib_parent_gs;
+      //par = ap->gs->absr_lib_parent_gs;
+      par = ap->gs->_parent_gerber_state;
     }
 
     printf("# gs:%i ", gs->id);
@@ -1274,7 +1275,7 @@ int realize_apertures(gerber_state_t *gs) {
   aperture_data_t *aperture;
 
   //DEBUG
-  printf("###>>>BEFORE (%i)\n", gs->absr_lib_depth);
+  printf("###>>>BEFORE (%i)\n", gs->depth);
   print_aperture_list(gs->aperture_head);
   printf("###\n");
   print_aperture_tree(gs, 0);
@@ -1285,7 +1286,7 @@ int realize_apertures(gerber_state_t *gs) {
   flatten_aperture_list(gs, 0);
 
   //DEBUG
-  printf("###>>>AFTER (%i)\n", gs->absr_lib_depth);
+  printf("###>>>AFTER (%i)\n", gs->depth);
   print_aperture_list(gs->aperture_head);
   printf("###\n");
   dump_information(gs, 0);

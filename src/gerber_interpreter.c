@@ -1219,15 +1219,15 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
       parse_error("found end of AB without beginning", gs->line_no, linebuf);
     }
 
-    if (gs->_parent_gerber_state->item_tail == NULL) {
+    if (gs->_parent_gerber_state->_item_cur == NULL) {
       parse_error("found end of AB without beginning (parent node has no item allocated)", gs->line_no, linebuf);
     }
 
-    if (gs->_parent_gerber_state->item_tail->type != GERBER_AB) {
+    if (gs->_parent_gerber_state->_item_cur->type != GERBER_AB) {
       parse_error("found end of AB without beginning (inside SR?)", gs->line_no, linebuf);
     }
 
-    gerber_state_add_item(gs->_parent_gerber_state, ab_item);
+    gerber_state_add_item(gs->_parent_gerber_state, gs->_parent_gerber_state->_item_cur);
     gs->_parent_gerber_state->_item_cur = NULL;
     gs->_parent_gerber_state->absr_active = 0;
 

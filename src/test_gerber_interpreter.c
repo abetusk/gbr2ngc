@@ -319,9 +319,16 @@ void _print_region(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   fprintf(fp, "G37*\n");
 }
 
+void _print_ab(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod, int lvl) {
+  fprintf(fp, "%%ABD%i*%%\n", item_nod->d_name);
+
+  _print_gerber_state_r(fp, item_nod->aperture_block, lvl+1);
+
+  fprintf(fp, "%%AB*%%\n");
+  fprintf(fp, "\n");
+}
+
 void _print_sr(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod, int lvl) {
-
-
   fprintf(fp, "%%SRX%iY%iI%0.5fJ%0.5f*%%\n",
       item_nod->sr_x, item_nod->sr_y,
       (float)item_nod->sr_i, (float)item_nod->sr_j);
@@ -329,9 +336,7 @@ void _print_sr(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod, int lvl
   _print_gerber_state_r(fp, item_nod->step_repeat, lvl+1);
 
   fprintf(fp, "%%SR*%%\n");
-
   fprintf(fp, "\n");
-
 }
 
 void _print_m02(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
@@ -361,6 +366,7 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
 
       case GERBER_D10P: _print_d10p(fp, gs, item_nod); break;
 
+      case GERBER_AB: _print_ab(fp, gs, item_nod, lvl); break;
       case GERBER_SR: _print_sr(fp, gs, item_nod, lvl); break;
 
       case GERBER_D3:
