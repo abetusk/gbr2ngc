@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "gerber_interpreter.h"
 
@@ -205,7 +206,7 @@ void _print_ad(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
   ad = item->aperture;
   while (ad) {
 
-    fprintf(fp, "%%add%i%c,",
+    fprintf(fp, "%%ADD%i%c,",
         ad->name, crop[ ad->type - AD_ENUM_CIRCLE ]);
     for (i=0; i<crop_n[ad->crop_type][ ad->type - AD_ENUM_CIRCLE ]; i++) {
       if (i>0) { fprintf(fp, "X"); }
@@ -228,7 +229,8 @@ void _print_flash(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   int _ix, _iy;
   double C;
 
-  C =  1000000.0;
+  C = pow(10.0, (double)(gs->fs_x_real));
+
   _ix = (int)(item_nod->x * C);
   _iy = (int)(item_nod->y * C);
 
@@ -237,10 +239,12 @@ void _print_flash(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
 
 void _print_segment(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   int n=0, m=0;
-  double C = 1000000.0;
+  double C = 1.0;
 
   int _ix, _iy, _ii, _ij;
   int _ixprv, _iyprv;
+
+  C = pow(10.0, (double)(gs->fs_x_real));
 
   gerber_region_t *region_nod;
 
@@ -273,10 +277,12 @@ void _print_segment(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
 
 void _print_region(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   int n=0, m=0;
-  double C = 1000000.0;
+  double C = 1.0;
 
   int _ix, _iy, _ii, _ij;
   int _ixprv, _iyprv;
+
+  C = pow(10.0, (double)(gs->fs_x_real));
 
   gerber_region_t *region_nod;
 
