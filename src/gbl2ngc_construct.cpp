@@ -854,49 +854,66 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 //   that does an individual subject union for exposure of 1
 //   and a differenc clip of exposure 0
 //
-int join_polygon_set(Paths &result, gerber_state_t *gs) {
-
+int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
   unsigned int i, ii, jj, _i, _j;
-  //contour_list_ll_t *contour_list;
-  //contour_ll_t      *contour, *prev_contour;
 
-  gerber_item_ll_t *item_nod, *item_prv;
+  gerber_item_ll_t *item_nod;
   gerber_region_t *region;
-
 
   PathSet temp_pwh_vec;
   IntPoint prev_pnt, cur_pnt;
 
-  Paths clip_paths, clip_result;
-  Path clip_path;
-
   Clipper clip;
-  int n=0;
+  int n=0, name=0, _path_polarity=1;
+  int polarity = 1, d_name = -1;
 
-  int name=0;
-  int _path_polarity=1;
 
-  Path point_list, res_point, tmp_path;
-  Paths aperture_geom, it_paths;
+  Path clip_path, point_list, res_point, tmp_path;
+  Paths clip_paths, clip_result,
+        aperture_geom, it_paths, tmp_paths;
   Clipper aperture_clip;
 
   double dx, dy;
 
+  //--
 
-  printf("##>> join_polygon_set gs %p\n", gs);
-
+  printf("##>> join_polygon_set_r gs %p (level %i)\n", gs, level);
 
   for (item_nod = gs->item_head;
        item_nod;
        item_nod = item_nod->next) {
 
-
     //DEBUG
-    printf("##>> join_polygon_set type %i (flash %i, seg %i, reg %i)\n",
-        item_nod->type,
+    printf("##>> join_polygon_set_r type %i (name %i, flash %i, seg %i, reg %i)\n",
+        item_nod->type, item_nod->d_name,
         GERBER_FLASH, GERBER_SEGMENT, GERBER_REGION);
 
-    if (item_nod->type == GERBER_REGION) {
+    polarity = gs->_root_gerber_state->polarity;
+    d_name = gs->_root_gerber_state->d_state;
+    printf("## polarity:%i level:%i\n", polarity, level);
+
+    if (item_nod->type == GERBER_LP) {
+      polarity = item_nod->polarity;
+      gs->_root_gerber_state->polarity = polarity;
+
+      printf("## polarity change to %i, level:%i\n", polarity, level);
+
+      if (polarity == 0) {
+        printf("## CLEAR POLARITY (LPC)\n");
+      }
+
+      continue;
+    }
+
+    else if (item_nod->type == GERBER_D10P) {
+      gs->_root_gerber_state->d_state = item_nod->d_name;
+      d_name = gs->_root_gerber_state->d_state;
+
+      printf("## d change to d%i, level:%i\n", gs->_root_gerber_state->d_state, level);
+      continue;
+    }
+
+    else if (item_nod->type == GERBER_REGION) {
 
       temp_pwh_vec.clear();
       construct_contour_region(temp_pwh_vec, item_nod->region_head);
@@ -910,7 +927,8 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
     else if (item_nod->type == GERBER_SEGMENT) {
 
-      name = item_nod->d_name;
+      //name = item_nod->d_name;
+      name = d_name;
 
       region = item_nod->region_head;
       if (!region) { fprintf(stderr, "error (0)"); return -1; }
@@ -960,14 +978,17 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
         if (!Orientation(res_point)) { ReversePath(res_point); }
 
-        if (_expose_bit(item_nod->polarity, gAperture[name].m_exposure[ii])) {
+        //if (_expose_bit(item_nod->polarity, gAperture[name].m_exposure[ii])) {
+        //if (_expose_bit(item_nod->polarity, gAperture[name].m_exposure[0])) {
+        if (_expose_bit(polarity, gAperture[name].m_exposure[0])) {
           clip.AddPath( res_point, ptSubject, true );
         }
         else {
           clip.AddPath(res_point, ptClip, true);
 
           it_paths.clear();
-          clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+          //clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+          clip.Execute(ctDifference, it_paths, pftEvenOdd, pftEvenOdd);
 
           clip.Clear();
           clip.AddPaths(it_paths, ptSubject, true);
@@ -983,56 +1004,135 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
 
     else if (item_nod->type == GERBER_FLASH) {
 
-      name = item_nod->d_name;
+      //name = item_nod->d_name;
+      name = d_name;
       cur_pnt = dtoc( item_nod->x, item_nod->y );
 
-      aperture_clip.Clear();
-      aperture_geom.clear();
-      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+      //DEBUG
+      printf("#### join_polygon_set_r flash d%i, (%f,%f)\n",
+          name, (float)item_nod->x, (float)item_nod->y);
 
-        tmp_path.clear();
-        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X,
-                                        gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y  ) );
+      // Simple aperture
+      //
+      if ( gAperture.find(name) != gAperture.end() ) {
+
+        //DEBUG
+        printf("#### flashing aperture d%i\n", name);
+
+        aperture_clip.Clear();
+        aperture_geom.clear();
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+
+          tmp_path.clear();
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+            tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X,
+                                          gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y  ) );
+          }
+
+          if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
+
+          int last_idx = (int)(tmp_path.size()-1);
+          if ((tmp_path[0].X != tmp_path[last_idx].X) &&
+              (tmp_path[0].Y != tmp_path[last_idx].Y)) {
+            fprintf(stdout, "## WARNING, tmp_path for %i is not closed!\n", name); fflush(stdout);
+            tmp_path.push_back(tmp_path[0]);
+          }
+
+          if (gAperture[name].m_exposure[ii]) {
+            aperture_clip.AddPath(tmp_path, ptSubject, true);
+          }
+          else {
+            aperture_clip.AddPath(tmp_path, ptClip, true);
+            //aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
+            aperture_clip.Execute(ctDifference , aperture_geom, pftEvenOdd, pftEvenOdd);
+            aperture_clip.Clear();
+            aperture_clip.AddPaths(aperture_geom, ptSubject, true);
+            aperture_geom.clear();
+          }
+
         }
-
-        if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
-
-        int last_idx = (int)(tmp_path.size()-1);
-        if ((tmp_path[0].X != tmp_path[last_idx].X) &&
-            (tmp_path[0].Y != tmp_path[last_idx].Y)) {
-          fprintf(stdout, "## WARNING, tmp_path for %i is not closed!\n", name); fflush(stdout);
-          tmp_path.push_back(tmp_path[0]);
-        }
-
-        if (gAperture[name].m_exposure[ii]) {
-          aperture_clip.AddPath(tmp_path, ptSubject, true);
-        }
-        else {
-          aperture_clip.AddPath(tmp_path, ptClip, true);
-          aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
-
-          aperture_clip.Clear();
-          aperture_clip.AddPaths(aperture_geom, ptSubject, true);
-
-          aperture_geom.clear();
-        }
-
-      }
-
-      it_paths.clear();
-      aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
-
-      if ( ! _expose_bit(item_nod->polarity) ) {
-        clip.AddPaths(it_paths, ptClip, true);
 
         it_paths.clear();
-        clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+        //aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
+        aperture_clip.Execute( ctUnion, it_paths, pftEvenOdd, pftEvenOdd );
 
-        clip.Clear();
+        //if ( ! _expose_bit(item_nod->polarity) ) {
+        if ( ! _expose_bit(polarity) ) {
+
+          //DEBUG
+          printf("#### aperture d%i clear polarity (%i)\n", name, polarity);
+
+
+          clip.AddPaths(it_paths, ptClip, true);
+          it_paths.clear();
+          //clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+          clip.Execute(ctDifference, it_paths, pftEvenOdd, pftEvenOdd);
+          clip.Clear();
+        }
+
+        //DEBUG
+        printf("## adding flash subject\n");
+        for (ii=0; ii<it_paths.size(); ii++) {
+          for (jj=0; jj<it_paths[ii].size(); jj++) {
+            printf("##X %lli %lli\n",
+                (long long int)it_paths[ii][jj].X,
+                (long long int)it_paths[ii][jj].Y);
+          }
+          printf("##X\n");
+        }
+
+
+        clip.AddPaths( it_paths, ptSubject, true );
+
       }
 
-      clip.AddPaths( it_paths, ptSubject, true );
+      // Aperture blocks
+      //
+      else if ( gApertureBlock.find(name) != gApertureBlock.end() ) {
+
+        it_paths.clear();
+        join_polygon_set_r( it_paths, gApertureBlock[name], level+1 );
+
+        tmp_paths.clear();
+
+        for (ii=0; ii<it_paths.size(); ii++) {
+
+          if (it_paths[ii].size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
+
+          tmp_path.clear();
+          for (jj=0; jj<it_paths[ii].size(); jj++) {
+
+            tmp_path.push_back( IntPoint( it_paths[ii][jj].X + cur_pnt.X,
+                                          it_paths[ii][jj].Y + cur_pnt.Y ) );
+
+          }
+          tmp_paths.push_back(tmp_path);
+
+        }
+
+        if ( ! _expose_bit(polarity) ) {
+
+          clip.AddPaths(tmp_paths, ptClip, true);
+
+          tmp_paths.clear();
+          //clip.Execute(ctDifference, tmp_paths, pftNonZero, pftNonZero);
+          clip.Execute(ctDifference, tmp_paths, pftEvenOdd, pftEvenOdd);
+
+          clip.Clear();
+        }
+
+        clip.AddPaths( tmp_paths, ptSubject, true );
+      }
+
+      // error
+      //
+      else {
+        fprintf(stderr, "ERROR: could not find %i in aperture list\n", name);
+        fprintf(stdout, "ERROR: could not find %i in aperture list\n", name);
+        return -1;
+      }
+
+
     }
 
     else if (item_nod->type == GERBER_SR) {
@@ -1048,29 +1148,31 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
           it_paths.clear();
 
           //DEBUG
-          fprintf(stderr, "##>> sr recur dx %f, dy %f\n", dx, dy);
-          join_polygon_set(it_paths, item_nod->step_repeat);
+          join_polygon_set_r(it_paths, item_nod->step_repeat, level+1);
 
-
-
-          cur_pnt = dtoc( region->x, region->y );
+          //cur_pnt = dtoc( region->x, region->y );
+          cur_pnt = dtoc( item_nod->x + dx, item_nod->y + dy );
           for (_i=0; _i<it_paths.size(); _i++) {
             for (_j=0;  _j<it_paths[_i].size(); _j++) {
               it_paths[_i][_j].X += cur_pnt.X;
-              it_paths[_i][_j].X += cur_pnt.Y;
+              it_paths[_i][_j].Y += cur_pnt.Y;
             }
           }
 
-          clip.AddPaths(it_paths, ptSubject, true);
+          /*
+          if ( ! _expose_bit(polarity) ) {
+            clip.AddPaths(it_paths, ptClip, true);
+            it_paths.clear();
+            clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+            clip.Clear();
+          }
+          */
+
+          clip.AddPaths( it_paths, ptSubject, true );
 
         }
       }
 
-    }
-
-    else if (item_nod->type == GERBER_AB) {
-
-      printf("##>> wip, skipping GERBER_AB\n");
     }
 
   }
@@ -1078,10 +1180,16 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
   //DEBUG
   printf("##cp.x\n"); fflush(stdout);
 
-
-  clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+  //clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+  clip.Execute( ctUnion, result, pftEvenOdd, pftEvenOdd );
 
   //DEBUG
   printf("##cp.xx\n"); fflush(stdout);
 
+  return 0;
 }
+
+int join_polygon_set(Paths &result, gerber_state_t *gs) {
+  return join_polygon_set_r(result, gs, 0);
+}
+

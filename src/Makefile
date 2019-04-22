@@ -1,6 +1,6 @@
 INSTALLDIR=/usr/local/bin
 
-src = $(wildcard *.cpp *.c)
+src = $(wildcard *.cpp *.c *.cxx)
 csrc = $(wildcard *.c)
 obj_cpp = $(src:.cpp=.o)
 obj = $(obj_cpp:.c=.o)
@@ -22,7 +22,9 @@ CPPFN = $(wildcard *.cpp)
 
 %.o: %.cpp
 	$(CXX) $(CXXOPT) -c $< -o $@
-#	$(CXX) $(CXXOPT) -c $< -o $@ $(CXXLIB)
+
+%.o: %.cxx
+	$(CC) $(COPT) -c $< -o $@ -lm
 
 gbl2ngc: $(obj) $(hdr)
 	$(CXX) $(CXXOPT) -o $@ $^ $(CXXLIBS)

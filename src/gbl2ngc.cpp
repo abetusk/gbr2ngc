@@ -852,6 +852,80 @@ void dump_options() {
   printf("verbose = %d\n", gVerboseFlag);
 }
 
+int setup_aperture_blocks_r(gerber_state_t *gs, int level) {
+  gerber_item_ll_t *item;
+
+  for ( item = gs->item_head ;
+        item ;
+        item = item->next ) {
+    if (item->type == GERBER_AB) {
+
+      //DEBUG
+      printf("# setup_aperture_blocks_r(%i): adding d%i\n", level, item->d_name);
+
+      gApertureBlock[item->d_name] = item->aperture_block;
+
+      setup_aperture_blocks_r(item->aperture_block, level+1);
+    }
+  }
+
+  return 0;
+}
+
+int setup_aperture_blocks(gerber_state_t *gs) {
+  setup_aperture_blocks_r(gs, 0);
+}
+
+void print_some_state(gerber_state_t *gs, int level) {
+  gerber_item_ll_t *item;
+  printf("## pss lvl:%2i gs:%p (gs.root %p, parent: %p, active %p)\n",
+      level, gs,
+      gs->_root_gerber_state,
+      gs->_parent_gerber_state,
+      gs->_active_gerber_state);
+
+  for (item = gs->item_head;
+       item ;
+       item = item->next) {
+
+    if (item->type == GERBER_AB) {
+      printf("## pss lvl:%i ab... (gs %p)\n", level, gs);
+      print_some_state(item->aperture_block, level+1);
+    }
+    else if (item->type == GERBER_SR) {
+      printf("## pss lvl:%i sr... (gs %p)\n", level, gs);
+      print_some_state(item->step_repeat, level+1);
+    }
+
+  }
+}
+
+
+void print_ast(gerber_state_t *gs, int level) {
+  int ii;
+  gerber_item_ll_t *item;
+
+  for (item = gs->item_head;
+       item ;
+       item = item->next) {
+
+    printf("##");
+    for (ii=0; ii<level; ii++) { printf(" "); }
+
+    printf("lvl:%i, gs:%p, type:%i, name:%i (%f,%f)\n",
+        level, gs, item->type, item->d_name,
+        (float)(item->x), (float)(item->y));
+
+    if (item->type == GERBER_AB) {
+      print_ast(item->aperture_block, level+1);
+    }
+    else if (item->type == GERBER_SR) {
+      print_ast(item->step_repeat, level+1);
+    }
+
+  }
+
+}
 
 int main(int argc, char **argv) {
   int k;
@@ -885,6 +959,14 @@ int main(int argc, char **argv) {
   // Construct library of atomic shapes and create polygons
   //
   realize_apertures(&gs);
+
+  // aperture blocks need a lookup, so set that up
+  //
+  setup_aperture_blocks(&gs);
+
+  //DEBUG
+  print_some_state(&gs, 0);
+  print_ast(&gs, 0);
 
   if (gPrintPolygon) {
     //print_polygon_set(&gs);

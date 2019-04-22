@@ -31,7 +31,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "tesexpr.h"
+//#include "tesexpr.h"
 #include "string_ll.h"
 
 //#define GERBER_STATE_LINEBUF 4099
@@ -194,8 +194,6 @@ enum AD_ENUM_TYPE {
   AD_ENUM_OBROUND,
   AD_ENUM_POLYGON,
   AD_ENUM_MACRO,
-  AD_ENUM_BLOCK,
-  AD_ENUM_STEP_REPEAT,
 };
 
 // Aperture Macro
@@ -294,27 +292,22 @@ typedef struct gerber_state_type {
   // 1 - processing AB or SR block
   //
   int absr_active;
-  //int absr_code;
 
   // AB child depth. 0 for root.
   //
-  //int absr_lib_depth;
   int depth;
 
   // Global parent/root gerber_state_t
   //
-  //struct gerber_state_type *absr_lib_root_gs;
   struct gerber_state_type *_root_gerber_state;
 
   // Current active AB lib child (only valid for root gerber_state_t)
   //
-  //struct gerber_state_type *absr_lib_active_gs;
   struct gerber_state_type *_active_gerber_state;
 
   // Parent gerber_state_t data.
   // NULL iff root
   //
-  //struct gerber_state_type *absr_lib_parent_gs;
   struct gerber_state_type *_parent_gerber_state;
 
 } gerber_state_t;
@@ -402,7 +395,7 @@ int gerber_state_load_file(gerber_state_t *gs, char *fn);
 
 void gerber_report_state(gerber_state_t *gs);
 
-int eval_ad_func(gerber_state_t *gs, aperture_data_t *ap_d);
+//int eval_ad_func(gerber_state_t *gs, aperture_data_t *ap_d);
 
 aperture_data_t *aperture_data_create_absr_node(int absr_name, gerber_state_t *gs_parent, int is_ab);
 

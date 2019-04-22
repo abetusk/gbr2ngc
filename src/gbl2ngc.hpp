@@ -34,6 +34,7 @@
 
 extern "C" {
   #include "gerber_interpreter.h"
+  #include "tesexpr.h"
 }
 
 
@@ -99,7 +100,7 @@ class Aperture_realization {
 typedef std::map<int, Aperture_realization> ApertureNameMap;
 typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 
-
+typedef std::map<int, gerber_state_t *> ApertureBlockMap;
 
 //------------- GLOBALS
 
@@ -148,6 +149,8 @@ extern double gMinSegmentLength;
 
 extern std::vector<int> gApertureName;
 extern ApertureNameMap gAperture;
+
+extern ApertureBlockMap gApertureBlock;
 
 extern struct timeval gProfileStart;
 extern struct timeval gProfileEnd;

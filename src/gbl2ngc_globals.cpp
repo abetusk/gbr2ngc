@@ -74,6 +74,8 @@ Pwh_vector_2 gerber_list;
 std::vector<int> gApertureName;
 ApertureNameMap gAperture;
 
+ApertureBlockMap gApertureBlock;
+
 struct timeval gProfileStart;
 struct timeval gProfileEnd;
 

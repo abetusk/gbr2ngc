@@ -944,8 +944,6 @@ int add_AM_thermal( am_ll_node_t *am_node,
   return 0;
 }
 
-
-
 // Realize a macro.
 // A macro consists of a series of primiitives to be drawn, either with 'exposure' on or off,
 // representing additive or subtractive geometry.
@@ -973,7 +971,6 @@ int realize_macro( gerber_state_t *gs,
   Paths result;
   Path empty_path;
   IntPoint pnt;
-
 
   Clipper clip;
 
@@ -1218,6 +1215,51 @@ void print_aperture_tree(gerber_state_t *gs, int level) {
 //----
 
 aperture_data_t *flatten_aperture_list(gerber_state_t *gs, int level) {
+  aperture_data_t *ap_node_head;
+  aperture_data_t *ap_node;
+  aperture_data_t *ap_flatten_head;
+  aperture_data_t *ap_flatten_last;
+
+  aperture_data_t *_ap;
+
+  gerber_item_ll_t *item;
+  gerber_state_t *_gs;
+
+  if (!gs) { return NULL; }
+
+  ap_node_head = NULL;
+  ap_node = NULL;
+
+  for (item = gs->item_head;
+       item ;
+       item = item->next) {
+
+    ap_flatten_head = NULL;
+    switch (item->type) {
+      case GERBER_AD:
+      case GERBER_ADE:
+        ap_flatten_head = item->aperture;
+        break;
+      case GERBER_AB:
+        ap_flatten_head = flatten_aperture_list(item->aperture_block, level+1);
+        break;
+      case GERBER_SR:
+        ap_flatten_head = flatten_aperture_list(item->step_repeat, level+1);
+        break;
+      default: break;
+    }
+
+    if (ap_flatten_head == NULL) { continue; }
+    ap_flatten_head->next = ap_node_head;
+    ap_node_head = ap_flatten_head;
+  }
+
+  gs->aperture_head = ap_node_head;
+  return gs->aperture_head;
+}
+
+/*
+aperture_data_t *flatten_aperture_list_OLD(gerber_state_t *gs, int level) {
   aperture_data_t *ap_node_prev;
   aperture_data_t *ap_node;
   aperture_data_t *ap_flatten_head;
@@ -1264,8 +1306,132 @@ aperture_data_t *flatten_aperture_list(gerber_state_t *gs, int level) {
 
   return gs->aperture_head;
 }
+*/
+
+
+int realize_apertures_r(gerber_state_t *gs, int level) {
+  double min_segment_length = 0.01;
+  int min_segments = 8;
+  int base, base_mapping[] = {1, 2, 3, 3, 0};
+  int i, ii, jj;
+
+  std::string macro_name_str;
+
+  aperture_data_t *aperture;
+  gerber_item_ll_t *item;
+
+
+  //--
+
+  flatten_aperture_list(gs, 0);
+
+  if (gMinSegmentLength > 0.0) {
+    min_segment_length = gMinSegmentLength;
+  }
+
+  for (item = gs->item_head;
+       item ;
+       item = item->next) {
+
+    Aperture_realization ap;
+
+    if ((item->type == GERBER_AD) ||
+        (item->type == GERBER_ADE)) {
+
+      ap.m_name = item->aperture->name;
+      ap.m_type = item->aperture->type;
+
+      aperture = item->aperture;
+
+      switch (aperture->type) {
+        case AD_ENUM_CIRCLE:
+          realize_circle( gs, ap, aperture->crop[0]/2.0, min_segments, min_segment_length );
+          break;
+        case AD_ENUM_RECTANGLE:
+          realize_rectangle( gs, ap, aperture->crop[0]/2.0, aperture->crop[1]/2.0 );
+          break;
+        case AD_ENUM_OBROUND:
+          realize_obround( gs, ap, aperture->crop[0], aperture->crop[1], min_segments, min_segment_length  );
+          break;
+        case AD_ENUM_POLYGON:
+          realize_polygon( gs, ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
+          break;
+
+        // an aperture defintion which references a macro (not the aperture macro itself)
+        //
+        case AD_ENUM_MACRO:
+          ap.m_macro_name = aperture->macro_name;
+          for (ii=0; ii<aperture->macro_param_count; ii++) {
+            ap.m_macro_param.push_back(aperture->macro_param[ii]);
+          }
+          realize_macro( gs, ap, ap.m_macro_name, ap.m_macro_param );
+          break;
+
+        default: break;
+      }
+
+      base = base_mapping[ aperture->type ];
+
+      // 0 - no hole
+      // 1 - circle hole
+      // 2 - rect hole (?) (TODO?)
+      //
+      // crop_type should be 0 for aperture macros
+      //
+      switch (aperture->crop_type) {
+        case 0: break;
+        case 1:
+          realize_hole( gs, ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
+          break;
+        case 2:
+          //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
+          break;
+        default: break;
+      }
+
+      //DEBUG
+      //DEBUG
+      fprintf(stdout, "### adding aperture %i (current level %i)\n", ap.m_name, level);
+      if (ap.m_name < 0) { printf("## SKIPPING APERTURE %i\n", ap.m_name); continue; }
+      //DEBUG
+      //DEBUG
+
+      gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
+      gApertureName.push_back(ap.m_name);
+
+    }
+
+    else if (item->type == GERBER_AB) {
+
+      //DEBUG
+      printf("## realize_apertures: recurring on AB (current level %i)\n", level);
+
+      realize_apertures_r(item->aperture_block, level+1);
+      continue;
+    }
+
+    else if (item->type == GERBER_SR) {
+
+      //DEBUG
+      printf("## realize_apertures: recurring on SR (current level %i)\n", level);
+
+      realize_apertures_r(item->step_repeat, level+1);
+      continue;
+    }
+
+    else { continue; }
+
+  }
+
+  return 0;
+}
 
 int realize_apertures(gerber_state_t *gs) {
+  return realize_apertures_r(gs, 0);
+}
+
+/*
+int realize_apertures_OLD(gerber_state_t *gs) {
   double min_segment_length = 0.01;
   int min_segments = 8;
   int base_mapping[] = {1, 2, 3, 3};
@@ -1274,25 +1440,9 @@ int realize_apertures(gerber_state_t *gs) {
 
   aperture_data_t *aperture;
 
-  //DEBUG
-  printf("###>>>BEFORE (%i)\n", gs->depth);
-  print_aperture_list(gs->aperture_head);
-  printf("###\n");
-  print_aperture_tree(gs, 0);
-  printf("###\n");
-  dump_information(gs, 0);
-  printf("###<<<BEFORE\n");
-  
-  flatten_aperture_list(gs, 0);
+  //--
 
-  //DEBUG
-  printf("###>>>AFTER (%i)\n", gs->depth);
-  print_aperture_list(gs->aperture_head);
-  printf("###\n");
-  dump_information(gs, 0);
-  //print_aperture_tree(gs, 0);
-  printf("###<<<AFTER\n");
-  
+  flatten_aperture_list(gs, 0);
 
   if (gMinSegmentLength > 0.0) {
     min_segment_length = gMinSegmentLength;
@@ -1323,9 +1473,6 @@ int realize_apertures(gerber_state_t *gs) {
     else {
     }
 
-    //DEBUG
-    if ((aperture->type == AD_ENUM_BLOCK) || (aperture->type == AD_ENUM_STEP_REPEAT)) { continue; }
-
     switch (aperture->type) {
 
       case AD_ENUM_CIRCLE:
@@ -1346,37 +1493,6 @@ int realize_apertures(gerber_state_t *gs) {
 
       case AD_ENUM_MACRO:
         realize_macro( gs, ap, ap.m_macro_name, ap.m_macro_param );
-        break;
-
-      case AD_ENUM_BLOCK:
-        realize_simple_block( gs, aperture, ap );
-        break;
-
-      case AD_ENUM_STEP_REPEAT:
-
-        /*
-        printf("##SR realize aperture %i\n", ap.m_name);
-
-        printf("#####################################\n");
-        printf("#####################################\n");
-        printf("#####################################\n");
-
-        dump_information(gs, 0);
-
-        printf("#####################################\n");
-        printf("#####################################\n");
-        printf("#####################################\n");
-
-        realize_step_repeat( gs, aperture, ap );
-
-        for (ii=0; ii<ap.m_geom.size(); ii++) {
-          for (jj=0; jj<ap.m_geom[ii].size(); jj++) {
-            printf("##sr%i %lli %lli\n", ap.m_name, (long long int)ap.m_geom[ii][jj].X, (long long int)ap.m_geom[ii][jj].Y);
-          }
-          printf("##sr%i\n", ap.m_name);
-        }
-        */
-
         break;
 
       default: break;
@@ -1417,8 +1533,11 @@ int realize_apertures(gerber_state_t *gs) {
     }
 
     //DEBUG
+    //DEBUG
     fprintf(stdout, "### adding aperture %i\n", ap.m_name);
     if (ap.m_name < 0) { printf("## SKIPPING APERTURE %i\n", ap.m_name); continue; }
+    //DEBUG
+    //DEBUG
 
     gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
     gApertureName.push_back(ap.m_name);
@@ -1427,3 +1546,4 @@ int realize_apertures(gerber_state_t *gs) {
 
   return 0;
 }
+*/
