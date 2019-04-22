@@ -1389,32 +1389,17 @@ int realize_apertures_r(gerber_state_t *gs, int level) {
         default: break;
       }
 
-      //DEBUG
-      //DEBUG
-      fprintf(stdout, "### adding aperture %i (current level %i)\n", ap.m_name, level);
-      if (ap.m_name < 0) { printf("## SKIPPING APERTURE %i\n", ap.m_name); continue; }
-      //DEBUG
-      //DEBUG
-
       gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
       gApertureName.push_back(ap.m_name);
 
     }
 
     else if (item->type == GERBER_AB) {
-
-      //DEBUG
-      printf("## realize_apertures: recurring on AB (current level %i)\n", level);
-
       realize_apertures_r(item->aperture_block, level+1);
       continue;
     }
 
     else if (item->type == GERBER_SR) {
-
-      //DEBUG
-      printf("## realize_apertures: recurring on SR (current level %i)\n", level);
-
       realize_apertures_r(item->step_repeat, level+1);
       continue;
     }

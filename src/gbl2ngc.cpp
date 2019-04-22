@@ -953,9 +953,6 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  //DEBUG
-  fprintf(stdout, "## cpXXX\n");
-
   // Construct library of atomic shapes and create polygons
   //
   realize_apertures(&gs);
@@ -965,21 +962,15 @@ int main(int argc, char **argv) {
   setup_aperture_blocks(&gs);
 
   //DEBUG
-  print_some_state(&gs, 0);
-  print_ast(&gs, 0);
+  //print_some_state(&gs, 0);
+  //print_ast(&gs, 0);
 
   if (gPrintPolygon) {
     //print_polygon_set(&gs);
     exit(0);
   }
 
-  //DEBUG
-  printf("## cp.m1\n"); fflush(stdout);
-
   join_polygon_set( pgn_union, &gs );
-
-  //DEBUG
-  printf("## cp.m2\n"); fflush(stdout);
 
   if (gShowComments) {
     fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
