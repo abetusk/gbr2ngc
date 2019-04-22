@@ -854,16 +854,16 @@ void join_polygon_set(Paths &result, gerber_state_t *gs) {
 //   that does an individual subject union for exposure of 1
 //   and a differenc clip of exposure 0
 //
-int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
+int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoint &virtual_origin, int level) {
   unsigned int i, ii, jj, _i, _j;
 
   gerber_item_ll_t *item_nod;
   gerber_region_t *region;
 
   PathSet temp_pwh_vec;
-  IntPoint prev_pnt, cur_pnt;
+  IntPoint prev_pnt, cur_pnt, _origin;
 
-  Clipper clip;
+  //Clipper clip;
   int n=0, name=0, _path_polarity=1;
   int polarity = 1, d_name = -1;
 
@@ -877,7 +877,9 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
 
   //--
 
-  printf("##>> join_polygon_set_r gs %p (level %i)\n", gs, level);
+  printf("##>> join_polygon_set_r gs %p (level %i) (virt_orgn: %lli %lli)\n",
+      gs, level,
+      (long long int)virtual_origin.X, (long long int)virtual_origin.Y);
 
   for (item_nod = gs->item_head;
        item_nod;
@@ -951,17 +953,29 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
       point_list.clear();
       res_point.clear();
 
-      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
-        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
-                                          gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
-        }
-      }
+      _origin = prev_pnt;
+      _origin.X += virtual_origin.X;
+      _origin.Y += virtual_origin.Y;
 
       for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
         for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X ,
-                                          gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y ) );
+          //point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + prev_pnt.X,
+          //                                gAperture[ name ].m_path[ii][jj].Y + prev_pnt.Y  ) );
+          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X,
+                                          gAperture[ name ].m_path[ii][jj].Y + _origin.Y  ) );
+        }
+      }
+
+      _origin = cur_pnt;
+      _origin.X += virtual_origin.X;
+      _origin.Y += virtual_origin.Y;
+
+      for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+        for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+          //point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X ,
+          //                                gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y ) );
+          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X ,
+                                          gAperture[ name ].m_path[ii][jj].Y + _origin.Y ) );
         }
       }
 
@@ -987,8 +1001,8 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
           clip.AddPath(res_point, ptClip, true);
 
           it_paths.clear();
-          //clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
-          clip.Execute(ctDifference, it_paths, pftEvenOdd, pftEvenOdd);
+          clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+          //clip.Execute(ctDifference, it_paths, pftEvenOdd, pftEvenOdd);
 
           clip.Clear();
           clip.AddPaths(it_paths, ptSubject, true);
@@ -1019,14 +1033,20 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
         //DEBUG
         printf("#### flashing aperture d%i\n", name);
 
+        _origin = cur_pnt;
+        _origin.X += virtual_origin.X;
+        _origin.Y += virtual_origin.Y;
+
         aperture_clip.Clear();
         aperture_geom.clear();
         for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
 
           tmp_path.clear();
           for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-            tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X,
-                                          gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y  ) );
+            //tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + cur_pnt.X,
+            //                              gAperture[ name ].m_path[ii][jj].Y + cur_pnt.Y  ) );
+            tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X,
+                                          gAperture[ name ].m_path[ii][jj].Y + _origin.Y ) );
           }
 
           if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
@@ -1043,8 +1063,8 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
           }
           else {
             aperture_clip.AddPath(tmp_path, ptClip, true);
-            //aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
-            aperture_clip.Execute(ctDifference , aperture_geom, pftEvenOdd, pftEvenOdd);
+            aperture_clip.Execute(ctDifference , aperture_geom, pftNonZero, pftNonZero);
+            //aperture_clip.Execute(ctDifference , aperture_geom, pftEvenOdd, pftEvenOdd);
             aperture_clip.Clear();
             aperture_clip.AddPaths(aperture_geom, ptSubject, true);
             aperture_geom.clear();
@@ -1053,8 +1073,8 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
         }
 
         it_paths.clear();
-        //aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
-        aperture_clip.Execute( ctUnion, it_paths, pftEvenOdd, pftEvenOdd );
+        aperture_clip.Execute( ctUnion, it_paths, pftNonZero, pftNonZero );
+        //aperture_clip.Execute( ctUnion, it_paths, pftEvenOdd, pftEvenOdd );
 
         //if ( ! _expose_bit(item_nod->polarity) ) {
         if ( ! _expose_bit(polarity) ) {
@@ -1065,8 +1085,8 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
 
           clip.AddPaths(it_paths, ptClip, true);
           it_paths.clear();
-          //clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
-          clip.Execute(ctDifference, it_paths, pftEvenOdd, pftEvenOdd);
+          clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+          //clip.Execute(ctDifference, it_paths, pftEvenOdd, pftEvenOdd);
           clip.Clear();
         }
 
@@ -1090,36 +1110,39 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
       //
       else if ( gApertureBlock.find(name) != gApertureBlock.end() ) {
 
-        it_paths.clear();
-        join_polygon_set_r( it_paths, gApertureBlock[name], level+1 );
+        _origin = cur_pnt;
+        _origin.X += virtual_origin.X;
+        _origin.Y += virtual_origin.Y;
+        join_polygon_set_r( result, clip, gApertureBlock[name], _origin, level+1 );
 
+        //it_paths.clear();
+        //join_polygon_set_r( it_paths, clip, gApertureBlock[name], _origin, level+1 );
+
+        /*
         tmp_paths.clear();
-
         for (ii=0; ii<it_paths.size(); ii++) {
-
           if (it_paths[ii].size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
-
           tmp_path.clear();
           for (jj=0; jj<it_paths[ii].size(); jj++) {
-
             tmp_path.push_back( IntPoint( it_paths[ii][jj].X + cur_pnt.X,
                                           it_paths[ii][jj].Y + cur_pnt.Y ) );
-
           }
           tmp_paths.push_back(tmp_path);
-
         }
+        */
 
+        /*
         if ( ! _expose_bit(polarity) ) {
 
           clip.AddPaths(tmp_paths, ptClip, true);
 
           tmp_paths.clear();
-          //clip.Execute(ctDifference, tmp_paths, pftNonZero, pftNonZero);
-          clip.Execute(ctDifference, tmp_paths, pftEvenOdd, pftEvenOdd);
+          clip.Execute(ctDifference, tmp_paths, pftNonZero, pftNonZero);
+          //clip.Execute(ctDifference, tmp_paths, pftEvenOdd, pftEvenOdd);
 
           clip.Clear();
         }
+        */
 
         clip.AddPaths( tmp_paths, ptSubject, true );
       }
@@ -1145,19 +1168,24 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
           dx = (double) (((double)ii) * (item_nod->sr_i));
           dy = (double) (((double)jj) * (item_nod->sr_j));
 
-          it_paths.clear();
+          //it_paths.clear();
 
-          //DEBUG
-          join_polygon_set_r(it_paths, item_nod->step_repeat, level+1);
+          _origin = dtoc( item_nod->x + dx, item_nod->y + dy );
+          _origin.X = virtual_origin.X;
+          _origin.Y = virtual_origin.Y;
+
+          //join_polygon_set_r(it_paths, clip, item_nod->step_repeat, _origin, level+1);
+          join_polygon_set_r(result, clip, item_nod->step_repeat, _origin, level+1);
 
           //cur_pnt = dtoc( region->x, region->y );
-          cur_pnt = dtoc( item_nod->x + dx, item_nod->y + dy );
+          /*
           for (_i=0; _i<it_paths.size(); _i++) {
             for (_j=0;  _j<it_paths[_i].size(); _j++) {
               it_paths[_i][_j].X += cur_pnt.X;
               it_paths[_i][_j].Y += cur_pnt.Y;
             }
           }
+          */
 
           /*
           if ( ! _expose_bit(polarity) ) {
@@ -1168,7 +1196,7 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
           }
           */
 
-          clip.AddPaths( it_paths, ptSubject, true );
+          //clip.AddPaths( it_paths, ptSubject, true );
 
         }
       }
@@ -1180,8 +1208,8 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
   //DEBUG
   printf("##cp.x\n"); fflush(stdout);
 
-  //clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
-  clip.Execute( ctUnion, result, pftEvenOdd, pftEvenOdd );
+  clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+  //clip.Execute( ctUnion, result, pftEvenOdd, pftEvenOdd );
 
   //DEBUG
   printf("##cp.xx\n"); fflush(stdout);
@@ -1190,6 +1218,11 @@ int join_polygon_set_r(Paths &result, gerber_state_t *gs, int level) {
 }
 
 int join_polygon_set(Paths &result, gerber_state_t *gs) {
-  return join_polygon_set_r(result, gs, 0);
+  Clipper clip;
+  IntPoint origin;
+
+  origin.X = 0;
+  origin.Y = 0;
+  return join_polygon_set_r(result, clip, gs, origin, 0);
 }
 
