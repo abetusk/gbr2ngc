@@ -1031,6 +1031,8 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
       parse_error("found end of AB without beginning (inside SR?)", gs->line_no, linebuf);
     }
 
+    gs->_parent_gerber_state->_item_cur->polarity = gs->polarity;
+
     gerber_state_add_item(gs->_parent_gerber_state, gs->_parent_gerber_state->_item_cur);
     gs->_parent_gerber_state->_item_cur = NULL;
     gs->_parent_gerber_state->absr_active = 0;

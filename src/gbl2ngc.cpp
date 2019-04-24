@@ -859,12 +859,7 @@ int setup_aperture_blocks_r(gerber_state_t *gs, int level) {
         item ;
         item = item->next ) {
     if (item->type == GERBER_AB) {
-
-      //DEBUG
-      printf("# setup_aperture_blocks_r(%i): adding d%i\n", level, item->d_name);
-
       gApertureBlock[item->d_name] = item->aperture_block;
-
       setup_aperture_blocks_r(item->aperture_block, level+1);
     }
   }

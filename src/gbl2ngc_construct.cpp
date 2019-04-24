@@ -318,28 +318,42 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
   double dx, dy;
 
+  int stack_polarity, stack_d_name;
+  gerber_state_t *stack_gs;
+
   //--
 
   for (item_nod = gs->item_head;
        item_nod;
        item_nod = item_nod->next) {
 
-    polarity = gs->_root_gerber_state->polarity;
-    d_name = gs->_root_gerber_state->d_state;
+    //polarity = gs->_root_gerber_state->polarity;
+    //d_name = gs->_root_gerber_state->d_state;
+
+    polarity = gs->polarity;
+    d_name = gs->d_state;
 
     //--
 
     if (item_nod->type == GERBER_LP) {
       polarity = item_nod->polarity;
-      gs->_root_gerber_state->polarity = polarity;
+
+      //gs->_root_gerber_state->polarity = polarity;
+      gs->polarity = polarity;
+
       continue;
     }
 
     //--
 
     else if (item_nod->type == GERBER_D10P) {
-      gs->_root_gerber_state->d_state = item_nod->d_name;
-      d_name = gs->_root_gerber_state->d_state;
+
+      //gs->_root_gerber_state->d_state = item_nod->d_name;
+      //d_name = gs->_root_gerber_state->d_state;
+
+      gs->d_state = item_nod->d_name;
+      d_name = item_nod->d_name;
+
       continue;
     }
 
@@ -511,17 +525,29 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
         _origin.X += virtual_origin.X;
         _origin.Y += virtual_origin.Y;
 
-        // AB does not change global state so "reset" it after every
+        // AB realization does not change global state so "reset" it after every
         // round (currently only polarity, will need to reset other
         // state variables as well, later).
         //
-        polarity = gs->_root_gerber_state->polarity;
+        //polarity = gs->_root_gerber_state->polarity;
+        //d_name = gs->_root_gerber_state->d_state;
+        //polarity = gs->polarity;
+        //d_name = gs->d_state;
 
-        join_polygon_set_r( result, clip, gApertureBlock[name], _origin, level+1 );
+        stack_gs        = gApertureBlock[name];
+        stack_polarity  = stack_gs->polarity;
+        stack_d_name    = stack_gs->d_state;
+
+        //join_polygon_set_r( result, clip, gApertureBlock[name], _origin, level+1 );
+        join_polygon_set_r( result, clip, stack_gs, _origin, level+1 );
+
+        stack_gs->polarity  = stack_polarity;
+        stack_gs->d_state   = stack_d_name;
 
         // Restore state.
         //
-        gs->_root_gerber_state->polarity = polarity;
+        //gs->_root_gerber_state->polarity = polarity;
+        //gs->_root_gerber_state->d_state = d_name;
 
       }
 
@@ -549,17 +575,17 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
           _origin.X += virtual_origin.X;
           _origin.Y += virtual_origin.Y;
 
-          // SR does not change global state so "reset" it after every
-          // round (currently only polarity, will need to reset other
-          // state variables as well, later).
+          // The SR inherits the polarity and current D name
           //
-          polarity = gs->_root_gerber_state->polarity;
+          item_nod->step_repeat->polarity = polarity;
+          item_nod->step_repeat->d_state = d_name;
 
           join_polygon_set_r(result, clip, item_nod->step_repeat, _origin, level+1);
 
-          // Restore state.
+          // SR affects state, so percolate state changes up
           //
-          gs->_root_gerber_state->polarity = polarity;
+          gs->polarity = polarity;
+          gs->d_state = item_nod->step_repeat->d_state;
 
         }
       }
