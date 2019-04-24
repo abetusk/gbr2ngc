@@ -20,6 +20,8 @@
 
 #include "gbr2ngc.hpp"
 
+#define _isnan std::isnan
+
 #define DEBUG_CONSTRUCT
 
 class Gerber_point_2 {
@@ -54,6 +56,23 @@ typedef std::map< Gerber_point_2, int, Gerber_point_2_cmp  > PointPosMap;
 typedef std::pair< Gerber_point_2, int > PointPosMapPair;
 
 typedef std::map< Gerber_point_2, int , Gerber_point_2_cmp  > HolePosMap;
+
+//--
+
+static int _get_segment_count(double r, double min_segment_length, int min_segments) {
+  int segments;
+  double c, theta, z;
+
+  segments=min_segments;
+  c = 2.0 * M_PI * r;
+
+  z = c / min_segment_length;
+  if (_isnan(z)) { return min_segments; }
+  if ((int)z < min_segments) {
+    return min_segments;
+  }
+  return (int)z;
+}
 
 
 // add a hole to the vector hole_vec from the Gerber_point_2
@@ -318,8 +337,14 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
   double dx, dy;
 
+  IntPoint _prv_arc_pnt;
+  double ang_rad, tx, ty, tr, _p;
+  int n_seg = 16;
+
   int stack_polarity, stack_d_name;
   gerber_state_t *stack_gs;
+
+
 
   //--
 
@@ -456,14 +481,11 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
     //--
 
     else if (item_nod->type == GERBER_SEGMENT_ARC) {
-      IntPoint _prv_arc_pnt;
-      double ang_rad, tx, ty, tr, _p;
-      int n_seg = 8;
-
       name = d_name;
 
-      ang_rad = item_nod->arc_ang_rad_beg;
+      _get_segment_count(item_nod->arc_r, gMinSegmentLength, gMinSegment);
 
+      ang_rad = item_nod->arc_ang_rad_beg;
       tr = item_nod->arc_r;
       tx = tr*cos(ang_rad) + item_nod->arc_center_x;
       ty = tr*sin(ang_rad) + item_nod->arc_center_y;
@@ -471,7 +493,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
       _prv_arc_pnt = dtoc( tx, ty );
 
       for (int _segment=1; _segment<n_seg; _segment++) {
-
 
         _p = ((double)_segment) / ((double)(n_seg-1));
 
@@ -532,13 +553,10 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
             clip.AddPaths(it_paths, ptSubject, true);
           }
 
-          //EXPERIMENT
           clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
-
         }
 
         _prv_arc_pnt = cur_pnt;
-
       }
 
     }

@@ -463,8 +463,8 @@ char *skip_whitespace(char *s) {
 //------------------------
 
 void string_cleanup(char *rop, char *op) {
-  if (!rop) return;
-  if (!op) return;
+  if (!rop) { return; }
+  if (!op) { return; }
   while (*op) {
     if (*op != '\n') {
       *rop = *op;
@@ -478,8 +478,8 @@ void string_cleanup(char *rop, char *op) {
 //------------------------
 
 void strip_whitespace(char *rop, char *op) {
-  if (!rop) return;
-  if (!op) return;
+  if (!rop) { return; }
+  if (!op) { return; }
   while (*op) {
     if (!isspace(*op)) {
       *rop = *op;
@@ -531,7 +531,7 @@ enum {
 //------------------------
 
 int is_function_code_deprecated(int function_code) {
-  if (function_code > FC_M02) return 1;
+  if (function_code > FC_M02) { return 1; }
   return 0;
 }
 
@@ -540,35 +540,36 @@ int is_function_code_deprecated(int function_code) {
 int get_function_code(char *linebuf) {
   char *pos = linebuf;
 
-  if (pos[0] == 'X') return FC_X;
-  if (pos[0] == 'Y') return FC_Y;
-  if (pos[0] == 'I') return FC_I;
-  if (pos[0] == 'J') return FC_J;
+  if (pos[0] == 'X') { return FC_X; }
+  if (pos[0] == 'Y') { return FC_Y; }
+  if (pos[0] == 'I') { return FC_I; }
+  if (pos[0] == 'J') { return FC_J; }
 
-  if ( (pos[0] == 'D') && (pos[1] == '0') && (pos[2] == '1') ) return FC_D01;
-  if ( (pos[0] == 'D') && (pos[1] == '0') && (pos[2] == '2') ) return FC_D02;
-  if ( (pos[0] == 'D') && (pos[1] == '0') && (pos[2] == '3') ) return FC_D03;
-  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '1') ) return FC_G01;
-  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '2') ) return FC_G02;
-  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '3') ) return FC_G03;
-  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '4') ) return FC_G04;
-  if ( (pos[0] == 'G') && (pos[1] == '3') && (pos[2] == '6') ) return FC_G36;
-  if ( (pos[0] == 'G') && (pos[1] == '3') && (pos[2] == '7') ) return FC_G37;
-  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '4') ) return FC_G74;
-  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '5') ) return FC_G75;
-  if ( (pos[0] == 'M') && (pos[1] == '0') && (pos[2] == '2') ) return FC_M02;
+  if ( (pos[0] == 'D') && (pos[1] == '0') && (pos[2] == '1') ) { return FC_D01; }
+  if ( (pos[0] == 'D') && (pos[1] == '0') && (pos[2] == '2') ) { return FC_D02; }
+  if ( (pos[0] == 'D') && (pos[1] == '0') && (pos[2] == '3') ) { return FC_D03; }
+  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '1') ) { return FC_G01; }
+  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '2') ) { return FC_G02; }
+  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '3') ) { return FC_G03; }
+  if ( (pos[0] == 'G') && (pos[1] == '0') && (pos[2] == '4') ) { return FC_G04; }
+  if ( (pos[0] == 'G') && (pos[1] == '3') && (pos[2] == '6') ) { return FC_G36; }
+  if ( (pos[0] == 'G') && (pos[1] == '3') && (pos[2] == '7') ) { return FC_G37; }
+  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '4') ) { return FC_G74; }
+  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '5') ) { return FC_G75; }
+  if ( (pos[0] == 'M') && (pos[1] == '0') && (pos[2] == '2') ) { return FC_M02; }
 
-  if ( (pos[0] == 'G') && (pos[1] == '5') && (pos[2] == '4') ) return FC_G54;
-  if ( (pos[0] == 'G') && (pos[1] == '5') && (pos[2] == '5') ) return FC_G55;
-  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '0') ) return FC_G70;
-  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '1') ) return FC_G71;
-  if ( (pos[0] == 'G') && (pos[1] == '9') && (pos[2] == '0') ) return FC_G90;
-  if ( (pos[0] == 'G') && (pos[1] == '9') && (pos[2] == '1') ) return FC_G91;
-  if ( (pos[0] == 'M') && (pos[1] == '0') && (pos[2] == '0') ) return FC_M00;
-  if ( (pos[0] == 'M') && (pos[1] == '0') && (pos[2] == '1') ) return FC_M01;
+  if ( (pos[0] == 'G') && (pos[1] == '5') && (pos[2] == '4') ) { return FC_G54; }
+  if ( (pos[0] == 'G') && (pos[1] == '5') && (pos[2] == '5') ) { return FC_G55; }
+  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '0') ) { return FC_G70; }
+  if ( (pos[0] == 'G') && (pos[1] == '7') && (pos[2] == '1') ) { return FC_G71; }
+  if ( (pos[0] == 'G') && (pos[1] == '9') && (pos[2] == '0') ) { return FC_G90; }
+  if ( (pos[0] == 'G') && (pos[1] == '9') && (pos[2] == '1') ) { return FC_G91; }
+  if ( (pos[0] == 'M') && (pos[1] == '0') && (pos[2] == '0') ) { return FC_M00; }
+  if ( (pos[0] == 'M') && (pos[1] == '0') && (pos[2] == '1') ) { return FC_M01; }
 
-  if ( (pos[0] == 'D') && (pos[1] != '0') )
+  if ( (pos[0] == 'D') && (pos[1] != '0') ) {
     return FC_D10P;
+  }
 
   return -1;
 }
@@ -612,33 +613,33 @@ enum {
 
 int get_image_parameter_code(char *linebuf) {
   char *pos = linebuf + 1;
-  if ( pos[0] && (pos[0] == 'F') && (pos[1] == 'S') ) return IMG_PARAM_FS;
-  if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'N') ) return IMG_PARAM_IN;
-  if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'P') ) return IMG_PARAM_IP;
-  if ( pos[0] && (pos[0] == 'M') && (pos[1] == 'O') ) return IMG_PARAM_MO;
-  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'D') ) return IMG_PARAM_AD;
-  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'M') ) return IMG_PARAM_AM;
-  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'B') ) return IMG_PARAM_AB;
-  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'N') ) return IMG_PARAM_LN;
+  if ( pos[0] && (pos[0] == 'F') && (pos[1] == 'S') ) { return IMG_PARAM_FS; }
+  if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'N') ) { return IMG_PARAM_IN; }
+  if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'P') ) { return IMG_PARAM_IP; }
+  if ( pos[0] && (pos[0] == 'M') && (pos[1] == 'O') ) { return IMG_PARAM_MO; }
+  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'D') ) { return IMG_PARAM_AD; }
+  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'M') ) { return IMG_PARAM_AM; }
+  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'B') ) { return IMG_PARAM_AB; }
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'N') ) { return IMG_PARAM_LN; }
 
-  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'P') ) return IMG_PARAM_LP;
-  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'M') ) return IMG_PARAM_LM;
-  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'R') ) return IMG_PARAM_LR;
-  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'S') ) return IMG_PARAM_LS;
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'P') ) { return IMG_PARAM_LP; }
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'M') ) { return IMG_PARAM_LM; }
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'R') ) { return IMG_PARAM_LR; }
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'S') ) { return IMG_PARAM_LS; }
 
-  if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'R') ) return IMG_PARAM_SR;
+  if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'R') ) { return IMG_PARAM_SR; }
 
-  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'S') ) return IMG_PARAM_SR;
-  if ( pos[0] && (pos[0] == 'M') && (pos[1] == 'I') ) return IMG_PARAM_SR;
-  if ( pos[0] && (pos[0] == 'O') && (pos[1] == 'F') ) return IMG_PARAM_SR;
-  if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'R') ) return IMG_PARAM_SR;
-  if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'F') ) return IMG_PARAM_SR;
+  if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'S') ) { return IMG_PARAM_SR; }
+  if ( pos[0] && (pos[0] == 'M') && (pos[1] == 'I') ) { return IMG_PARAM_SR; }
+  if ( pos[0] && (pos[0] == 'O') && (pos[1] == 'F') ) { return IMG_PARAM_SR; }
+  if ( pos[0] && (pos[0] == 'I') && (pos[1] == 'R') ) { return IMG_PARAM_SR; }
+  if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'F') ) { return IMG_PARAM_SR; }
 
-  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'F') ) return IMG_PARAM_TF;
-  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'O') ) return IMG_PARAM_TO;
-  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'A') ) return IMG_PARAM_TA;
-  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'D') ) return IMG_PARAM_TD;
-  if ( pos[0] && (pos[0] == 'D') && (pos[1] == 'R') ) return IMG_PARAM_DR;
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'F') ) { return IMG_PARAM_TF; }
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'O') ) { return IMG_PARAM_TO; }
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'A') ) { return IMG_PARAM_TA; }
+  if ( pos[0] && (pos[0] == 'T') && (pos[1] == 'D') ) { return IMG_PARAM_TD; }
+  if ( pos[0] && (pos[0] == 'D') && (pos[1] == 'R') ) { return IMG_PARAM_DR; }
   return -1;
 }
 
@@ -649,37 +650,37 @@ void parse_fs(gerber_state_t *gs, char *linebuf) {
   int a, b;
 
   chp = linebuf + 3;
-  if ((*chp != 'L') && (*chp != 'T')) parse_error("bad FS zero omission mode", gs->line_no, linebuf);
-  if (*chp == 'L') gs->fs_omit_leading_zero = 1;
-  else gs->fs_omit_leading_zero = 0;
+  if ((*chp != 'L') && (*chp != 'T')) { parse_error("bad FS zero omission mode", gs->line_no, linebuf); }
+  if (*chp == 'L') { gs->fs_omit_leading_zero = 1; }
+  else { gs->fs_omit_leading_zero = 0; }
   chp++;
 
-  if ((*chp != 'A') && (*chp != 'I')) parse_error("bad FS coordinate value mode", gs->line_no, linebuf);
-  if (*chp == 'A') gs->fs_coord_absolute = 1;
-  else gs->fs_coord_absolute = 0;
+  if ((*chp != 'A') && (*chp != 'I')) { parse_error("bad FS coordinate value mode", gs->line_no, linebuf); }
+  if (*chp == 'A') { gs->fs_coord_absolute = 1; }
+  else { gs->fs_coord_absolute = 0; }
   chp++;
 
-  if (*chp != 'X') parse_error("bad FS format (expected 'X')", gs->line_no, linebuf);
+  if (*chp != 'X') { parse_error("bad FS format (expected 'X')", gs->line_no, linebuf); }
   chp++;
 
-  if (!isdigit(*chp)) parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf);
+  if (!isdigit(*chp)) { parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf); }
   gs->fs_x_int = *chp++ - '0';
-  if ((gs->fs_x_int<0) || (gs->fs_x_int>7)) parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf);
+  if ((gs->fs_x_int<0) || (gs->fs_x_int>7)) { parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf); }
 
-  if (!isdigit(*chp)) parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf);
+  if (!isdigit(*chp)) { parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf); }
   gs->fs_x_real = *chp++ - '0';
-  if ((gs->fs_x_real<0) || (gs->fs_x_real>7)) parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf);
+  if ((gs->fs_x_real<0) || (gs->fs_x_real>7)) { parse_error("bad FS format (expected digit after 'X')", gs->line_no, linebuf); }
 
-  if (*chp != 'Y') parse_error("bad FS format (expected 'Y')", gs->line_no, linebuf);
+  if (*chp != 'Y') { parse_error("bad FS format (expected 'Y')", gs->line_no, linebuf); }
   chp++;
 
-  if (!isdigit(*chp)) parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf);
+  if (!isdigit(*chp)) { parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf); }
   gs->fs_y_int = *chp++ - '0';
-  if ((gs->fs_y_int<0) || (gs->fs_y_int>7)) parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf);
+  if ((gs->fs_y_int<0) || (gs->fs_y_int>7)) { parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf); }
 
-  if (!isdigit(*chp)) parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf);
+  if (!isdigit(*chp)) { parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf); }
   gs->fs_y_real = *chp++ - '0';
-  if ((gs->fs_y_real<0) || (gs->fs_y_real>7)) parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf);
+  if ((gs->fs_y_real<0) || (gs->fs_y_real>7)) { parse_error("bad FS format (expected digit after 'Y')", gs->line_no, linebuf); }
 
   gs->fs_i_int = gs->fs_x_int;
   gs->fs_j_int = gs->fs_y_int;
@@ -2039,6 +2040,21 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
     deps = (double)(1 << (gs->fs_x_int + gs->fs_x_real));
     if (deps > 0.0) { deps = 1.0 / deps; }
 
+    // Single quadrent mode only allows th arcs to have a maximum arc angle of 90 deg (pi/2) .
+    // The arc is defined by specifying the start and end point of the arc and the center
+    // of where the arc should trace.
+    // The center has to be guessed at by considerin the four possible centers of (x+-i, y+-j)
+    // with the one that 'makes the most sense' being chosen.
+    // This is done by:
+    // * considering the radius of the potential center to each of the start and end points and
+    //   only considerin gthe ones whose radius differs by some small amount
+    // * choosing only the centers that could have an arc traced out in the direction (cw or ccw)
+    //   specificed.
+    // This is further complicated by it being nearly impossible to have an exact match between the
+    // radius of the center from the start and end point to the center.
+    // Here, the start angle and the delta nagle, along with the center and radius deviation is stored
+    // for ease of processing later.
+    //
     if (gs->quadrent_mode == QUADRENT_MODE_SINGLE) {
 
       item_nod->type = GERBER_SEGMENT_ARC;
@@ -2101,7 +2117,33 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
 
     }
 
+    // multi quadrent mode is simpler but could lead to unstable results
+    //
     else if (gs->quadrent_mode == QUADRENT_MODE_MULTI) {
+
+      item_nod->type = GERBER_SEGMENT_ARC;
+
+      tx = prev_x + cur_i;
+      ty = prev_y + cur_j;
+
+      item_nod->arc_center_x = tx;
+      item_nod->arc_center_y = ty;
+      item_nod->arc_r = sqrt( (prev_x - tx)*(prev_x - tx) + (prev_y - ty)*(prev_y - ty) );
+      item_nod->arc_r_deviation =
+        sqrt( (cur_x - tx)*(cur_x - tx) + (cur_y - ty)*(cur_y - ty) ) -
+        item_nod->arc_r;
+      item_nod->arc_ang_rad_beg = atan2( prev_y - ty, prev_x - tx );
+      item_nod->arc_ang_rad_del = atan2(  cur_y - ty,  cur_x - tx ) - item_nod->arc_ang_rad_beg;
+
+      if ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) &&
+          (item_nod->arc_ang_rad_del < 0.0)) {
+        item_nod->arc_ang_rad_del += 2.0*M_PI;
+      }
+      else if ((gs->interpolation_mode == INTERPOLATION_MODE_CW) &&
+               (item_nod->arc_ang_rad_del > 0.0)) {
+        item_nod->arc_ang_rad_del -= 2.0*M_PI;
+      }
+
     }
 
   }
@@ -2287,7 +2329,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
 char *parse_d_state(gerber_state_t *gs, char *s) {
   char *chp, ch;
-  if (*s != 'D') parse_error("bad D state, expected 'D'", gs->line_no, NULL);
+  if (*s != 'D') { parse_error("bad D state, expected 'D'", gs->line_no, NULL); }
   s++;
 
   for (chp = s; (*chp) && (isdigit(*chp)); chp++ );
@@ -2295,11 +2337,11 @@ char *parse_d_state(gerber_state_t *gs, char *s) {
   *chp = '\0';
 
   gs->d_state = atoi(s);
-  if (gs->d_state < 0) parse_error("bad D state, expected >= 0", gs->line_no, NULL);
+  if (gs->d_state < 0) { parse_error("bad D state, expected >= 0", gs->line_no, NULL); }
 
   *chp = ch;
 
-  if (!ch) return chp;
+  if (!ch) { return chp; }
   return chp+1;
 
 }
