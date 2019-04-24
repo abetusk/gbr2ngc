@@ -343,16 +343,32 @@ typedef struct gerber_item_ll_type {
   int n;
   double x, y;
   int region;
-  int polarity;
 
-  int quadrent_mode;
-  int interpolation_mode;
+  // LP
+  //
+  int polarity;
 
   int units_metric;
 
+  // SR (step repeat)
+  //
   int sr_x, sr_y;
   double sr_i, sr_j;
 
+  // LS
+  //
+  double scale;
+
+  // G74, G75
+  //
+  int quadrent_mode;
+
+  // G01, G02, G03
+  //
+  int interpolation_mode;
+
+  // D01 I, J
+  //
   double arc_center_x, arc_center_y;
   double arc_r, arc_r_deviation;
   double arc_ang_rad_beg, arc_ang_rad_del;
