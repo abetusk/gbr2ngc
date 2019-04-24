@@ -110,11 +110,13 @@ int (*function_code_handler[13])(gerber_state_t *, char *);
 
 //------------------------
 
+/*
 enum {
   QUADRENT_MODE_NONE = 0,
   QUADRENT_MODE_SINGLE,
   QUADRENT_MODE_MULTI,
 } quadrent_mode_enum;
+*/
 
 void gerber_state_init(gerber_state_t *gs) {
 
@@ -138,6 +140,7 @@ void gerber_state_init(gerber_state_t *gs) {
   gs->line_no = 0;
 
   gs->quadrent_mode = -1;
+  gs->interpolation_mode = -1;
 
   gs->current_aperture = -1;
 
@@ -215,6 +218,7 @@ gerber_state_t *gerber_state_clone(gerber_state_t *orig_gs) {
   new_gs->line_no       = orig_gs->line_no;
 
   new_gs->quadrent_mode = orig_gs->quadrent_mode;
+  new_gs->interpolation_mode = orig_gs->interpolation_mode;
 
   new_gs->current_aperture = orig_gs->current_aperture;
 
@@ -580,7 +584,12 @@ enum {
   IMG_PARAM_AM,       // Aperture Macro
   IMG_PARAM_AB,       // Aperture Block
   IMG_PARAM_LN,       // Level Name
+
   IMG_PARAM_LP,       // Level Polarity
+  IMG_PARAM_LM,       // Level Polarity
+  IMG_PARAM_LR,       // Level Polarity
+  IMG_PARAM_LS,       // Level Polarity
+
   IMG_PARAM_SR,       // Step and Repeat
 
   // Attributes
@@ -611,7 +620,12 @@ int get_image_parameter_code(char *linebuf) {
   if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'M') ) return IMG_PARAM_AM;
   if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'B') ) return IMG_PARAM_AB;
   if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'N') ) return IMG_PARAM_LN;
+
   if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'P') ) return IMG_PARAM_LP;
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'M') ) return IMG_PARAM_LM;
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'R') ) return IMG_PARAM_LR;
+  if ( pos[0] && (pos[0] == 'L') && (pos[1] == 'S') ) return IMG_PARAM_LS;
+
   if ( pos[0] && (pos[0] == 'S') && (pos[1] == 'R') ) return IMG_PARAM_SR;
 
   if ( pos[0] && (pos[0] == 'A') && (pos[1] == 'S') ) return IMG_PARAM_SR;
@@ -1545,6 +1559,80 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
   return;
 }
 
+// load mirroring
+//
+void parse_lm(gerber_state_t *gs, char *linebuf) {
+  char mirror_axis = 'n', *chp;
+  gerber_item_ll_t *item_nod;
+  int ch;
+
+  chp = linebuf + 3;
+
+  ch = *chp;
+  if ((ch != 'N') &&
+      (ch != 'X') &&
+      (ch != 'Y') ) {
+    parse_error("invalid LM option. Expected 'N', 'X', 'Y' or 'XY' for LM comamnd", gs->line_no, NULL);
+  }
+  chp++;
+
+  if (ch == 'N')      { mirror_axis = 'N'; }
+  else if (ch == 'Y') { mirror_axis = 'Y'; }
+  else if (ch == 'X') {
+    chp++;
+    ch = *chp;
+    if (ch == 'Y')  { mirror_axis = 'L'; }
+    else            { mirror_axis = 'X'; }
+  }
+
+  item_nod = gerber_item_create(GERBER_LM, mirror_axis);
+  gerber_state_add_item(gs, item_nod);
+
+  return;
+}
+
+// load mirroring
+//
+void parse_lr(gerber_state_t *gs, char *linebuf) {
+  gerber_item_ll_t *item_nod;
+  char *chp;
+  int dn;
+  double v;
+
+  chp = linebuf + 3;
+  chp = skip_whitespace(chp);
+
+  if ( (!(*chp)) || ((*chp) != 'I') ) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+  chp ++;
+  dn = parse_double(&v, chp);
+  if (dn<=0) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+  chp += dn;
+
+  item_nod = gerber_item_create(GERBER_LR, v);
+  gerber_state_add_item(gs, item_nod);
+}
+
+// load mirroring
+//
+void parse_ls(gerber_state_t *gs, char *linebuf) {
+  gerber_item_ll_t *item_nod;
+  char *chp;
+  double v;
+  int dn;
+
+  chp = linebuf + 3;
+  chp = skip_whitespace(chp);
+
+  if ( (!(*chp)) || ((*chp) != 'I') ) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+  chp ++;
+  dn = parse_double(&v, chp);
+  if (dn<=0) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+  chp += dn;
+
+  item_nod = gerber_item_create(GERBER_LS, v);
+  gerber_state_add_item(gs, item_nod);
+}
+
 //------------------------
 
 // step repeat.
@@ -1873,7 +1961,49 @@ char *parse_single_int(gerber_state_t *gs, int *val, char *s) {
 
 //------------------------
 
-void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, int aperture_name) {
+static int _interpolation_center_cmp(const void *a, const void *b)  {
+  double *a_d, *b_d;
+
+  a_d = (double *)a;
+  b_d = (double *)b;
+
+  if (a_d[0] < b_d[0]) { return -1; }
+  if (a_d[0] > b_d[0]) { return  1; }
+
+  return 0;
+}
+
+static double _ang_clamp(double a, double eps) {
+  double q_r, q, _a;
+  int iq;
+
+  q_r = a / (2.0*M_PI);
+  iq = (int)q_r;
+  q = (double)iq;
+
+  _a = a;
+  if      (iq > 0) { _a = a - (q*2.0*M_PI); }
+  else if (iq < 0) { _a = a + (q*2.0*M_PI); }
+
+  if      (_a < -(M_PI+eps)) { _a += 2.0*M_PI; }
+  else if (_a >  (M_PI+eps)) { _a -= 2.0*M_PI; }
+
+  return _a;
+}
+
+void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, double cur_i, double cur_j, int aperture_name) {
+  //double p0x, p0y, p1x, p1y;
+  //double a0, a1, a2, a3, ta0, ta1;
+  //double c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
+  //double del_d0, del_d1, del_d2, del_d3;
+  double ta0, ta1, tx, ty, tr;
+  double deps;
+
+  double a[4], c[8], del_d[4];
+
+  int ii;
+  int n_candidates;
+  double candidates[3*4];
 
   gerber_item_ll_t *item_nod;
   gerber_region_t *region_nod;
@@ -1885,6 +2015,9 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   item_nod->type = GERBER_SEGMENT;
   item_nod->d_name = aperture_name;
   item_nod->polarity = gs->polarity;
+
+  item_nod->quadrent_mode = gs->quadrent_mode;
+  item_nod->interpolation_mode = gs->interpolation_mode;
 
   region_nod->x = prev_x;
   region_nod->y = prev_y;
@@ -1898,6 +2031,80 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   region_nod->x = cur_x;
   region_nod->y = cur_y;
   region_nod->next = NULL;
+
+  if ((gs->quadrent_mode != QUADRENT_MODE_NONE) &&
+      (gs->interpolation_mode != INTERPOLATION_MODE_NONE) &&
+      (gs->interpolation_mode != INTERPOLATION_MODE_LINEAR)) {
+
+    deps = (double)(1 << (gs->fs_x_int + gs->fs_x_real));
+    if (deps > 0.0) { deps = 1.0 / deps; }
+
+    if (gs->quadrent_mode == QUADRENT_MODE_SINGLE) {
+
+      item_nod->type = GERBER_SEGMENT_ARC;
+
+      c[2*0] = prev_x + cur_i; c[2*0 + 1] = prev_y + cur_j;
+      c[2*1] = prev_x - cur_i; c[2*1 + 1] = prev_y + cur_j;
+      c[2*2] = prev_x - cur_i; c[2*2 + 1] = prev_y - cur_j;
+      c[2*3] = prev_x + cur_i; c[2*3 + 1] = prev_y - cur_j;
+
+      for (ii=0; ii<4; ii++) {
+        ta0 = atan2( prev_y - c[2*ii + 1], prev_x - c[2*ii]);
+        ta1 = atan2(  cur_y - c[2*ii + 1],  cur_x - c[2*ii]);
+        a[ii] = ta1 - ta0;
+
+        if      (a[ii] > M_PI)  { a[ii] -= 2.0*M_PI; }
+        else if (a[ii] < -M_PI) { a[ii] += 2.0*M_PI; }
+        del_d[ii] = sqrt( (prev_y-c[2*ii + 1])*(prev_y-c[2*ii + 1]) + (prev_x-c[2*ii])*(prev_x-c[2*ii]) ) -
+                    sqrt( ( cur_y-c[2*ii + 1])*( cur_y-c[2*ii + 1]) + ( cur_x-c[2*ii])*( cur_x-c[2*ii]) ) ;
+
+      }
+
+      if (gs->interpolation_mode == INTERPOLATION_MODE_CCW) {
+
+        for (n_candidates=0, ii=0; ii<4; ii++) {
+
+          if ( ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) && ((a[ii] > -deps) && (a[ii] <  (M_PI + deps)))) ||
+               ((gs->interpolation_mode == INTERPOLATION_MODE_CW)  && ((a[ii] >  deps) && (a[ii] < -(M_PI + deps)))) ) {
+            candidates[3*n_candidates] = del_d[ii];
+            candidates[3*n_candidates + 1] = c[2*ii];
+            candidates[3*n_candidates + 2] = c[2*ii+1];
+            n_candidates++;
+          }
+        }
+        if (n_candidates==0) { parse_error("invalid ccw arc interpolation center", gs->line_no, ""); }
+
+        qsort(candidates, (size_t)n_candidates, sizeof(double)*3, _interpolation_center_cmp);
+
+        tx = candidates[1];
+        ty = candidates[2];
+
+        item_nod->arc_center_x = tx;
+        item_nod->arc_center_y = ty;
+        item_nod->arc_r = sqrt( (prev_x - tx)*(prev_x - tx) + (prev_y - ty)*(prev_y - ty) );
+        item_nod->arc_r_deviation =
+          sqrt( (cur_x - tx)*(cur_x - tx) + (cur_y - ty)*(cur_y - ty) ) -
+          item_nod->arc_r;
+        item_nod->arc_ang_rad_beg = atan2( prev_y - ty, prev_x - tx );
+        item_nod->arc_ang_rad_del = atan2(  cur_y - ty,  cur_x - tx ) - item_nod->arc_ang_rad_beg;
+
+        if ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) &&
+            (item_nod->arc_ang_rad_del < 0.0)) {
+          item_nod->arc_ang_rad_del += 2.0*M_PI;
+        }
+        else if ((gs->interpolation_mode == INTERPOLATION_MODE_CW) &&
+                 (item_nod->arc_ang_rad_del > 0.0)) {
+          item_nod->arc_ang_rad_del -= 2.0*M_PI;
+        }
+
+      }
+
+    }
+
+    else if (gs->quadrent_mode == QUADRENT_MODE_MULTI) {
+    }
+
+  }
 
   gerber_state_add_item(gs, item_nod);
 
@@ -1929,6 +2136,9 @@ void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name
   item_nod->x = cur_x;
   item_nod->y = cur_y;
   item_nod->polarity = gs->polarity;
+
+  //item_nod->quadrent_mode = gs->quadrent_mode;
+  //item_nod->interpolation_mode = gs->interpolation_mode;
 
   gerber_state_add_item(gs, item_nod);
 
@@ -1976,13 +2186,13 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
     else if (*chp == 'I') {
       if (state & 8) parse_error("multiple 'I' tokens found", gs->line_no, NULL);
-      state |= 2;
+      state |= 8;
       chp = parse_single_coord(gs, &(gs->cur_i), gs->fs_i_int, gs->fs_i_real, chp);
     }
 
     else if (*chp == 'J') {
       if (state & 16) parse_error("multiple 'I' tokens found", gs->line_no, NULL);
-      state |= 2;
+      state |= 16;
       chp = parse_single_coord(gs, &(gs->cur_j), gs->fs_j_int, gs->fs_j_real, chp);
     }
 
@@ -2056,7 +2266,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
   else {
 
     if (gs->d_state == 1) {
-      add_segment(gs, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->current_aperture);
+      add_segment(gs, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->cur_i, gs->cur_j, gs->current_aperture);
     }
 
     // Move without any realization
@@ -2102,7 +2312,7 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
   unsigned int state = 0;
 
   double prev_x, prev_y;
-  //contour_ll_t *contour_nod;
+  gerber_item_ll_t *item_nod;
 
   prev_x = gs->cur_x;
   prev_y = gs->cur_y;
@@ -2112,9 +2322,14 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
   chp = linebuf + 1;
   gs->g_state = 1;
 
-  if (chp[0] == '1') chp++;
-  else if ((chp[0] == '0') && (chp[1] == '1')) chp+=2;
-  else parse_error("invalid g01 code", gs->line_no, linebuf);
+  if (chp[0] == '1') { chp++; }
+  else if ((chp[0] == '0') && (chp[1] == '1')) { chp+=2; }
+  else { parse_error("invalid g01 code", gs->line_no, linebuf); }
+
+  item_nod = gerber_item_create(GERBER_G01); 
+  gerber_state_add_item(gs, item_nod);
+
+  gs->interpolation_mode = INTERPOLATION_MODE_LINEAR;
 
   if (*chp == '*') {
     free(linebuf);
@@ -2124,8 +2339,7 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
   parse_data_block(gs, chp);
 
   free(linebuf);
-
-
+  return;
 }
 
 
@@ -2134,7 +2348,13 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
 // clockwise circular interpolation
 //
 void parse_g02(gerber_state_t *gs, char *linebuf) {
-  parse_error("unsuported g02", gs->line_no, NULL);
+  gerber_item_ll_t *item_nod;
+
+  gs->interpolation_mode = INTERPOLATION_MODE_CW;
+
+  item_nod = gerber_item_create(GERBER_G02, gs);
+  gerber_state_add_item(gs, item_nod);
+
 }
 
 //------------------------
@@ -2142,7 +2362,15 @@ void parse_g02(gerber_state_t *gs, char *linebuf) {
 // counter-clockwise circular interpolation
 //
 void parse_g03(gerber_state_t *gs, char *linebuf) {
-  parse_error("unsuported g03", gs->line_no, NULL);
+  gerber_item_ll_t *item_nod;
+
+  //parse_error("unsuported g03", gs->line_no, NULL);
+
+  gs->interpolation_mode = INTERPOLATION_MODE_CCW;
+
+  item_nod = gerber_item_create(GERBER_G03, gs);
+  gerber_state_add_item(gs, item_nod);
+
 }
 
 //------------------------
@@ -2157,13 +2385,14 @@ void parse_g04(gerber_state_t *gs, char *linebuf) {
 // start region
 //
 void parse_g36(gerber_state_t *gs, char *linebuf) {
-
   gerber_item_ll_t *item_nod;
 
   gs->g_state = 36;
   gs->region = 1;
 
   gs->_item_cur = NULL;
+
+  return;
 }
 
 //------------------------
@@ -2178,6 +2407,7 @@ void parse_g37(gerber_state_t *gs, char *linebuf) {
     gs->_item_cur = NULL;
   }
 
+  return;
 }
 
 //------------------------
@@ -2187,13 +2417,10 @@ void parse_g74(gerber_state_t *gs, char *linebuf) {
 
   gs->quadrent_mode = QUADRENT_MODE_SINGLE;
 
-  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-  item_nod->type = GERBER_G74;
+  item_nod = gerber_item_create(GERBER_G74, gs);
+  gerber_state_add_item(gs, item_nod);
 
-  if (gs->item_head == NULL) { gs->item_head = item_nod; }
-  else                       { gs->item_tail->next = item_nod; }
-  gs->item_tail = item_nod;
-
+  return;
 }
 
 //------------------------
@@ -2203,13 +2430,10 @@ void parse_g75(gerber_state_t *gs, char *linebuf) {
 
   gs->quadrent_mode = QUADRENT_MODE_MULTI;
 
-  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-  item_nod->type = GERBER_G74;
+  item_nod = gerber_item_create(GERBER_G75, gs);
+  gerber_state_add_item(gs, item_nod);
 
-  if (gs->item_head == NULL) { gs->item_head = item_nod; }
-  else                       { gs->item_tail->next = item_nod; }
-  gs->item_tail = item_nod;
-
+  return;
 }
 
 //------------------------
@@ -2230,11 +2454,7 @@ void parse_m02(gerber_state_t *gs, char *linebuf) {
     //
     while (gs) {
 
-      if (gs->depth == 0) {
-        //printf("## adding root flash %i\n", gs->name);
-        //add_flash(gs, 0,0, gs->name);
-        break;
-      }
+      if (gs->depth == 0) { break; }
 
       if (gs->_item_cur == NULL) {
         parse_error("end of input but in an AB/SR block without beginning?", gs->line_no, linebuf);
@@ -2275,6 +2495,8 @@ void parse_m02(gerber_state_t *gs, char *linebuf) {
   gerber_state_add_item(gs, item_nod);
 
   gs->eof = 1;
+
+  return;
 }
 
 //------------------------
@@ -2511,7 +2733,12 @@ int gerber_state_interpret_line(gerber_state_t *root_gs, char *linebuf) {
       case IMG_PARAM_AM: parse_am(gs, linebuf); break;
       case IMG_PARAM_AB: parse_ab(gs, linebuf); break;
       case IMG_PARAM_LN: parse_ln(gs, linebuf); break;
+
       case IMG_PARAM_LP: parse_lp(gs, linebuf); break;
+      case IMG_PARAM_LM: parse_lm(gs, linebuf); break;
+      case IMG_PARAM_LR: parse_lr(gs, linebuf); break;
+      case IMG_PARAM_LS: parse_ls(gs, linebuf); break;
+
       case IMG_PARAM_SR: parse_sr(gs, linebuf); break;
       case IMG_PARAM_TF: parse_tf(gs, linebuf); break;
       case IMG_PARAM_TO: parse_to(gs, linebuf); break;

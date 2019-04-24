@@ -18,7 +18,7 @@
 * Dated May 20th 2013
 */
 
-#include "gbl2ngc.hpp"
+#include "gbr2ngc.hpp"
 
 #define DEBUG_CONSTRUCT
 
@@ -448,6 +448,96 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
         //EXPERIMENT
         clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+
+      }
+
+    }
+
+    //--
+
+    else if (item_nod->type == GERBER_SEGMENT_ARC) {
+      IntPoint _prv_arc_pnt;
+      double ang_rad, tx, ty, tr, _p;
+      int n_seg = 8;
+
+      name = d_name;
+
+      ang_rad = item_nod->arc_ang_rad_beg;
+
+      tr = item_nod->arc_r;
+      tx = tr*cos(ang_rad) + item_nod->arc_center_x;
+      ty = tr*sin(ang_rad) + item_nod->arc_center_y;
+
+      _prv_arc_pnt = dtoc( tx, ty );
+
+      for (int _segment=1; _segment<n_seg; _segment++) {
+
+
+        _p = ((double)_segment) / ((double)(n_seg-1));
+
+        ang_rad = item_nod->arc_ang_rad_beg;
+        ang_rad += item_nod->arc_ang_rad_del * _p;
+
+        tr = item_nod->arc_r + (_p * item_nod->arc_r_deviation);
+        tx = tr*cos(ang_rad) + item_nod->arc_center_x;
+        ty = tr*sin(ang_rad) + item_nod->arc_center_y;
+
+        cur_pnt = dtoc( tx, ty );
+
+        _origin = _prv_arc_pnt;
+        _origin.X += virtual_origin.X;
+        _origin.Y += virtual_origin.Y;
+
+        point_list.clear();
+        res_point.clear();
+
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+            point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X,
+                                            gAperture[ name ].m_path[ii][jj].Y + _origin.Y  ) );
+          }
+        }
+
+        _origin = cur_pnt;
+        _origin.X += virtual_origin.X;
+        _origin.Y += virtual_origin.Y;
+
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+            point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X ,
+                                            gAperture[ name ].m_path[ii][jj].Y + _origin.Y ) );
+          }
+        }
+
+        ConvexHull( point_list, res_point );
+
+        if (res_point.size() == 0) {
+          fprintf(stdout, "# WARNING: empty polygon found for name %i, skipping\n", name);
+          fprintf(stderr, "# WARNING: empty polygon found for name %i, skipping\n", name);
+        }
+        else {
+
+          if (!Orientation(res_point)) { ReversePath(res_point); }
+
+          if (_expose_bit(polarity, gAperture[name].m_exposure[0])) {
+            clip.AddPath( res_point, ptSubject, true );
+          }
+          else {
+            clip.AddPath(res_point, ptClip, true);
+
+            it_paths.clear();
+            clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+
+            clip.Clear();
+            clip.AddPaths(it_paths, ptSubject, true);
+          }
+
+          //EXPERIMENT
+          clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+
+        }
+
+        _prv_arc_pnt = cur_pnt;
 
       }
 

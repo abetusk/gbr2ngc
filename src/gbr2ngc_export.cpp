@@ -18,7 +18,7 @@
 * Dated May 20th 2013
 */
 
-#include "gbl2ngc.hpp"
+#include "gbr2ngc.hpp"
 
 // How many digits after the decimal point?
 // Yes, it should be a string :)

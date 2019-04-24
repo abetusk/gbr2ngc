@@ -18,11 +18,11 @@
 * Dated May 20th 2013
 */
 
-#include "gbl2ngc.hpp"
+#include "gbr2ngc.hpp"
 
-// gbl2ngc will look here by default for a config file
+// gbr2ngc will look here by default for a config file
 //
-#define DEFAULT_CONFIG_FILENAME "./gbl2ngc.ini"
+#define DEFAULT_CONFIG_FILENAME "./gbr2ngc.ini"
 
 // Users should specify boolean options as "yes" or "no"
 // (without quotes).
@@ -92,7 +92,7 @@ char gOptionDescription[][1024] =
 
   "input file",
   "output file (default stdout)",
-  "configuration file (default ./gbl2ngc.ini)",
+  "configuration file (default ./gbr2ngc.ini)",
 
   "feed rate (default 10)",
   "seek rate (default 100)",
@@ -153,10 +153,10 @@ void show_version(FILE *fp) {
 void show_help(FILE *fp) {
   int i, j, len;
 
-  fprintf(fp, "\ngbl2ngc: A gerber to gcode converter\n");
+  fprintf(fp, "\ngbr2ngc: A gerber to gcode converter\n");
   show_version(fp);
   fprintf(fp, "\n");
-  fprintf(fp, "  usage: gbl2ngc [<options>] [<input_Gerber>] [-o <output_GCode_file>]\n");
+  fprintf(fp, "  usage: gbr2ngc [<options>] [<input_Gerber>] [-o <output_GCode_file>]\n");
   fprintf(fp, "\n");
 
   for (i=0; gLongOption[i].name; i++) {

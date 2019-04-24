@@ -26,7 +26,7 @@ CPPFN = $(wildcard *.cpp)
 %.o: %.cxx
 	$(CC) $(COPT) -c $< -o $@ -lm
 
-gbl2ngc: $(obj) $(hdr)
+gbr2ngc: $(obj) $(hdr)
 	$(CXX) $(CXXOPT) -o $@ $^ $(CXXLIBS)
 
 test_gerber_interpreter: $(csrc)
@@ -34,14 +34,14 @@ test_gerber_interpreter: $(csrc)
 
 .PHONY: debug
 debug: $(obj) $(hdr)
-	$(CXX) -g -o gbl2ngc_debug $^ $(CXXLIBS)
+	$(CXX) -g -o gbr2ngc_debug $^ $(CXXLIBS)
 
 .PHONY: clean
 clean:
-	rm -f *.o gbl2ngc
+	rm -f *.o gbr2ngc
 	rm -f *.o test_gerber_interpreter
 
 .PHONY: install
-install: gbl2ngc
+install: gbr2ngc
 	mkdir -p $(INSTALLDIR)
 	cp $< $(INSTALLDIR)

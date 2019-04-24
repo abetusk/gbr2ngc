@@ -18,7 +18,7 @@
 * Dated May 20th 2013
 */
 
-#include "gbl2ngc.hpp"
+#include "gbr2ngc.hpp"
 
 
 void profile_start(void) {

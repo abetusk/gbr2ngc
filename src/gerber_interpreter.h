@@ -31,6 +31,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <math.h>
+
 //#include "tesexpr.h"
 #include "string_ll.h"
 
@@ -61,16 +63,35 @@ enum GERBER_ITEM {
   GERBER_LR,
   GERBER_LS,
 
+  GERBER_G01,
+  GERBER_G02,
+  GERBER_G03,
+
   GERBER_G74,
   GERBER_G75,
 
 
   GERBER_FLASH,
   GERBER_SEGMENT,
+  GERBER_SEGMENT_ARC,
   GERBER_REGION,
 
   GERBER_M02,
 };
+
+typedef enum {
+  QUADRENT_MODE_NONE = 0,
+  QUADRENT_MODE_SINGLE,
+  QUADRENT_MODE_MULTI,
+} quadrent_mode_enum;
+
+enum INTERPOLATION_MODE_ENUM {
+  INTERPOLATION_MODE_NONE = 0,
+  INTERPOLATION_MODE_LINEAR,
+  INTERPOLATION_MODE_CW,
+  INTERPOLATION_MODE_CCW,
+};
+
 
 typedef struct gerber_region_type {
   double x, y;
@@ -248,6 +269,7 @@ typedef struct gerber_state_type {
   int is_init;
 
   int quadrent_mode;
+  int interpolation_mode;
 
   char *units_str[2];
   int units_metric;  // 1 - metric, 0 - inches
@@ -323,10 +345,17 @@ typedef struct gerber_item_ll_type {
   int region;
   int polarity;
 
+  int quadrent_mode;
+  int interpolation_mode;
+
   int units_metric;
 
   int sr_x, sr_y;
   double sr_i, sr_j;
+
+  double arc_center_x, arc_center_y;
+  double arc_r, arc_r_deviation;
+  double arc_ang_rad_beg, arc_ang_rad_del;
 
   aperture_data_t *aperture;
   am_ll_lib_t *aperture_macro;
@@ -358,7 +387,12 @@ void parse_ad(gerber_state_t *gs, char *linebuf_orig);
 void parse_am(gerber_state_t *gs, char *linebuf);
 void parse_ab(gerber_state_t *gs, char *linebuf);
 void parse_ln(gerber_state_t *gs, char *linebuf);
+
 void parse_lp(gerber_state_t *gs, char *linebuf);
+void parse_lm(gerber_state_t *gs, char *linebuf);
+void parse_lr(gerber_state_t *gs, char *linebuf);
+void parse_ls(gerber_state_t *gs, char *linebuf);
+
 void parse_sr(gerber_state_t *gs, char *linebuf);
 void parse_d01(gerber_state_t *gs, char *linebuf) ;
 void parse_d02(gerber_state_t *gs, char *linebuf) ;
@@ -366,7 +400,7 @@ void parse_d03(gerber_state_t *gs, char *linebuf) ;
 void parse_d10p(gerber_state_t *gs, char *linebuf) ;
 char *parse_single_coord(gerber_state_t *gs, double *val, int fs_int, int fs_real, char *s);
 char *parse_single_int(gerber_state_t *gs, int *val, char *s);
-void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, int aperture_name);
+void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, double cur_i, double cur_j, int aperture_name);
 void add_flash(gerber_state_t *gs, double cur_x, double cur_y, int aperture_name);
 void parse_data_block(gerber_state_t *gs, char *linebuf);
 char *parse_d_state(gerber_state_t *gs, char *s);

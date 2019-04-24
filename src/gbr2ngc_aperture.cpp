@@ -18,7 +18,7 @@
 * Dated May 20th 2013
 */
 
-#include "gbl2ngc.hpp"
+#include "gbr2ngc.hpp"
 
 //#define DEBUG_APERTURE
 
@@ -1089,70 +1089,6 @@ int realize_macro( gerber_state_t *gs,
   }
 
   return ret;
-}
-
-//----
-
-int realize_simple_block( gerber_state_t *gs,
-                          aperture_data_t *aperture,
-                          Aperture_realization &ap ) {
-  join_polygon_set(ap.m_geom, aperture->gs);
-  ap.m_exposure.push_back( _expose_bit( 1, gs->polarity ) );
-  return 0;
-}
-
-//----
-
-int realize_step_repeat( gerber_state_t *gs,
-                         aperture_data_t *aperture,
-                         Aperture_realization &ap ) {
-  int _x, _y, ii, jj;
-  double dx=0.0, dy=0.0;
-  Paths paths, p;
-  Path empty_path;
-  IntPoint dpnt, pnt;
-
-  //DEBUG
-  fprintf(stdout, "##realize_step_repeat...\n");
-  for (ii=0; ii<gApertureName.size(); ii++) {
-    fprintf(stdout, "### gAperture %i\n", gApertureName[ii]);
-  }
-
-  join_polygon_set(paths, aperture->gs);
-
-  ap.m_geom.clear();
-  for (_x=0; _x < aperture->x_rep; _x++) {
-    for (_y=0; _y < aperture->y_rep; _y++) {
-
-      dx = ((double)_x) * aperture->i_distance;
-      dy = ((double)_y) * aperture->j_distance;
-      dpnt = dtoc( dx, dy );
-
-      for (ii=0; ii<paths.size(); ii++) {
-        ap.m_geom.push_back(empty_path);
-        for (jj=0; jj<paths[ii].size(); jj++) {
-          pnt.X = paths[ii][jj].X + dpnt.X;
-          pnt.Y = paths[ii][jj].Y + dpnt.Y;
-          ap.m_geom[ii].push_back( pnt );
-        }
-      }
-
-    }
-
-  }
-
-  printf("##sr%i.%i\n", gs->name, aperture->name);
-  for (ii=0; ii<ap.m_geom.size(); ii++) {
-    for (jj=0; jj<ap.m_geom[ii].size(); jj++) {
-      printf("##sr%i.%i %lli %lli\n",
-          gs->name, aperture->name,
-          (long long int)ap.m_geom[ii][jj].X,
-          (long long int)ap.m_geom[ii][jj].Y);
-    }
-    printf("##sr%i.%i\n", gs->name, aperture->name);
-  }
-
-  ap.m_exposure.push_back( _expose_bit(1) );
 }
 
 //----
