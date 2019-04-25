@@ -329,6 +329,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
   int n=0, name=0, _path_polarity=1;
   int polarity = 1, d_name = -1;
+  int pmrs_active = 0;
 
   Path clip_path, point_list, res_point, tmp_path;
   Paths clip_paths, clip_result,
@@ -341,9 +342,10 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
   double ang_rad, tx, ty, tr, _p;
   int n_seg = 16;
 
-  int stack_polarity, stack_d_name;
+  int stack_polarity, stack_d_name, stack_pmrs_active;
   gerber_state_t *stack_gs;
 
+  int _clip_update = 0;
 
 
   //--
@@ -352,9 +354,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
        item_nod;
        item_nod = item_nod->next) {
 
-    //polarity = gs->_root_gerber_state->polarity;
-    //d_name = gs->_root_gerber_state->d_state;
-
+    _clip_update = 0;
     polarity = gs->polarity;
     d_name = gs->d_state;
 
@@ -363,9 +363,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
     if (item_nod->type == GERBER_LP) {
       polarity = item_nod->polarity;
 
-      //gs->_root_gerber_state->polarity = polarity;
       gs->polarity = polarity;
-
       continue;
     }
 
@@ -373,12 +371,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
     else if (item_nod->type == GERBER_D10P) {
 
-      //gs->_root_gerber_state->d_state = item_nod->d_name;
-      //d_name = gs->_root_gerber_state->d_state;
-
       gs->d_state = item_nod->d_name;
       d_name = item_nod->d_name;
-
       continue;
     }
 
@@ -393,8 +387,9 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
         clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
       }
 
-      //EXPERIMENT
-      clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+      if (_clip_update) {
+        clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+      }
 
       continue;
     }
@@ -469,10 +464,13 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
           clip.Clear();
           clip.AddPaths(it_paths, ptSubject, true);
+
+          _clip_update = 1;
         }
 
-        //EXPERIMENT
-        clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+        if (_clip_update) {
+          clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+        }
 
       }
 
@@ -551,9 +549,14 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
             clip.Clear();
             clip.AddPaths(it_paths, ptSubject, true);
+
+            _clip_update = 1;
           }
 
-          clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+          if (_clip_update) {
+            clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+          }
+
         }
 
         _prv_arc_pnt = cur_pnt;
@@ -565,7 +568,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
     else if (item_nod->type == GERBER_FLASH) {
 
-      //name = item_nod->d_name;
       name = d_name;
       cur_pnt = dtoc( item_nod->x, item_nod->y );
 
@@ -617,12 +619,14 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
           it_paths.clear();
           clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
           clip.Clear();
+          _clip_update = 1;
         }
 
         clip.AddPaths( it_paths, ptSubject, true );
 
-        //EXPERIMENT
-        clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+        if (_clip_update) {
+          clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+        }
 
       }
 
@@ -637,26 +641,18 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
         // round (currently only polarity, will need to reset other
         // state variables as well, later).
         //
-        //polarity = gs->_root_gerber_state->polarity;
-        //d_name = gs->_root_gerber_state->d_state;
-        //polarity = gs->polarity;
-        //d_name = gs->d_state;
-
         stack_gs        = gApertureBlock[name];
-        stack_polarity  = stack_gs->polarity;
-        stack_d_name    = stack_gs->d_state;
+        stack_polarity    = stack_gs->polarity;
+        stack_d_name      = stack_gs->d_state;
+        stack_pmrs_active = stack_gs->pmrs_active;
 
-        //join_polygon_set_r( result, clip, gApertureBlock[name], _origin, level+1 );
+        stack_gs->pmrs_active = pmrs_active;
+
         join_polygon_set_r( result, clip, stack_gs, _origin, level+1 );
 
-        stack_gs->polarity  = stack_polarity;
-        stack_gs->d_state   = stack_d_name;
-
-        // Restore state.
-        //
-        //gs->_root_gerber_state->polarity = polarity;
-        //gs->_root_gerber_state->d_state = d_name;
-
+        stack_gs->polarity    = stack_polarity;
+        stack_gs->d_state     = stack_d_name;
+        stack_gs->pmrs_active = stack_pmrs_active;
       }
 
       // error
@@ -687,6 +683,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
           //
           item_nod->step_repeat->polarity = polarity;
           item_nod->step_repeat->d_state = d_name;
+          item_nod->step_repeat->pmrs_active = pmrs_active;
+
 
           join_polygon_set_r(result, clip, item_nod->step_repeat, _origin, level+1);
 
@@ -701,7 +699,9 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
     }
   }
 
-  //clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+  if (_clip_update == 0) {
+    clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
+  }
 
   return 0;
 }

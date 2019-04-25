@@ -225,6 +225,31 @@ void _print_lp(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
       (item->polarity ? 'D' : 'C'));
 }
 
+void _print_lm(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  char mirror_axis[3];
+
+  mirror_axis[1] = '\0';
+  mirror_axis[2] = '\0';
+
+  switch (item->mirror_axis) {
+    case MIRROR_AXIS_NONE: mirror_axis[0] = 'N'; break;
+    case MIRROR_AXIS_X: mirror_axis[0] = 'X'; break;
+    case MIRROR_AXIS_Y: mirror_axis[0] = 'Y'; break;
+    case MIRROR_AXIS_XY: mirror_axis[0] = 'X'; mirror_axis[1] = 'Y'; break;
+    default: mirror_axis[0] = 'N'; break;
+  }
+
+  fprintf(fp, "%%LM%s*%%\n", mirror_axis);
+}
+
+void _print_lr(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "%%LR%f*%%\n", (float)item->rotation);
+}
+
+void _print_ls(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "%%LS%f*%%\n", (float)item->scale);
+}
+
 void _print_flash(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   int _ix, _iy;
   double C;
@@ -360,6 +385,9 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
     switch (item_nod->type) {
       case GERBER_MO: _print_mo(fp, gs, item_nod); break;
       case GERBER_LP: _print_lp(fp, gs, item_nod); break;
+      case GERBER_LM: _print_lm(fp, gs, item_nod); break;
+      case GERBER_LR: _print_lr(fp, gs, item_nod); break;
+      case GERBER_LS: _print_ls(fp, gs, item_nod); break;
       case GERBER_AM: _print_am(fp, gs, item_nod); break;
       case GERBER_AD: _print_ad(fp, gs, item_nod); break;
       case GERBER_ADE: _print_ade(fp, gs, item_nod); break;

@@ -63,6 +63,18 @@ gerber_item_ll_t *gerber_item_create(int type, ...) {
       item->polarity = va_arg(valist, int);
       break;
 
+    case GERBER_LM:
+      item->mirror_axis = va_arg(valist, int);
+      break;
+
+    case GERBER_LR:
+      item->rotation = va_arg(valist, double);
+      break;
+
+    case GERBER_LS:
+      item->scale = va_arg(valist, double);
+      break;
+
     case GERBER_SR:
       item->step_repeat = va_arg(valist, gerber_state_t *);
       break;
@@ -109,14 +121,6 @@ gerber_item_ll_t *gerber_item_create_xx(int type) {
 int (*function_code_handler[13])(gerber_state_t *, char *);
 
 //------------------------
-
-/*
-enum {
-  QUADRENT_MODE_NONE = 0,
-  QUADRENT_MODE_SINGLE,
-  QUADRENT_MODE_MULTI,
-} quadrent_mode_enum;
-*/
 
 void gerber_state_init(gerber_state_t *gs) {
 
@@ -181,6 +185,7 @@ void gerber_state_init(gerber_state_t *gs) {
   //
 
   gs->absr_active = 0;
+  gs->pmrs_active = 0;
   gs->depth = 0;
 
   gs->_active_gerber_state = gs;
@@ -198,6 +203,7 @@ gerber_state_t *gerber_state_clone(gerber_state_t *orig_gs) {
   gerber_state_t *new_gs = NULL;
 
   new_gs = (gerber_state_t *)calloc(1, sizeof(gerber_state_t));
+  if (new_gs==NULL) { return NULL; }
 
   new_gs->g_state = orig_gs->g_state;
   new_gs->d_state = orig_gs->d_state;
@@ -264,6 +270,7 @@ gerber_state_t *gerber_state_clone(gerber_state_t *orig_gs) {
   //
 
   new_gs->absr_active = orig_gs->absr_active;
+  new_gs->pmrs_active = orig_gs->pmrs_active;
   new_gs->depth = orig_gs->depth;
 
   new_gs->_root_gerber_state = orig_gs->_root_gerber_state;
@@ -275,6 +282,7 @@ gerber_state_t *gerber_state_clone(gerber_state_t *orig_gs) {
   string_ll_init(&(new_gs->string_ll_buf));
   new_gs->gerber_read_state = orig_gs->gerber_read_state;
 
+  return new_gs;
 }
 
 //------------------------
@@ -441,11 +449,17 @@ int parse_double(double *rop, char *s) {
 // TODO: user specified callback
 //
 void parse_error(char *s, int line_no, char *l) {
+  char *_s, *_l, xx[2];
+
+  xx[0] = '\0';
+  _s = ( s ? s : xx );
+  _l = ( l ? l : xx );
+
   if (l) {
-    printf("PARSE ERROR: %s at line %i '%s'\n", s, line_no, l);
+    printf("PARSE ERROR: %s at line %i '%s'\n", _s, line_no, _l);
   }
   else {
-    printf("PARSE ERROR: %s at line %i\n", s, line_no );
+    printf("PARSE ERROR: %s at line %i\n", _s, line_no );
   }
   exit(2);
 }
@@ -587,9 +601,9 @@ enum {
   IMG_PARAM_LN,       // Level Name
 
   IMG_PARAM_LP,       // Level Polarity
-  IMG_PARAM_LM,       // Level Polarity
-  IMG_PARAM_LR,       // Level Polarity
-  IMG_PARAM_LS,       // Level Polarity
+  IMG_PARAM_LM,       // Mirror
+  IMG_PARAM_LR,       // Rotation
+  IMG_PARAM_LS,       // Scale
 
   IMG_PARAM_SR,       // Step and Repeat
 
@@ -1538,7 +1552,7 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
 
   ch = *chp;
   if ((ch != 'C') && (ch != 'D')) {
-    parse_error("invalid LP option. Expected 'C' or 'D' for LP comamnd", gs->line_no, NULL);
+    parse_error("invalid LP option. Expected 'C' or 'D' for LP comamnd", gs->line_no, "");
   }
 
   if (ch=='C') {
@@ -1563,8 +1577,9 @@ void parse_lp(gerber_state_t *gs, char *linebuf) {
 // load mirroring
 //
 void parse_lm(gerber_state_t *gs, char *linebuf) {
-  char mirror_axis = 'n', *chp;
+  char *chp;
   gerber_item_ll_t *item_nod;
+  int mirror_axis = MIRROR_AXIS_NONE;
   int ch;
 
   chp = linebuf + 3;
@@ -1573,17 +1588,18 @@ void parse_lm(gerber_state_t *gs, char *linebuf) {
   if ((ch != 'N') &&
       (ch != 'X') &&
       (ch != 'Y') ) {
-    parse_error("invalid LM option. Expected 'N', 'X', 'Y' or 'XY' for LM comamnd", gs->line_no, NULL);
+    parse_error("invalid LM option. Expected 'N', 'X', 'Y' or 'XY' for LM comamnd", gs->line_no, "");
   }
   chp++;
 
-  if (ch == 'N')      { mirror_axis = 'N'; }
-  else if (ch == 'Y') { mirror_axis = 'Y'; }
+  if (ch == 'N')      { mirror_axis = MIRROR_AXIS_NONE; }
+  else if (ch == 'Y') { mirror_axis = MIRROR_AXIS_Y; }
   else if (ch == 'X') {
     chp++;
     ch = *chp;
-    if (ch == 'Y')  { mirror_axis = 'L'; }
-    else            { mirror_axis = 'X'; }
+    if (ch == 'Y')  { mirror_axis = MIRROR_AXIS_XY; }
+    //else if (ch != '*') { parse_error("invalid LM option. Expected 'XY' or eol ('*')", gs->line_no, ""); }
+    else            { mirror_axis = MIRROR_AXIS_X; }
   }
 
   item_nod = gerber_item_create(GERBER_LM, mirror_axis);
@@ -1603,10 +1619,8 @@ void parse_lr(gerber_state_t *gs, char *linebuf) {
   chp = linebuf + 3;
   chp = skip_whitespace(chp);
 
-  if ( (!(*chp)) || ((*chp) != 'I') ) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
-  chp ++;
   dn = parse_double(&v, chp);
-  if (dn<=0) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+  if (dn<=0) { parse_error("bad LS format, expected number after 'I'", gs->line_no, linebuf); }
   chp += dn;
 
   item_nod = gerber_item_create(GERBER_LR, v);
@@ -1624,10 +1638,8 @@ void parse_ls(gerber_state_t *gs, char *linebuf) {
   chp = linebuf + 3;
   chp = skip_whitespace(chp);
 
-  if ( (!(*chp)) || ((*chp) != 'I') ) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
-  chp ++;
   dn = parse_double(&v, chp);
-  if (dn<=0) { parse_error("bad SR format, expected number after 'I'", gs->line_no, linebuf); }
+  if (dn<=0) { parse_error("bad LS format, expected number after 'I'", gs->line_no, linebuf); }
   chp += dn;
 
   item_nod = gerber_item_create(GERBER_LS, v);
@@ -1644,7 +1656,6 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   int begin_sr_block = -1, _x_rep=0, _y_rep=0;
   double _i_distance=0.0, _j_distance=0.0;
 
-  //aperture_data_t *ap_node;
   gerber_state_t *new_gs = NULL;
   gerber_item_ll_t *sr_item = NULL;
 
@@ -1675,7 +1686,6 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   else {
     begin_sr_block = 1;
   }
-
 
   // begin Aperture Block
   //
@@ -1719,12 +1729,12 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
     new_gs->_root_gerber_state = gs->_root_gerber_state;
     new_gs->_root_gerber_state->_active_gerber_state = new_gs;
     new_gs->_root_gerber_state->absr_active = 1;
-
     new_gs->depth = gs->depth+1;
 
     new_gs->gerber_read_state = GRS_NONE;
 
     sr_item = gerber_item_create(GERBER_SR, new_gs);
+
     sr_item->sr_x = _x_rep;
     sr_item->sr_y = _y_rep;
     sr_item->sr_i = _i_distance;
@@ -1751,7 +1761,6 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
       parse_error("found end of SR without beginning (inside AB?)", gs->line_no, linebuf);
     }
 
-
     gerber_state_add_item(gs->_parent_gerber_state, gs->_parent_gerber_state->_item_cur);
     gs->_parent_gerber_state->_item_cur = NULL;
     gs->_parent_gerber_state->absr_active = 0;
@@ -1773,6 +1782,8 @@ void parse_sr(gerber_state_t *gs, char *linebuf_orig) {
   gs->gerber_read_state = GRS_NONE;
 
   free(linebuf);
+
+  return;
 }
 
 // File attributes

@@ -92,6 +92,12 @@ enum INTERPOLATION_MODE_ENUM {
   INTERPOLATION_MODE_CCW,
 };
 
+enum MIRROR_AXIS {
+  MIRROR_AXIS_NONE = 0,
+  MIRROR_AXIS_X,
+  MIRROR_AXIS_Y,
+  MIRROR_AXIS_XY,
+};
 
 typedef struct gerber_region_type {
   double x, y;
@@ -315,6 +321,11 @@ typedef struct gerber_state_type {
   //
   int absr_active;
 
+  // flag for whether there's a polarity, mirror
+  // rotation or scale parameter set.
+  //
+  int pmrs_active;
+
   // AB child depth. 0 for root.
   //
   int depth;
@@ -358,6 +369,14 @@ typedef struct gerber_item_ll_type {
   // LS
   //
   double scale;
+
+  // LR
+  //
+  double rotation;
+
+  // LM
+  //
+  int mirror_axis;
 
   // G74, G75
   //

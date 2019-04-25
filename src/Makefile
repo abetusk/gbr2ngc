@@ -7,11 +7,15 @@ obj = $(obj_cpp:.c=.o)
 hdr = $(wildcard *.h *.hpp)
 
 CC=gcc
-COPT=-g -lm
-COPT2=-g -lm -DGERBER_TEST
+#COPT=-g -lm
+#COPT2=-g -lm -DGERBER_TEST
+
+COPT=-O3 -lm
+COPT2=-O3 -lm -DGERBER_TEST
 
 CXX=g++
-CXXOPT = -g --std=c++11
+#CXXOPT = -g --std=c++11
+CXXOPT = -O3 --std=c++11
 CXXLIB = -lstdc++ -lboost_thread -lm
 
 CCFN = $(wildcard *.c)
