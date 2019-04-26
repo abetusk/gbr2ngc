@@ -68,7 +68,7 @@ gerber_item_ll_t *gerber_item_create(int type, ...) {
       break;
 
     case GERBER_LR:
-      item->rotation = va_arg(valist, double);
+      item->rotation_degree = va_arg(valist, double);
       break;
 
     case GERBER_LS:
@@ -142,6 +142,15 @@ void gerber_state_init(gerber_state_t *gs) {
   gs->polarity_bit = 0;
   gs->eof = 0;
   gs->line_no = 0;
+
+  gs->rotation_degree = 0.0;
+  gs->mirror_axis = MIRROR_AXIS_NONE;
+  gs->scale = 1.0;
+
+  //memset(gs->transform_matrix, 0, sizeof(double)*3*3);
+  //gs->transform_matrix[0][0] = 1.0;
+  //gs->transform_matrix[1][1] = 1.0;
+  //gs->transform_matrix[2][2] = 1.0;
 
   gs->quadrent_mode = -1;
   gs->interpolation_mode = -1;
@@ -222,6 +231,11 @@ gerber_state_t *gerber_state_clone(gerber_state_t *orig_gs) {
   new_gs->polarity_bit  = orig_gs->polarity_bit;
   new_gs->eof           = orig_gs->eof;
   new_gs->line_no       = orig_gs->line_no;
+
+  //memcpy(new_gs->transform_matrix, orig_gs->transform_matrix, sizeof(double)*3*3);
+  new_gs->rotation_degree = orig_gs->rotation_degree;
+  new_gs->scale           = orig_gs->scale;
+  new_gs->mirror_axis     = orig_gs->mirror_axis;
 
   new_gs->quadrent_mode = orig_gs->quadrent_mode;
   new_gs->interpolation_mode = orig_gs->interpolation_mode;

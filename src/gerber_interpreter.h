@@ -281,6 +281,10 @@ typedef struct gerber_state_type {
   int units_metric;  // 1 - metric, 0 - inches
 
   int polarity, polarity_bit;
+  int mirror_axis;
+  double rotation_degree;
+  double scale;
+
   int eof;
   int line_no;
 
@@ -372,7 +376,7 @@ typedef struct gerber_item_ll_type {
 
   // LR
   //
-  double rotation;
+  double rotation_degree;
 
   // LM
   //
