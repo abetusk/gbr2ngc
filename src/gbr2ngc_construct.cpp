@@ -330,12 +330,12 @@ static void _construct_transform_matrix(double *M, int mirror_axis, double rot_d
   M[1*3 + 2] = ty;
 
   if (mirror_axis == MIRROR_AXIS_X) {
-    M[0*3 + 1] *= -1.0;
-    M[1*3 + 1] *= -1.0;
-  }
-  else if (mirror_axis == MIRROR_AXIS_Y) {
     M[0*3 + 0] *= -1.0;
     M[1*3 + 0] *= -1.0;
+  }
+  else if (mirror_axis == MIRROR_AXIS_Y) {
+    M[0*3 + 1] *= -1.0;
+    M[1*3 + 1] *= -1.0;
   }
   else if (mirror_axis == MIRROR_AXIS_XY) {
     M[0*3 + 0] *= -1.0;
