@@ -304,7 +304,7 @@ static void debug_gAperture() {
 
 //--
 
-static void _construct_transform_matrix(double *M, int mirror_axis, double rot_deg, double scale) {
+static void _construct_transform_matrix(double *M, int mirror_axis, double rot_deg, double scale, double tx, double ty) {
   double c, s, t;
 
   c = cos(rot_deg * M_PI / 180.0 );
@@ -326,14 +326,21 @@ static void _construct_transform_matrix(double *M, int mirror_axis, double rot_d
   M[1*3 + 0] *= scale;
   M[1*3 + 1] *= scale;
 
+  M[0*3 + 2] = tx;
+  M[1*3 + 2] = ty;
+
   if (mirror_axis == MIRROR_AXIS_X) {
+    M[0*3 + 1] *= -1.0;
     M[1*3 + 1] *= -1.0;
   }
   else if (mirror_axis == MIRROR_AXIS_Y) {
     M[0*3 + 0] *= -1.0;
+    M[1*3 + 0] *= -1.0;
   }
   else if (mirror_axis == MIRROR_AXIS_XY) {
     M[0*3 + 0] *= -1.0;
+    M[0*3 + 1] *= -1.0;
+    M[1*3 + 0] *= -1.0;
     M[1*3 + 1] *= -1.0;
   }
 
@@ -379,8 +386,7 @@ void _mulvec3(double *result, double *M, double *v) {
 //   global parameter values
 //
 //
-//int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoint &virtual_origin, int level) {
-int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoint &virtual_origin, double *transformMatrixParent, int level) {
+int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double *transformMatrixParent, int level) {
   unsigned int i, ii, jj, _i, _j;
 
   gerber_item_ll_t *item_nod;
@@ -407,18 +413,20 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
   double ang_rad, tx, ty, tr, _p;
   int n_seg = 16;
 
+  double _odx, _ody,  _x, _y;
+
   int stack_polarity, stack_d_name, stack_pmrs_active;
+  int stack_mirror;
+  double stack_rot, stack_scale;
   gerber_state_t *stack_gs;
 
   int _clip_update = 0;
 
   double transformMatrix[3*3];
-  double _cur_dpnt[3], dpnt[3], dpnt1[3];
+  double dpnt[3];
 
   memcpy(transformMatrix, transformMatrixParent, sizeof(double)*3*3);
   memset( dpnt, 0, sizeof(double)*3);
-  memset(dpnt1, 0, sizeof(double)*3);
-
 
   //--
 
@@ -443,11 +451,11 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
       gs->mirror_axis = item_nod->mirror_axis;
       continue;
     }
-    else if (item_nod->type == GERBER_LM) {
+    else if (item_nod->type == GERBER_LR) {
       gs->rotation_degree = item_nod->rotation_degree;
       continue;
     }
-    else if (item_nod->type == GERBER_LM) {
+    else if (item_nod->type == GERBER_LS) {
       gs->scale = item_nod->scale;
       continue;
     }
@@ -506,52 +514,37 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
       point_list.clear();
       res_point.clear();
 
-      _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale);
-      _mulmat3x3(transformMatrix, transformMatrix, transformMatrixParent);
-      _pnt0 = dtoc( transformMatrix[0*3 + 0], transformMatrix[0*3 + 1] );
-      _pnt1 = dtoc( transformMatrix[1*3 + 0], transformMatrix[1*3 + 1] );
-
-      _origin = prev_pnt;
-      _origin.X += virtual_origin.X;
-      _origin.Y += virtual_origin.Y;
+      _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, ctod(prev_pnt.X), ctod(prev_pnt.Y));
+      _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
 
       for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
         for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X,
-                                          gAperture[ name ].m_path[ii][jj].Y + _origin.Y  ) );
 
-          /*
-          tX =  gAperture[ name ].m_path[ii][jj].X;
-          tY =  gAperture[ name ].m_path[ii][jj].Y;
+          dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+          dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+          dpnt[2] = 1.0;
 
-          uX = _pnt0.X * tX + _pnt0.Y * tY;
-          uY = _pnt1.X * tX + _pnt1.Y * tY;
+          _mulvec3(dpnt, transformMatrix, dpnt);
 
-          point_list.push_back( IntPoint( uX + _origin.X,
-                                          uY + _origin.Y ) );
-                                          */
+          point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
+
         }
       }
 
-      _origin = cur_pnt;
-      _origin.X += virtual_origin.X;
-      _origin.Y += virtual_origin.Y;
+      _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, ctod(cur_pnt.X), ctod(cur_pnt.Y));
+      _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
 
       for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
         for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-          point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X ,
-                                          gAperture[ name ].m_path[ii][jj].Y + _origin.Y ) );
 
-          /*
-          tX =  gAperture[ name ].m_path[ii][jj].X;
-          tY =  gAperture[ name ].m_path[ii][jj].Y;
+          dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+          dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+          dpnt[2] = 1.0;
 
-          uX = _pnt0.X * tX + _pnt0.Y * tY;
-          uY = _pnt1.X * tX + _pnt1.Y * tY;
+          _mulvec3(dpnt, transformMatrix, dpnt);
 
-          point_list.push_back( IntPoint( uX + _origin.X,
-                                          uY + _origin.Y ) );
-                                          */
+          point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
+
         }
       }
 
@@ -600,8 +593,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
       tx = tr*cos(ang_rad) + item_nod->arc_center_x;
       ty = tr*sin(ang_rad) + item_nod->arc_center_y;
 
-      _prv_arc_pnt = dtoc( tx, ty );
-
       for (int _segment=1; _segment<n_seg; _segment++) {
 
         _p = ((double)_segment) / ((double)(n_seg-1));
@@ -613,30 +604,40 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
         tx = tr*cos(ang_rad) + item_nod->arc_center_x;
         ty = tr*sin(ang_rad) + item_nod->arc_center_y;
 
-        cur_pnt = dtoc( tx, ty );
-
-        _origin = _prv_arc_pnt;
-        _origin.X += virtual_origin.X;
-        _origin.Y += virtual_origin.Y;
-
         point_list.clear();
         res_point.clear();
 
+        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, tx, ty);
+        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
+
         for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
           for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-            point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X,
-                                            gAperture[ name ].m_path[ii][jj].Y + _origin.Y  ) );
+
+            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+            dpnt[2] = 1.0;
+
+            _mulvec3(dpnt, transformMatrix, dpnt);
+
+            point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
+
           }
         }
 
-        _origin = cur_pnt;
-        _origin.X += virtual_origin.X;
-        _origin.Y += virtual_origin.Y;
+        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, tx, ty);
+        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
 
         for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
           for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-            point_list.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X ,
-                                            gAperture[ name ].m_path[ii][jj].Y + _origin.Y ) );
+
+            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+            dpnt[2] = 1.0;
+
+            _mulvec3(dpnt, transformMatrix, dpnt);
+
+            point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
+
           }
         }
 
@@ -687,15 +688,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
       //
       if ( gAperture.find(name) != gAperture.end() ) {
 
-        _origin = cur_pnt;
-        _origin.X += virtual_origin.X;
-        _origin.Y += virtual_origin.Y;
-
-        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale);
-        _mulmat3x3(transformMatrix, transformMatrix, transformMatrixParent);
-        _pnt0 = dtoc( transformMatrix[0*3 + 0], transformMatrix[0*3 + 1] );
-        _pnt1 = dtoc( transformMatrix[1*3 + 0], transformMatrix[1*3 + 1] );
-
+        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, item_nod->x, item_nod->y );
+        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
 
         aperture_clip.Clear();
         aperture_geom.clear();
@@ -703,19 +697,15 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
           tmp_path.clear();
           for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-            tmp_path.push_back( IntPoint( gAperture[ name ].m_path[ii][jj].X + _origin.X,
-                                          gAperture[ name ].m_path[ii][jj].Y + _origin.Y ) );
 
-            /*
-            tX = gAperture[ name ].m_path[ii][jj].X;
-            tY = gAperture[ name ].m_path[ii][jj].Y;
+            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+            dpnt[2] = 1.0;
 
-            uX = _pnt0.X * tX + _pnt0.Y * tY;
-            uY = _pnt1.X * tX + _pnt1.Y * tY;
+            _mulvec3(dpnt, transformMatrix, dpnt);
 
-            tmp_path.push_back( IntPoint( uX + _origin.X,
-                                          uY + _origin.Y ) );
-                                          */
+            tmp_path.push_back( dtoc( dpnt[0], dpnt[1] ) );
+
           }
 
           if (tmp_path.size() < 2) { fprintf(stdout, "## WARNING, tmp_path.size() %i\n", (int)tmp_path.size()); fflush(stdout); continue; }
@@ -762,9 +752,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
       // Aperture block realization
       //
       else if ( gApertureBlock.find(name) != gApertureBlock.end() ) {
-        _origin = cur_pnt;
-        _origin.X += virtual_origin.X;
-        _origin.Y += virtual_origin.Y;
 
         // AB realization does not change global state so "reset" it after every
         // round (currently only polarity, will need to reset other
@@ -774,19 +761,26 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
         stack_polarity    = stack_gs->polarity;
         stack_d_name      = stack_gs->d_state;
         stack_pmrs_active = stack_gs->pmrs_active;
+        stack_mirror      = stack_gs->mirror_axis;
+        stack_rot         = stack_gs->rotation_degree;
+        stack_scale       = stack_gs->scale;
 
         stack_gs->pmrs_active = pmrs_active;
 
-        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale);
-        _mulmat3x3(transformMatrix, transformMatrix, transformMatrixParent);
+        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, item_nod->x, item_nod->y);
+        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
 
-        //join_polygon_set_r( result, clip, stack_gs, _origin, level+1 );
-        //join_polygon_set_r( result, clip, stack_gs, _tm, level+1 );
-        join_polygon_set_r( result, clip, stack_gs, _origin, transformMatrix, level+1 );
+        join_polygon_set_r( result, clip, stack_gs, transformMatrix, level+1 );
 
+        // AB calls do not alter state but by convention, we alter state in the `gerber_state_t` structure,
+        // so restore state after we're done with the aperture block realization
+        //
         stack_gs->polarity    = stack_polarity;
         stack_gs->d_state     = stack_d_name;
         stack_gs->pmrs_active = stack_pmrs_active;
+        stack_gs->mirror_axis = stack_mirror;
+        stack_gs->scale       = stack_scale;
+        stack_gs->rotation_degree = stack_rot;
       }
 
       // error
@@ -809,9 +803,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
           dx = (double) (((double)ii) * (item_nod->sr_i));
           dy = (double) (((double)jj) * (item_nod->sr_j));
 
-          _origin = dtoc( item_nod->x + dx, item_nod->y + dy );
-          _origin.X += virtual_origin.X;
-          _origin.Y += virtual_origin.Y;
+          _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, dx, dy);
+          _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
 
           // The SR inherits the polarity and current D name
           //
@@ -823,16 +816,15 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
           item_nod->step_repeat->mirror_axis      = gs->mirror_axis;
           item_nod->step_repeat->rotation_degree  = gs->rotation_degree;
           item_nod->step_repeat->scale            = gs->scale;
-          _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale);
-          _mulmat3x3(transformMatrix, transformMatrix, transformMatrixParent);
 
-          //join_polygon_set_r(result, clip, item_nod->step_repeat, _origin, level+1);
-          join_polygon_set_r(result, clip, item_nod->step_repeat, _origin, transformMatrix, level+1);
+          join_polygon_set_r(result, clip, item_nod->step_repeat, transformMatrix, level+1);
 
           // SR affects state, so percolate state changes up
           //
           gs->polarity = polarity;
           gs->d_state = item_nod->step_repeat->d_state;
+
+          //TODO restore item_nod->step_repeat state
 
           //experimental
           gs->mirror_axis     = item_nod->step_repeat->mirror_axis;
@@ -854,7 +846,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, IntPoin
 
 int join_polygon_set(Paths &result, gerber_state_t *gs) {
   Clipper clip;
-  IntPoint origin;
 
   double ident[3*3];
 
@@ -863,8 +854,6 @@ int join_polygon_set(Paths &result, gerber_state_t *gs) {
   ident[4] = 1.0;
   ident[8] = 1.0;
 
-  origin.X = 0;
-  origin.Y = 0;
-  return join_polygon_set_r(result, clip, gs, origin, ident, 0);
+  return join_polygon_set_r(result, clip, gs, ident, 0);
 }
 

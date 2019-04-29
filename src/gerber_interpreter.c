@@ -1054,6 +1054,10 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
     ab_item = gerber_item_create(GERBER_AB, new_gs);
     ab_item->d_name = d_code;
 
+    ab_item->mirror_axis      = new_gs->mirror_axis;
+    ab_item->rotation_degree  = new_gs->rotation_degree;
+    ab_item->scale            = new_gs->scale;
+
     gs->_item_cur = ab_item;
 
   }
@@ -1074,11 +1078,14 @@ void parse_ab(gerber_state_t *gs, char *linebuf_orig) {
       parse_error("found end of AB without beginning (inside SR?)", gs->line_no, linebuf);
     }
 
-    gs->_parent_gerber_state->_item_cur->polarity = gs->polarity;
-
     gerber_state_add_item(gs->_parent_gerber_state, gs->_parent_gerber_state->_item_cur);
     gs->_parent_gerber_state->_item_cur = NULL;
     gs->_parent_gerber_state->absr_active = 0;
+
+    gs->_parent_gerber_state->polarity         = gs->polarity;
+    gs->_parent_gerber_state->mirror_axis      = gs->mirror_axis;
+    gs->_parent_gerber_state->rotation_degree  = gs->rotation_degree;
+    gs->_parent_gerber_state->scale            = gs->scale;
 
     // Since we've tied off the AB, we go up the stack of ABs and make
     // sure the root is pointing to the parent for further processing.
@@ -1609,7 +1616,6 @@ void parse_lm(gerber_state_t *gs, char *linebuf) {
   if (ch == 'N')      { mirror_axis = MIRROR_AXIS_NONE; }
   else if (ch == 'Y') { mirror_axis = MIRROR_AXIS_Y; }
   else if (ch == 'X') {
-    chp++;
     ch = *chp;
     if (ch == 'Y')  { mirror_axis = MIRROR_AXIS_XY; }
     //else if (ch != '*') { parse_error("invalid LM option. Expected 'XY' or eol ('*')", gs->line_no, ""); }
@@ -1618,6 +1624,8 @@ void parse_lm(gerber_state_t *gs, char *linebuf) {
 
   item_nod = gerber_item_create(GERBER_LM, mirror_axis);
   gerber_state_add_item(gs, item_nod);
+
+  gs->mirror_axis = mirror_axis;
 
   return;
 }
@@ -1639,6 +1647,10 @@ void parse_lr(gerber_state_t *gs, char *linebuf) {
 
   item_nod = gerber_item_create(GERBER_LR, v);
   gerber_state_add_item(gs, item_nod);
+
+  gs->rotation_degree = v;
+
+  return;
 }
 
 // load mirroring
@@ -1658,6 +1670,10 @@ void parse_ls(gerber_state_t *gs, char *linebuf) {
 
   item_nod = gerber_item_create(GERBER_LS, v);
   gerber_state_add_item(gs, item_nod);
+
+  gs->scale = v;
+
+  return;
 }
 
 //------------------------
@@ -2722,9 +2738,6 @@ void dump_information(gerber_state_t *gs, int level) {
     adb = adb->next;
     k++;
   }
-
-  //DEBUG
-  printf("# lvl:%i contour_list\n", level);
 
   cur_contour_list = 0;
   item_nod = gs->item_head;

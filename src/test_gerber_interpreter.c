@@ -243,11 +243,31 @@ void _print_lm(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
 }
 
 void _print_lr(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
-  fprintf(fp, "%%LR%f*%%\n", (float)item->rotation);
+  fprintf(fp, "%%LR%f*%%\n", (float)item->rotation_degree);
 }
 
 void _print_ls(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
   fprintf(fp, "%%LS%f*%%\n", (float)item->scale);
+}
+
+void _print_g01(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "G01*\n");
+}
+
+void _print_g02(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "G02*\n");
+}
+
+void _print_g03(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "G03*\n");
+}
+
+void _print_g74(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "G74*\n");
+}
+
+void _print_g75(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item) {
+  fprintf(fp, "G75*\n");
 }
 
 void _print_flash(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
@@ -297,6 +317,49 @@ void _print_segment(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
     m++;
   }
 
+}
+
+void _print_segment_arc(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
+  int n=0, m=0;
+  double C = 1.0;
+
+  double _cx, _cy, _r, _a0, _a1;
+  double _X0, _Y0, _X1, _Y1, _I, _J;
+
+  int _ix, _iy, _ii, _ij;
+  int _ixprv, _iyprv;
+
+  C = pow(10.0, (double)(gs->fs_x_real));
+
+
+  _cx = item_nod->arc_center_x;
+  _cy = item_nod->arc_center_y;
+
+  _r = item_nod->arc_r;
+
+  _a0 = item_nod->arc_ang_rad_beg;
+  _a1 = _a0 + item_nod->arc_ang_rad_del;
+
+  _X0 = _cx + (_r * cos(_a0));
+  _Y0 = _cy + (_r * sin(_a0));
+
+  _X1 = _cx + (_r * cos(_a1));
+  _Y1 = _cy + (_r * sin(_a1));
+
+  _I = _cx - _X0;
+  _J = _cy - _Y0;
+
+  if (item_nod->quadrent_mode == QUADRENT_MODE_SINGLE) {
+    _I = fabs(_I);
+    _J = fabs(_J);
+  }
+
+  fprintf(fp, "X%iY%iD02*\n",
+      (int)(_X0*C), (int)(_Y0*C));
+
+  fprintf(fp, "X%iY%iI%iJ%iD01*\n",
+      (int)(_X1*C), (int)(_Y1*C),
+      (int)(_I*C), (int)(_J*C));
 
 }
 
@@ -392,18 +455,26 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
       case GERBER_AD: _print_ad(fp, gs, item_nod); break;
       case GERBER_ADE: _print_ade(fp, gs, item_nod); break;
 
+      case GERBER_G01: _print_g01(fp, gs, item_nod); break;
+      case GERBER_G02: _print_g02(fp, gs, item_nod); break;
+      case GERBER_G03: _print_g03(fp, gs, item_nod); break;
+
+      case GERBER_G74: _print_g74(fp, gs, item_nod); break;
+      case GERBER_G75: _print_g75(fp, gs, item_nod); break;
+
       case GERBER_D10P: _print_d10p(fp, gs, item_nod); break;
 
       case GERBER_AB: _print_ab(fp, gs, item_nod, lvl); break;
       case GERBER_SR: _print_sr(fp, gs, item_nod, lvl); break;
 
       case GERBER_D3:
-      case GERBER_FLASH: _print_flash(fp, gs, item_nod); break;
-      case GERBER_SEGMENT: _print_segment(fp, gs, item_nod); break;
-      case GERBER_REGION: _print_region(fp, gs, item_nod); break;
+      case GERBER_FLASH:        _print_flash(fp, gs, item_nod); break;
+      case GERBER_SEGMENT:      _print_segment(fp, gs, item_nod); break;
+      case GERBER_SEGMENT_ARC:  _print_segment_arc(fp, gs, item_nod); break;
+      case GERBER_REGION:       _print_region(fp, gs, item_nod); break;
 
       case GERBER_M02: _print_m02(fp, gs, item_nod); break;
-      default: break;
+      default: fprintf(stderr, "WARNING: unknown item type (%i), skipping\n", item_nod->type); break;
     }
 
     item_nod = item_nod->next;

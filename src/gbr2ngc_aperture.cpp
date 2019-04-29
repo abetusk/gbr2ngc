@@ -24,19 +24,6 @@
 
 #define _isnan std::isnan
 
-// local_exposure - { 1 - add, 0 - remove }
-// global_exposure - { 1 - additive, 0 - subtractive}
-//
-/*
-static int _expose_bit(int local_exposure, int global_exposure = 1) {
-  int gbit=0;
-  local_exposure  = ( (local_exposure  > 0) ? 1 : 0);
-  gbit = ( (global_exposure > 0) ? 0 : 1);
-
-  return local_exposure ^ gbit;
-}
-*/
-
 //------------
 
 static int _get_segment_count(double r, double min_segment_length, int min_segments) {
@@ -77,7 +64,6 @@ void realize_circle( gerber_state_t *gs,
     ap.m_path[idx].push_back( ap.m_path[idx][0] );
   }
 
-  //ap.m_exposure.push_back(1);
   ap.m_exposure.push_back( _expose_bit(1, gs->polarity) );
 }
 
@@ -97,7 +83,6 @@ void realize_rectangle( gerber_state_t *gs,
   ap.m_path[idx].push_back( dtoc( -x,  y ) );
   ap.m_path[idx].push_back( dtoc( -x, -y ) );
 
-  //ap.m_exposure.push_back(1);
   ap.m_exposure.push_back( _expose_bit(1, gs->polarity) );
 }
 
@@ -172,7 +157,6 @@ void realize_obround( gerber_state_t *gs,
     ap.m_path[idx].push_back( ap.m_path[idx][0] );
   }
 
-  //ap.m_exposure.push_back(1);
   ap.m_exposure.push_back( _expose_bit(1, gs->polarity) );
 }
 
@@ -200,7 +184,6 @@ void realize_polygon( gerber_state_t *gs,
     ap.m_path[idx].push_back( ap.m_path[idx][0] );
   }
 
-  //ap.m_exposure.push_back(1);
   ap.m_exposure.push_back( _expose_bit(1, gs->polarity) );
 }
 
@@ -230,7 +213,6 @@ void realize_hole( gerber_state_t *gs,
     ap.m_path[idx].push_back( ap.m_path[idx][0] );
   }
 
-  //ap.m_exposure.push_back(0);
   ap.m_exposure.push_back( _expose_bit(0, gs->polarity) );
 }
 
@@ -945,48 +927,29 @@ int add_AM_thermal( am_ll_node_t *am_node,
 }
 
 // Realize a macro.
-// A macro consists of a series of primiitives to be drawn, either with 'exposure' on or off,
-// representing additive or subtractive geometry.
-// The additions and subtraction only happen within the macro and aren't affected by or
-// affect the outside geometry, so they can be realized wholly with the macro defintion
-// and the parameters passed in by the aperture definition.
-// Each line in the aperture macro needs to be evaluated as they may have expressions.
-// For each expression, the 'atomic' geometry is realized with a flag to indicate whether the
-// exposure is on or off.
-// Once all atomic gemoetry is realized, the final aperture is realized by going through
-// and progressively building up the union and difference of the atomic parts sequencially.
+// Primitives are added tot he `m_path` Paths list in the gAperture structure.
+// Construction of the final geometry will need to do it's own clipping.
+// By the time we get here, the aperture macro parameters have been evaluated
+// though the aperture macro body still needs to be evaluated.
+// Each evaluation of the macro line is done in the corresponding `add_AM_*` functions.
+// 
+// return 0 on success
+// non-zero on error
 //
 int realize_macro( gerber_state_t *gs,
                    Aperture_realization &ap,
                    std::string &macro_name,
                    std::vector< double > &macro_param ) {
-  int i, j, err=0, idx, segments, m_idx;
-  am_ll_node_t *am_nod;
+  int i, j, err=0, ret=0;
+  am_ll_node_t *am_nod = NULL;
   std::vector< double > param_val;
-  std::vector< std::string > var_name;
-  std::string buf;
-  int var_idx, ret=0;
-  tes_expr *expr;
-
-  Paths result;
-  Path empty_path;
-  IntPoint pnt;
-
-  Clipper clip;
-
-  static int debug_count=0;
 
   am_nod = aperture_macro_lookup(gs->am_lib_head, macro_name.c_str());
   if (!am_nod) { return -1; }
 
-  var_idx = 0;
-
+  // save a copy so we don't polute the original
+  //
   param_val = macro_param;
-  for (i=0; i<(int)param_val.size(); i++) {
-    buf = "$";
-    buf += std::to_string(i+1);
-    var_name.push_back(buf);
-  }
 
   while (am_nod) {
 
@@ -1063,29 +1026,7 @@ int realize_macro( gerber_state_t *gs,
 
   for (i=0; i<ap.m_macro_path.size(); i++) {
     ap.m_path.push_back( ap.m_macro_path[i] );
-    //ap.m_exposure.push_back( ap.m_macro_exposure[i] );
     ap.m_exposure.push_back( _expose_bit(  ap.m_macro_exposure[i], gs->polarity ) );
-  }
-
-  // clip the aperture macro individual geometry realizations for final use.
-  //
-  if (ap.m_macro_path.size() > 0) {
-    result.push_back(ap.m_macro_path[0]);
-  }
-  for (i=1; i<ap.m_macro_path.size(); i++) {
-
-    clip.Clear();
-    clip.AddPaths(result, ptSubject, true);
-    clip.AddPath(ap.m_macro_path[i], ptClip, true);
-
-    result.clear();
-    if (ap.m_macro_exposure[i] > 0) {
-      clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
-    }
-    else {
-      clip.Execute( ctDifference, result, pftNonZero, pftNonZero );
-    }
-
   }
 
   return ret;
@@ -1124,7 +1065,6 @@ void print_aperture_tree(gerber_state_t *gs, int level) {
 
     par=NULL;
     if (ap->gs) {
-      //par = ap->gs->absr_lib_parent_gs;
       par = ap->gs->_parent_gerber_state;
     }
 
@@ -1194,57 +1134,61 @@ aperture_data_t *flatten_aperture_list(gerber_state_t *gs, int level) {
   return gs->aperture_head;
 }
 
-/*
-aperture_data_t *flatten_aperture_list_OLD(gerber_state_t *gs, int level) {
-  aperture_data_t *ap_node_prev;
-  aperture_data_t *ap_node;
-  aperture_data_t *ap_flatten_head;
-  aperture_data_t *ap_flatten_last;
+//--
 
-  aperture_data_t *_ap;
 
-  if (!gs) { return NULL; }
 
-  ap_node_prev = NULL;
+static void _construct_transform_matrix(double *M, int mirror_axis, double rot_deg, double scale) {
+  double c, s, t;
 
-  for (ap_node = gs->aperture_head;
-       ap_node ;
-       ap_node = ap_node->next) {
+  c = cos(rot_deg * M_PI / 180.0 );
+  s = sin(rot_deg * M_PI / 180.0 );
 
-    // we've found an aperture block, so recur and get
-    // the flattened aperture linked list
-    //
-    if ((ap_node->type == AD_ENUM_BLOCK) ||
-        (ap_node->type == AD_ENUM_STEP_REPEAT)) {
+  memset(M, 0, sizeof(double)*3*3);
+  M[0] = 1.0;
+  M[3*1 + 1] = 1.0;
+  M[3*2 + 2] = 1.0;
 
-      ap_flatten_head = flatten_aperture_list(ap_node->gs, level+1);
+  M[0*3 + 0] =  c;
+  M[0*3 + 1] = -s;
 
-      if (ap_flatten_head) {
+  M[1*3 + 0] =  s;
+  M[1*3 + 1] =  c;
 
-        // traverse to the end
-        //
-        for (ap_flatten_last = ap_flatten_head;
-             ap_flatten_last && (ap_flatten_last->next);
-             ap_flatten_last = ap_flatten_last->next) ;
+  M[0*3 + 0] *= scale;
+  M[0*3 + 1] *= scale;
+  M[1*3 + 0] *= scale;
+  M[1*3 + 1] *= scale;
 
-        // do some linked list surgery to put the flattened list
-        // in line with the current list.
-        //
-        ap_flatten_last->next = ap_node;
-        if (ap_node_prev) { ap_node_prev->next = ap_flatten_head; }
-        else              { gs->aperture_head  = ap_flatten_head; }
-      }
-
-    }
-
-    ap_node_prev = ap_node;
+  if (mirror_axis == MIRROR_AXIS_X) {
+    M[1*3 + 1] *= -1.0;
+  }
+  else if (mirror_axis == MIRROR_AXIS_Y) {
+    M[0*3 + 0] *= -1.0;
+  }
+  else if (mirror_axis == MIRROR_AXIS_XY) {
+    M[0*3 + 0] *= -1.0;
+    M[1*3 + 1] *= -1.0;
   }
 
-  return gs->aperture_head;
+  return;
 }
-*/
+
+static void _mulmat3x3(double *result, double *A, double *B) {
+  int r,c,k;
+  double tm[3*3];
+  memset(tm, 0, sizeof(double)*3*3);
+  for (r=0; r<3; r++) for (c=0; c<3; c++) for (k=0;  k<3; k++) {
+    tm[3*r + c] += A[3*r + k] * B[3*k + c];
+  }
+  memcpy(result, tm, sizeof(double)*3*3);
+  return;
+}
 
 
+//--
+
+//int realize_apertures_r(gerber_state_t *gs, double *transformMatrixParent, int level) {
 int realize_apertures_r(gerber_state_t *gs, int level) {
   double min_segment_length = 0.01;
   int min_segments = 8;
@@ -1255,6 +1199,15 @@ int realize_apertures_r(gerber_state_t *gs, int level) {
 
   aperture_data_t *aperture;
   gerber_item_ll_t *item;
+
+  std::vector< DoublePoint > empty_d_path;
+
+  double transformMatrix[3*3];
+
+  int _mirror_axis = MIRROR_AXIS_NONE;
+  double _rotation_degree = 0.0;
+  double _scale = 1.0;
+
 
 
   //--
@@ -1325,19 +1278,74 @@ int realize_apertures_r(gerber_state_t *gs, int level) {
         default: break;
       }
 
+
+      // save a 'double' copy of the paths list
+      //
+      ap.m_path_d.clear();
+      for (ii=0; ii<ap.m_path.size(); ii++) {
+        ap.m_path_d.push_back(empty_d_path);
+        for (jj=0; jj<ap.m_path[ii].size(); jj++) {
+          ap.m_path_d[ii].push_back( DoublePoint( ctod(ap.m_path[ii][jj].X), ctod(ap.m_path[ii][jj].Y) ) );
+        }
+      }
+
       gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
       gApertureName.push_back(ap.m_name);
 
     }
 
     else if (item->type == GERBER_AB) {
+
+      //_construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale);
+      //_mulmat3x3(transformMatrix, transformMatrix, transformMatrixParent);
+
+      item->aperture_block->polarity         = gs->polarity;
+      item->aperture_block->mirror_axis      = gs->mirror_axis;
+      item->aperture_block->rotation_degree  = gs->rotation_degree;
+      item->aperture_block->scale            = gs->scale;
+
+      //realize_apertures_r(item->aperture_block, transformMatrix, level+1);
       realize_apertures_r(item->aperture_block, level+1);
+
+      gs->polarity        = item->aperture_block->polarity;
+      gs->mirror_axis     = item->aperture_block->mirror_axis;
+      gs->rotation_degree = item->aperture_block->rotation_degree;
+      gs->scale           = item->aperture_block->scale;
+
       continue;
     }
 
     else if (item->type == GERBER_SR) {
+
+      //_construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale);
+      //_mulmat3x3(transformMatrix, transformMatrix, transformMatrixParent);
+
+      item->step_repeat->polarity         = gs->polarity;
+      item->step_repeat->mirror_axis      = gs->mirror_axis;
+      item->step_repeat->rotation_degree  = gs->rotation_degree;
+      item->step_repeat->scale            = gs->scale;
+
+      //realize_apertures_r(item->step_repeat, transformMatrix, level+1);
       realize_apertures_r(item->step_repeat, level+1);
+
+      gs->polarity        = item->step_repeat->polarity;
+      gs->mirror_axis     = item->step_repeat->mirror_axis;
+      gs->rotation_degree = item->step_repeat->rotation_degree;
+      gs->scale           = item->step_repeat->scale;
+
       continue;
+    }
+
+    else if (item->type == GERBER_LM) {
+      gs->mirror_axis = item->mirror_axis;
+    }
+
+    else if (item->type == GERBER_LR) {
+      gs->rotation_degree = item->rotation_degree;
+    }
+
+    else if (item->type == GERBER_LS) {
+      gs->scale = item->scale;
     }
 
     else { continue; }
@@ -1348,123 +1356,13 @@ int realize_apertures_r(gerber_state_t *gs, int level) {
 }
 
 int realize_apertures(gerber_state_t *gs) {
+  double m[3*3];
+
+  memset(m, 0, sizeof(double)*3*3);
+  m[0] = 1.0;
+  m[1*3 + 1] = 1.0;
+  m[2*3 + 2] = 1.0;
+
+  //return realize_apertures_r(gs, m, 0);
   return realize_apertures_r(gs, 0);
 }
-
-/*
-int realize_apertures_OLD(gerber_state_t *gs) {
-  double min_segment_length = 0.01;
-  int min_segments = 8;
-  int base_mapping[] = {1, 2, 3, 3};
-  int i;
-  int ii, jj;
-
-  aperture_data_t *aperture;
-
-  //--
-
-  flatten_aperture_list(gs, 0);
-
-  if (gMinSegmentLength > 0.0) {
-    min_segment_length = gMinSegmentLength;
-  }
-
-  for ( aperture = gs->aperture_head ;
-        aperture ;
-        aperture = aperture->next ) {
-    Aperture_realization ap;
-
-    ap.m_name = aperture->name;
-    ap.m_type = aperture->type;
-
-    if ((aperture->type == AD_ENUM_CIRCLE) ||
-        (aperture->type == AD_ENUM_RECTANGLE) ||
-        (aperture->type == AD_ENUM_OBROUND) ||
-        (aperture->type == AD_ENUM_POLYGON)) {
-      ap.m_crop_type = aperture->crop_type;
-    }
-    else if (aperture->type == AD_ENUM_MACRO) {
-      ap.m_macro_name = aperture->macro_name;
-      for (i=0; i<aperture->macro_param_count; i++) {
-        ap.m_macro_param.push_back(aperture->macro_param[i]);
-      }
-    }
-    else if (aperture->type == AD_ENUM_BLOCK) {
-    }
-    else {
-    }
-
-    switch (aperture->type) {
-
-      case AD_ENUM_CIRCLE:
-        realize_circle( gs, ap, aperture->crop[0]/2.0, min_segments, min_segment_length );
-        break;
-
-      case AD_ENUM_RECTANGLE:
-        realize_rectangle( gs, ap, aperture->crop[0]/2.0, aperture->crop[1]/2.0 );
-        break;
-
-      case AD_ENUM_OBROUND:
-        realize_obround( gs, ap, aperture->crop[0], aperture->crop[1], min_segments, min_segment_length  );
-        break;
-
-      case AD_ENUM_POLYGON:
-        realize_polygon( gs, ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
-        break;
-
-      case AD_ENUM_MACRO:
-        realize_macro( gs, ap, ap.m_macro_name, ap.m_macro_param );
-        break;
-
-      default: break;
-    }
-
-    if ((aperture->type == AD_ENUM_CIRCLE) ||
-        (aperture->type == AD_ENUM_RECTANGLE) ||
-        (aperture->type == AD_ENUM_OBROUND) ||
-        (aperture->type == AD_ENUM_POLYGON)) {
-
-      int base = base_mapping[ aperture->type ];
-
-      switch (aperture->crop_type) {
-
-        // solid, do nothing
-        //
-        case 0:
-
-          break;
-
-        // circle hole
-        //
-        case 1:
-
-          realize_hole( gs, ap, aperture->crop[base]/2.0, min_segments, min_segment_length );
-          break;
-
-        // rect hole
-        //
-        case 2:
-
-          //realize_rectangle_hole( ap, aperture->crop[base]/2.0, aperture->crop[base+1]/2.0 );
-          break;
-
-        default: break;
-      }
-
-    }
-
-    //DEBUG
-    //DEBUG
-    fprintf(stdout, "### adding aperture %i\n", ap.m_name);
-    if (ap.m_name < 0) { printf("## SKIPPING APERTURE %i\n", ap.m_name); continue; }
-    //DEBUG
-    //DEBUG
-
-    gAperture.insert( ApertureNameMapPair(ap.m_name, ap) );
-    gApertureName.push_back(ap.m_name);
-
-  }
-
-  return 0;
-}
-*/

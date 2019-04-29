@@ -54,6 +54,9 @@ enum GERBER_ITEM {
   GERBER_ADE,
   GERBER_G36,
   GERBER_AM,
+
+  // 10
+  //
   GERBER_G37,
 
   GERBER_AB,
@@ -67,6 +70,8 @@ enum GERBER_ITEM {
   GERBER_G02,
   GERBER_G03,
 
+  // 20
+  //
   GERBER_G74,
   GERBER_G75,
 

@@ -52,18 +52,16 @@ extern "C" {
 #include "clipper.hpp"
 using namespace ClipperLib;
 
-
-
 //#define g_scalefactor 1000000.0
 #define g_scalefactor 1000000000.0
 //#define dtoc(x,y) IntPoint( (cInt)((double)(g_scalefactor*((double)(x)) + 0.5)), (cInt)((double)(g_scalefactor*((double)(y)) + 0.5)) )
 #define dtoc(x,y) IntPoint( (cInt)(g_scalefactor*(x)), (cInt)(g_scalefactor*(y)) )
-#define ctod(x) ((x)/g_scalefactor)
-
+#define ctod(x) (((double)(x))/g_scalefactor)
 
 //----- Class definitions
 
-
+typedef std::vector< DoublePoint > PathDouble;
+typedef std::vector< PathDouble > PathsDouble;
 
 class Aperture_realization {
   public:
@@ -95,6 +93,10 @@ class Aperture_realization {
     // Final realized geometry from m_path and m_exposure.
     //
     Paths m_geom;
+
+    // Copy of paths as doubles
+    //
+    std::vector< std::vector< DoublePoint > > m_path_d;
 };
 
 typedef std::map<int, Aperture_realization> ApertureNameMap;
