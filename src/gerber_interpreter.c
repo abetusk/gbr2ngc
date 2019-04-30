@@ -88,13 +88,16 @@ gerber_item_ll_t *gerber_item_create(int type, ...) {
       break;
 
     case GERBER_SEGMENT:
-      item->region_head = va_arg(valist, gerber_region_t *);
+      //item->region_head = va_arg(valist, gerber_region_t *);
+      item->region_head = va_arg(valist, gerber_item_ll_t *);
       item->region_tail = item->region_head;
       break;
 
     case GERBER_REGION:
-      item->region_head = va_arg(valist, gerber_region_t *);
-      item->region_tail = va_arg(valist, gerber_region_t *);
+      //item->region_head = va_arg(valist, gerber_region_t *);
+      //item->region_tail = va_arg(valist, gerber_region_t *);
+      item->region_head = va_arg(valist, gerber_item_ll_t *);
+      item->region_tail = va_arg(valist, gerber_item_ll_t *);
       break;
 
     case GERBER_M02:
@@ -305,8 +308,11 @@ void gerber_state_clear(gerber_state_t *gs) {
   gerber_item_ll_t *item_nod;
   gerber_item_ll_t *item_prv;
 
-  gerber_region_t *region_nod;
-  gerber_region_t *region_prv;
+  //gerber_region_t *region_nod;
+  //gerber_region_t *region_prv;
+
+  gerber_item_ll_t *region_nod;
+  gerber_item_ll_t *region_prv;
 
   aperture_data_t *aperture_nod;
   aperture_data_t *prev_aperture_nod;
@@ -2034,10 +2040,6 @@ static double _ang_clamp(double a, double eps) {
 }
 
 void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, double cur_i, double cur_j, int aperture_name) {
-  //double p0x, p0y, p1x, p1y;
-  //double a0, a1, a2, a3, ta0, ta1;
-  //double c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-  //double del_d0, del_d1, del_d2, del_d3;
   double ta0, ta1, tx, ty, tr;
   double deps;
 
@@ -2048,11 +2050,13 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   double candidates[3*4];
 
   gerber_item_ll_t *item_nod;
-  gerber_region_t *region_nod;
+  //gerber_region_t *region_nod;
+  gerber_item_ll_t *region_nod;
 
   item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
 
-  region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+  //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+  region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
 
   item_nod->type = GERBER_SEGMENT;
   item_nod->d_name = aperture_name;
@@ -2067,7 +2071,8 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
   item_nod->region_head = region_nod;
   item_nod->region_tail = region_nod;
 
-  region_nod->next = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+  //region_nod->next = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+  region_nod->next = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
   region_nod = region_nod->next;
 
   region_nod->x = cur_x;
@@ -2237,7 +2242,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
   int prev_d_state;
 
   gerber_item_ll_t *item_nod;
-  gerber_region_t *region_nod;
+  //gerber_region_t *region_nod;
+  gerber_item_ll_t *region_nod;
 
   prev_x = gs->cur_x;
   prev_y = gs->cur_y;
@@ -2304,7 +2310,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
       // Start a new region
       //
-      region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+      //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+      region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
       region_nod->x = gs->cur_x;
       region_nod->y = gs->cur_y;
 
@@ -2320,7 +2327,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       //
       if (gs->_item_cur == NULL) {
 
-        region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+        //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+        region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
         region_nod->x = prev_x;
         region_nod->y = prev_y;
 
@@ -2330,7 +2338,8 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
       item_nod = gs->_item_cur;
 
-      region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+      //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
+      region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
       region_nod->x = gs->cur_x;
       region_nod->y = gs->cur_y;
 
@@ -2661,7 +2670,8 @@ void dump_information(gerber_state_t *gs, int level) {
   aperture_data_t *adb;
 
   gerber_item_ll_t *item_nod;
-  gerber_region_t *region_nod;
+  //gerber_region_t *region_nod;
+  gerber_item_ll_t *region_nod;
 
   if (verbose_print) {
     printf("# lvl:%i aperture list:\n", level);

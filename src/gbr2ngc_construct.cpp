@@ -144,7 +144,8 @@ void add_hole( Paths &hole_vec,
 // duplicates.
 //
 void populate_gerber_point_vector_from_contour( std::vector< Gerber_point_2 > &p,
-                                                gerber_region_t *contour) {
+                                                gerber_item_ll_t *contour) {
+                                                //gerber_region_t *contour) {
   int first=1;
   Gerber_point_2 prev_pnt;
   Gerber_point_2 dpnt;
@@ -220,7 +221,8 @@ int gerber_point_2_decorate_with_jump_pos( std::vector< Gerber_point_2 > &p ) {
 // Construct the point vector and hole map.  Create the polygon with holes
 // vector.
 //
-int construct_contour_region( PathSet &pwh_vec, gerber_region_t *contour ) {
+//int construct_contour_region( PathSet &pwh_vec, gerber_region_t *contour ) {
+int construct_contour_region( PathSet &pwh_vec, gerber_item_ll_t *contour ) {
   int i, ds;
 
   std::vector< Gerber_point_2 > p;
@@ -390,7 +392,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
   unsigned int i, ii, jj, _i, _j;
 
   gerber_item_ll_t *item_nod;
-  gerber_region_t *region;
+  //gerber_region_t *region;
+  gerber_item_ll_t *region;
 
   PathSet temp_pwh_vec;
   IntPoint prev_pnt, cur_pnt, _origin;
@@ -476,8 +479,32 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
       temp_pwh_vec.clear();
       construct_contour_region(temp_pwh_vec, item_nod->region_head);
 
+      /*
       for (i=0; i<temp_pwh_vec.size(); i++) {
         clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
+      }
+      */
+
+      if ( ! _expose_bit(polarity) ) {
+
+        for (i=0; i<temp_pwh_vec.size(); i++) {
+          clip.AddPaths( temp_pwh_vec[i], ptClip, true );
+        }
+
+        it_paths.clear();
+        clip.Execute(ctDifference, it_paths, pftNonZero, pftNonZero);
+
+        clip.Clear();
+        clip.AddPaths(it_paths, ptSubject, true);
+
+        _clip_update = 1;
+      }
+      else {
+
+        for (i=0; i<temp_pwh_vec.size(); i++) {
+          clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
+        }
+
       }
 
       if (_clip_update) {

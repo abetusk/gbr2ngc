@@ -104,10 +104,12 @@ enum MIRROR_AXIS {
   MIRROR_AXIS_XY,
 };
 
+/*
 typedef struct gerber_region_type {
   double x, y;
   struct gerber_region_type *next;
 } gerber_region_t;
+*/
 
 
 // CROP  TYPE
@@ -404,8 +406,11 @@ typedef struct gerber_item_ll_type {
   aperture_data_t *aperture;
   am_ll_lib_t *aperture_macro;
 
-  gerber_region_t *region_head;
-  gerber_region_t *region_tail;
+  //gerber_region_t *region_head;
+  //gerber_region_t *region_tail;
+
+  struct gerber_item_ll_type *region_head;
+  struct gerber_item_ll_type *region_tail;
 
   gerber_state_t *step_repeat;
   gerber_state_t *aperture_block;
