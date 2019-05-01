@@ -291,7 +291,8 @@ void _print_segment(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
 
   C = pow(10.0, (double)(gs->fs_x_real));
 
-  gerber_region_t *region_nod;
+  //gerber_region_t *region_nod;
+  gerber_item_ll_t *region_nod;
 
   region_nod = item_nod->region_head;
   m=0;
@@ -368,43 +369,95 @@ void _print_region(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   double C = 1.0;
 
   int _ix, _iy, _ii, _ij;
-  int _ixprv, _iyprv;
+  int _ixprv, _iyprv, _iiprv, _ijprv;
 
   C = pow(10.0, (double)(gs->fs_x_real));
 
-  gerber_region_t *region_nod;
+  //gerber_region_t *region_nod;
+  gerber_item_ll_t *region_nod;
 
   region_nod = item_nod->region_head;
   m=0;
 
+  //DEBUG
+  fprintf(fp, "\n");
+  //DEBUG
+
   fprintf(fp, "G36*\n");
 
-  while (region_nod) {
+  for ( ; region_nod ; region_nod = region_nod->next) {
+  //while (region_nod) {
+
+    if (region_nod->type == GERBER_REGION_G74) {
+      gs->quadrent_mode = QUADRENT_MODE_SINGLE;
+      fprintf(fp, "G74*\n");
+      continue;
+    }
+    else if (region_nod->type == GERBER_REGION_G75) {
+      gs->quadrent_mode = QUADRENT_MODE_MULTI;
+      fprintf(fp, "G75*\n");
+      continue;
+    }
+    else if (region_nod->type == GERBER_REGION_G01) {
+      gs->interpolation_mode = INTERPOLATION_MODE_LINEAR;
+      fprintf(fp, "G01*\n");
+      continue;
+    }
+    else if (region_nod->type == GERBER_REGION_G02) {
+      gs->interpolation_mode = INTERPOLATION_MODE_CW;
+      fprintf(fp, "G02*\n");
+      continue;
+    }
+    else if (region_nod->type == GERBER_REGION_G03) {
+      gs->interpolation_mode = INTERPOLATION_MODE_CCW;
+      fprintf(fp, "G03*\n");
+      continue;
+    }
 
     _ix = (int)(region_nod->x * C);
     _iy = (int)(region_nod->y * C);
 
+    _ii = (int)(region_nod->i * C);
+    _ij = (int)(region_nod->j * C);
+
     if (m==0) {
       fprintf(fp, "X%iY%iD02*\n", _ix, _iy);
     } else if (m==1) {
-      if ((_ix != _ixprv) && (_iy != _iyprv)) { fprintf(fp, "X%iY%iD01*\n", _ix, _iy); }
-      else if (_ix != _ixprv) { fprintf(fp, "X%iD01*\n", _ix); }
-      else if (_iy != _iyprv) { fprintf(fp, "Y%iD01*\n", _iy); }
+
+      if ((gs->interpolation_mode == INTERPOLATION_MODE_NONE) ||
+          (gs->interpolation_mode == INTERPOLATION_MODE_LINEAR)) {
+        if ((_ix != _ixprv) && (_iy != _iyprv)) { fprintf(fp, "X%iY%iD01*\n", _ix, _iy); }
+        else if (_ix != _ixprv) { fprintf(fp, "X%iD01*\n", _ix); }
+        else if (_iy != _iyprv) { fprintf(fp, "Y%iD01*\n", _iy); }
+      }
+      else {
+        fprintf(fp, "X%iY%iI%iJ%iD01*\n", _ix, _iy, _ii, _ij);
+      }
 
     } else {
-      if ((_ix != _ixprv) && (_iy != _iyprv)) { fprintf(fp, "X%iY%i*\n", _ix, _iy); }
-      else if (_ix != _ixprv) { fprintf(fp, "X%i*\n", _ix); }
-      else if (_iy != _iyprv) { fprintf(fp, "Y%i*\n", _iy); }
+
+      if ((gs->interpolation_mode == INTERPOLATION_MODE_NONE) ||
+          (gs->interpolation_mode == INTERPOLATION_MODE_LINEAR)) {
+        if ((_ix != _ixprv) && (_iy != _iyprv)) { fprintf(fp, "X%iY%iD01*\n", _ix, _iy); }
+        else if (_ix != _ixprv) { fprintf(fp, "X%iD01*\n", _ix); }
+        else if (_iy != _iyprv) { fprintf(fp, "Y%iD01*\n", _iy); }
+      }
+      else {
+        fprintf(fp, "X%iY%iI%iJ%iD01*\n", _ix, _iy, _ii, _ij);
+      }
     }
 
     _ixprv = _ix;
     _iyprv = _iy;
 
-    region_nod = region_nod->next;
+    //region_nod = region_nod->next;
     m++;
   }
 
   fprintf(fp, "G37*\n");
+
+  //DEBUG
+  fprintf(fp, "\n");
 }
 
 void _print_ab(FILE *fp, gerber_state_t *gs, gerber_item_ll_t *item_nod, int lvl) {
@@ -437,7 +490,8 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
   int n=0, m=0;
 
   gerber_item_ll_t *item_nod;
-  gerber_region_t *region_nod;
+  //gerber_region_t *region_nod;
+  gerber_item_ll_t *region_nod;
 
   item_nod = gs->item_head;
 
@@ -455,12 +509,22 @@ void _print_gerber_state_r(FILE *fp, gerber_state_t *gs, int lvl) {
       case GERBER_AD: _print_ad(fp, gs, item_nod); break;
       case GERBER_ADE: _print_ade(fp, gs, item_nod); break;
 
-      case GERBER_G01: _print_g01(fp, gs, item_nod); break;
-      case GERBER_G02: _print_g02(fp, gs, item_nod); break;
-      case GERBER_G03: _print_g03(fp, gs, item_nod); break;
+      case GERBER_G01:
+                       gs->interpolation_mode = INTERPOLATION_MODE_LINEAR;
+                       _print_g01(fp, gs, item_nod); break;
+      case GERBER_G02:
+                       gs->interpolation_mode = INTERPOLATION_MODE_CW;
+                       _print_g02(fp, gs, item_nod); break;
+      case GERBER_G03:
+                       gs->interpolation_mode = INTERPOLATION_MODE_CCW;
+                       _print_g03(fp, gs, item_nod); break;
 
-      case GERBER_G74: _print_g74(fp, gs, item_nod); break;
-      case GERBER_G75: _print_g75(fp, gs, item_nod); break;
+      case GERBER_G74:
+                       gs->quadrent_mode = QUADRENT_MODE_SINGLE;
+                       _print_g74(fp, gs, item_nod); break;
+      case GERBER_G75:
+                       gs->quadrent_mode = QUADRENT_MODE_MULTI;
+                       _print_g75(fp, gs, item_nod); break;
 
       case GERBER_D10P: _print_d10p(fp, gs, item_nod); break;
 
@@ -495,6 +559,38 @@ void print_gerber_state(gerber_state_t *gs) {
 
 //------------------------
 
+void _print_summary(gerber_state_t *gs, int level) {
+  int i;
+  gerber_item_ll_t *item, *region;
+
+  for (item = gs->item_head; item; item = item->next) {
+
+    for (i=0; i<level; i++) { printf(" "); }
+
+    printf("%i", item->type);
+
+    if (item->type == GERBER_REGION) {
+      printf(":");
+      for (region = item->region_head; region; region = region->next) {
+        printf(" %i", region->type);
+      }
+    }
+
+    printf("\n");
+
+    if (item->type == GERBER_SR) {
+      _print_summary(item->step_repeat, level+1);
+    }
+    else if (item->type == GERBER_AB) {
+      _print_summary(item->aperture_block, level+1);
+    }
+
+  }
+
+}
+
+//---
+
 int main(int argc, char **argv) {
   int i, j, k, n_line;
   char *chp, *ts;
@@ -514,7 +610,9 @@ int main(int argc, char **argv) {
     perror(argv[1]);
   }
 
-  print_gerber_state(&gs);
+  _print_summary(&gs, 0);
+
+  //print_gerber_state(&gs);
 
   //gerber_report_state(&gs);
 

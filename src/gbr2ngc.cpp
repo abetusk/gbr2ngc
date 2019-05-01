@@ -965,12 +965,6 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
-  join_polygon_set( pgn_union, &gs );
-
-  if (gShowComments) {
-    fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
-  }
-
   // If units haven't been specified on the command line,
   // inherit units from the Gerber file.
   //
@@ -983,6 +977,14 @@ int main(int argc, char **argv) {
   }
   if (gShowComments) {
     fprintf( gOutStream, "( segment length %f )\n", gMinSegmentLength );
+  }
+
+
+
+  join_polygon_set( pgn_union, &gs );
+
+  if (gShowComments) {
+    fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
   }
 
 

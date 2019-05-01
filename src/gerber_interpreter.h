@@ -81,6 +81,18 @@ enum GERBER_ITEM {
   GERBER_SEGMENT_ARC,
   GERBER_REGION,
 
+  GERBER_REGION_D01,
+  GERBER_REGION_D02,
+  GERBER_REGION_G01,
+  GERBER_REGION_G02,
+  GERBER_REGION_G03,
+  GERBER_REGION_G74,
+  GERBER_REGION_G75,
+
+  GERBER_REGION_MOVE,
+  GERBER_REGION_SEGMENT,
+  GERBER_REGION_SEGMENT_ARC,
+
   GERBER_M02,
 };
 
@@ -363,7 +375,7 @@ typedef struct gerber_item_ll_type {
   int type;
   int d_name;
   int n;
-  double x, y;
+  double x, y, i, j;
   int region;
 
   // LP

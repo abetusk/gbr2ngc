@@ -36,6 +36,12 @@ void gerber_state_add_item(gerber_state_t *gs, gerber_item_ll_t *item_nod) {
   gs->item_tail = item_nod;
 }
 
+void gerber_region_add_item(gerber_item_ll_t *region_item, gerber_item_ll_t *region_element) {
+  if (region_item->region_head == NULL) { region_item->region_head        = region_element; }
+  else                                  { region_item->region_tail->next  = region_element; }
+  region_item->region_tail = region_element;
+}
+
 gerber_item_ll_t *gerber_item_create(int type, ...) {
   va_list valist;
   gerber_item_ll_t *item;
@@ -88,14 +94,11 @@ gerber_item_ll_t *gerber_item_create(int type, ...) {
       break;
 
     case GERBER_SEGMENT:
-      //item->region_head = va_arg(valist, gerber_region_t *);
       item->region_head = va_arg(valist, gerber_item_ll_t *);
       item->region_tail = item->region_head;
       break;
 
     case GERBER_REGION:
-      //item->region_head = va_arg(valist, gerber_region_t *);
-      //item->region_tail = va_arg(valist, gerber_region_t *);
       item->region_head = va_arg(valist, gerber_item_ll_t *);
       item->region_tail = va_arg(valist, gerber_item_ll_t *);
       break;
@@ -2039,45 +2042,20 @@ static double _ang_clamp(double a, double eps) {
   return _a;
 }
 
-void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, double cur_i, double cur_j, int aperture_name) {
+void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
+                             double prev_x, double prev_y,
+                             double cur_x, double cur_y,
+                             double cur_i, double cur_j) {
+  double C = 1000000000000.0;
   double ta0, ta1, tx, ty, tr;
   double deps;
-
   double a[4], c[8], del_d[4];
+
+  int64_t _iprv_x, _iprv_y, _icur_x, _icur_y;
 
   int ii;
   int n_candidates;
   double candidates[3*4];
-
-  gerber_item_ll_t *item_nod;
-  //gerber_region_t *region_nod;
-  gerber_item_ll_t *region_nod;
-
-  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-
-  //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
-  region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-
-  item_nod->type = GERBER_SEGMENT;
-  item_nod->d_name = aperture_name;
-  item_nod->polarity = gs->polarity;
-
-  item_nod->quadrent_mode = gs->quadrent_mode;
-  item_nod->interpolation_mode = gs->interpolation_mode;
-
-  region_nod->x = prev_x;
-  region_nod->y = prev_y;
-
-  item_nod->region_head = region_nod;
-  item_nod->region_tail = region_nod;
-
-  //region_nod->next = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
-  region_nod->next = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
-  region_nod = region_nod->next;
-
-  region_nod->x = cur_x;
-  region_nod->y = cur_y;
-  region_nod->next = NULL;
 
   if ((gs->quadrent_mode != QUADRENT_MODE_NONE) &&
       (gs->interpolation_mode != INTERPOLATION_MODE_NONE) &&
@@ -2103,7 +2081,7 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
     //
     if (gs->quadrent_mode == QUADRENT_MODE_SINGLE) {
 
-      item_nod->type = GERBER_SEGMENT_ARC;
+      item_nod->type = ((item_nod->type == GERBER_SEGMENT) ? GERBER_SEGMENT_ARC : GERBER_REGION_SEGMENT_ARC );
 
       c[2*0] = prev_x + cur_i; c[2*0 + 1] = prev_y + cur_j;
       c[2*1] = prev_x - cur_i; c[2*1 + 1] = prev_y + cur_j;
@@ -2167,7 +2145,8 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
     //
     else if (gs->quadrent_mode == QUADRENT_MODE_MULTI) {
 
-      item_nod->type = GERBER_SEGMENT_ARC;
+      //item_nod->type = GERBER_SEGMENT_ARC;
+      item_nod->type = ((item_nod->type == GERBER_SEGMENT) ? GERBER_SEGMENT_ARC : GERBER_REGION_SEGMENT_ARC );
 
       tx = prev_x + cur_i;
       ty = prev_y + cur_j;
@@ -2190,16 +2169,61 @@ void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x,
         item_nod->arc_ang_rad_del -= 2.0*M_PI;
       }
 
+      _iprv_x = (int64_t)(prev_x * C);
+      _iprv_y = (int64_t)(prev_y * C);
+
+      _icur_x = (int64_t)(cur_x * C);
+      _icur_y = (int64_t)(cur_y * C);
+
+      // force full 360 rotation if end point is equal to start point
+      //
+      if ( (_iprv_x == _icur_x) && (_iprv_y = _icur_y) ) {
+        if (gs->interpolation_mode == INTERPOLATION_MODE_CCW) { item_nod->arc_ang_rad_del = -2.0*M_PI; }
+        if (gs->interpolation_mode == INTERPOLATION_MODE_CW)  { item_nod->arc_ang_rad_del =  2.0*M_PI; }
+      }
+
+
     }
 
   }
 
-  gerber_state_add_item(gs, item_nod);
 
-  return;
+}
+
+void add_segment(gerber_state_t *gs, double prev_x, double prev_y, double cur_x, double cur_y, double cur_i, double cur_j, int aperture_name) {
+  gerber_item_ll_t *item_nod;
+  gerber_item_ll_t *region_nod;
 
   //--
 
+  item_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+
+  item_nod->type = GERBER_SEGMENT;
+  item_nod->d_name = aperture_name;
+  item_nod->polarity = gs->polarity;
+
+  item_nod->quadrent_mode = gs->quadrent_mode;
+  item_nod->interpolation_mode = gs->interpolation_mode;
+
+  region_nod->x = prev_x;
+  region_nod->y = prev_y;
+
+  item_nod->region_head = region_nod;
+  item_nod->region_tail = region_nod;
+
+  region_nod->next = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+  region_nod = region_nod->next;
+
+  region_nod->x = cur_x;
+  region_nod->y = cur_y;
+  region_nod->next = NULL;
+
+  segment_update_arc_info(gs, item_nod, prev_x, prev_y, cur_x, cur_y, cur_i, cur_j);
+
+  gerber_state_add_item(gs, item_nod);
+
+  return;
 }
 
 //------------------------
@@ -2242,7 +2266,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
   int prev_d_state;
 
   gerber_item_ll_t *item_nod;
-  //gerber_region_t *region_nod;
   gerber_item_ll_t *region_nod;
 
   prev_x = gs->cur_x;
@@ -2310,10 +2333,13 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
       // Start a new region
       //
-      //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
       region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+      region_nod->type = GERBER_REGION_MOVE;
       region_nod->x = gs->cur_x;
       region_nod->y = gs->cur_y;
+
+      region_nod->i = gs->cur_i;
+      region_nod->j = gs->cur_j;
 
       gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod, region_nod);
 
@@ -2327,10 +2353,13 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       //
       if (gs->_item_cur == NULL) {
 
-        //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
         region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+        region_nod->type = GERBER_REGION_MOVE;
         region_nod->x = prev_x;
         region_nod->y = prev_y;
+
+        region_nod->i = prev_i;
+        region_nod->j = prev_j;
 
         gs->_item_cur = gerber_item_create(GERBER_REGION, region_nod, region_nod);
 
@@ -2338,14 +2367,22 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
 
       item_nod = gs->_item_cur;
 
-      //region_nod = (gerber_region_t *)calloc(1, sizeof(gerber_region_t));
       region_nod = (gerber_item_ll_t *)calloc(1, sizeof(gerber_item_ll_t));
+      region_nod->type = GERBER_REGION_SEGMENT;
+
       region_nod->x = gs->cur_x;
       region_nod->y = gs->cur_y;
 
-      if (item_nod->region_head == NULL) { item_nod->region_head = region_nod; }
-      else                               { item_nod->region_tail->next = region_nod; }
-      item_nod->region_tail = region_nod;
+      region_nod->i = gs->cur_i;
+      region_nod->j = gs->cur_j;
+
+      segment_update_arc_info(gs, region_nod, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->cur_i, gs->cur_j);
+
+      gerber_region_add_item(item_nod, region_nod);
+
+      //if (item_nod->region_head == NULL) { item_nod->region_head = region_nod; }
+      //else                               { item_nod->region_tail->next = region_nod; }
+      //item_nod->region_tail = region_nod;
 
     }
 
@@ -2418,10 +2455,23 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
   else if ((chp[0] == '0') && (chp[1] == '1')) { chp+=2; }
   else { parse_error("invalid g01 code", gs->line_no, linebuf); }
 
-  item_nod = gerber_item_create(GERBER_G01); 
-  gerber_state_add_item(gs, item_nod);
-
   gs->interpolation_mode = INTERPOLATION_MODE_LINEAR;
+
+  if (gs->region) {
+
+    item_nod = gerber_item_create(GERBER_REGION_G01);
+    if (gs->_item_cur == NULL) {
+      gs->_item_cur = gerber_item_create(GERBER_REGION, item_nod, item_nod);
+    }
+    else {
+      gerber_region_add_item(gs->_item_cur, item_nod);
+    }
+  }
+  else {
+    item_nod = gerber_item_create(GERBER_G01);
+    gerber_state_add_item(gs, item_nod);
+  }
+
 
   if (*chp == '*') {
     free(linebuf);
@@ -2444,8 +2494,20 @@ void parse_g02(gerber_state_t *gs, char *linebuf) {
 
   gs->interpolation_mode = INTERPOLATION_MODE_CW;
 
-  item_nod = gerber_item_create(GERBER_G02, gs);
-  gerber_state_add_item(gs, item_nod);
+  if (gs->region) {
+
+    item_nod = gerber_item_create(GERBER_REGION_G02, gs);
+    if (gs->_item_cur == NULL) {
+      gs->_item_cur = gerber_item_create(GERBER_REGION, item_nod, item_nod);
+    }
+    else {
+      gerber_region_add_item(gs->_item_cur, item_nod);
+    }
+  }
+  else {
+    item_nod = gerber_item_create(GERBER_G02, gs);
+    gerber_state_add_item(gs, item_nod);
+  }
 
 }
 
@@ -2456,12 +2518,22 @@ void parse_g02(gerber_state_t *gs, char *linebuf) {
 void parse_g03(gerber_state_t *gs, char *linebuf) {
   gerber_item_ll_t *item_nod;
 
-  //parse_error("unsuported g03", gs->line_no, NULL);
-
   gs->interpolation_mode = INTERPOLATION_MODE_CCW;
 
-  item_nod = gerber_item_create(GERBER_G03, gs);
-  gerber_state_add_item(gs, item_nod);
+  if (gs->region) {
+
+    item_nod = gerber_item_create(GERBER_REGION_G03);
+    if (gs->_item_cur == NULL) {
+      gs->_item_cur = gerber_item_create(GERBER_REGION, item_nod, item_nod);
+    }
+    else {
+      gerber_region_add_item(gs->_item_cur, item_nod);
+    }
+  }
+  else {
+    item_nod = gerber_item_create(GERBER_G03, gs);
+    gerber_state_add_item(gs, item_nod);
+  }
 
 }
 
@@ -2509,8 +2581,19 @@ void parse_g74(gerber_state_t *gs, char *linebuf) {
 
   gs->quadrent_mode = QUADRENT_MODE_SINGLE;
 
-  item_nod = gerber_item_create(GERBER_G74, gs);
-  gerber_state_add_item(gs, item_nod);
+  if (gs->region) {
+    item_nod = gerber_item_create(GERBER_REGION_G74);
+    if (gs->_item_cur == NULL) {
+      gs->_item_cur = gerber_item_create(GERBER_REGION, item_nod, item_nod);
+    }
+    else {
+      gerber_region_add_item(gs->_item_cur, item_nod);
+    }
+  }
+  else {
+    item_nod = gerber_item_create(GERBER_G74, gs);
+    gerber_state_add_item(gs, item_nod);
+  }
 
   return;
 }
@@ -2522,8 +2605,19 @@ void parse_g75(gerber_state_t *gs, char *linebuf) {
 
   gs->quadrent_mode = QUADRENT_MODE_MULTI;
 
-  item_nod = gerber_item_create(GERBER_G75, gs);
-  gerber_state_add_item(gs, item_nod);
+  if (gs->region) {
+    item_nod = gerber_item_create(GERBER_REGION_G75);
+    if (gs->_item_cur == NULL) {
+      gs->_item_cur = gerber_item_create(GERBER_REGION, item_nod, item_nod);
+    }
+    else {
+      gerber_region_add_item(gs->_item_cur, item_nod);
+    }
+  }
+  else {
+    item_nod = gerber_item_create(GERBER_G75, gs);
+    gerber_state_add_item(gs, item_nod);
+  }
 
   return;
 }

@@ -26,20 +26,10 @@
 
 class Gerber_point_2 {
   public:
-    int ix, iy;
+    int64_t ix, iy;
     double x, y;
-    int jump_pos;
+    int64_t jump_pos;
 };
-
-class irange_2 {
-  public:
-    int start, end;
-};
-
-typedef struct dpoint_2_type {
-  int ix, iy;
-  double x, y;
-} dpoint_2_t;
 
 struct Gerber_point_2_cmp {
 
@@ -143,39 +133,122 @@ void add_hole( Paths &hole_vec,
 // Copy linked list points in contour to vector p, removing contiguougs
 // duplicates.
 //
-void populate_gerber_point_vector_from_contour( std::vector< Gerber_point_2 > &p,
+void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
+                                                std::vector< Gerber_point_2 > &p,
                                                 gerber_item_ll_t *contour) {
-                                                //gerber_region_t *contour) {
-  int first=1;
+  int first=1, n_seg=16, n;
+  double C = 1000000000000.0;
   Gerber_point_2 prev_pnt;
   Gerber_point_2 dpnt;
+
+  double ang_rad, tr, tx, ty, _p;
+  int _segment;
 
   // Get rid of points that are duplicated next to each other.
   // It does no good to have them and it just makes things more
   // complicated downstream to work around them.
   //
-  while (contour) {
-    dpnt.ix = int(contour->x * 1000000.0);
-    dpnt.iy = int(contour->y * 1000000.0);
-    dpnt.x = contour->x;
-    dpnt.y = contour->y;
+  for ( ; contour ; contour = contour->next) {
 
-    if (first) {
-      p.push_back( dpnt );
+    switch (contour->type) {
+      case GERBER_REGION_G74: gs->quadrent_mode = QUADRENT_MODE_SINGLE; continue; break;
+      case GERBER_REGION_G75: gs->quadrent_mode = QUADRENT_MODE_MULTI; continue; break;
+      case GERBER_REGION_G01: gs->interpolation_mode = INTERPOLATION_MODE_LINEAR; continue; break;
+      case GERBER_REGION_G02: gs->interpolation_mode = INTERPOLATION_MODE_CW; continue; break;
+      case GERBER_REGION_G03: gs->interpolation_mode = INTERPOLATION_MODE_CCW; continue; break;
+      default: break;
     }
-    else if ( (prev_pnt.ix == dpnt.ix) &&
-              (prev_pnt.iy == dpnt.iy) ) {
-      // duplicate
+
+    if (contour->type == GERBER_REGION_SEGMENT) {
+
+      dpnt.ix = (int64_t)(contour->x * C);
+      dpnt.iy = (int64_t)(contour->y * C);
+
+      dpnt.x = contour->x;
+      dpnt.y = contour->y;
+
+      if (first) { p.push_back( dpnt ); }
+      else if ( (prev_pnt.ix == dpnt.ix) &&
+                (prev_pnt.iy == dpnt.iy) ) {
+        // duplicate
+      }
+      else { p.push_back( dpnt ); }
+
+      prev_pnt = dpnt;
+      first = 0;
+
+    }
+    else if (contour->type == GERBER_REGION_SEGMENT_ARC) {
+
+      n_seg = _get_segment_count(contour->arc_r, gMinSegmentLength, gMinSegment);
+
+      //DEBUG
+      printf("( adding region arc r%f+%f, x%f,y%f a%f+%f nseg:%i _%f,%i_ )\n",
+          (float)contour->arc_r,
+          (float)contour->arc_r_deviation,
+          (float)contour->arc_center_x,
+          (float)contour->arc_center_y,
+          (float)contour->arc_ang_rad_beg,
+          (float)contour->arc_ang_rad_del,
+          n_seg,
+          gMinSegmentLength,
+          gMinSegment);
+
+      for (_segment=1; _segment<n_seg; _segment++) {
+
+        _p = ((double)_segment) / ((double)(n_seg-1));
+
+        ang_rad = contour->arc_ang_rad_beg;
+        ang_rad += contour->arc_ang_rad_del * _p;
+
+        tr = contour->arc_r + (_p * contour->arc_r_deviation);
+        tx = tr*cos(ang_rad) + contour->arc_center_x;
+        ty = tr*sin(ang_rad) + contour->arc_center_y;
+
+        dpnt.ix = (int64_t)(tx * C);
+        dpnt.iy = (int64_t)(ty * C);
+
+        dpnt.x = tx;
+        dpnt.y = ty;
+
+        if (first) { p.push_back( dpnt ); }
+        else if ( (prev_pnt.ix == dpnt.ix) &&
+                  (prev_pnt.iy == dpnt.iy) ) {
+          // duplicate
+        }
+        else { p.push_back( dpnt ); }
+
+        prev_pnt = dpnt;
+        first = 0;
+
+      }
+
+    }
+    else if (contour->type == GERBER_REGION_MOVE) {
+      dpnt.ix = (int64_t)(contour->x * C);
+      dpnt.iy = (int64_t)(contour->y * C);
+
+      dpnt.x = contour->x;
+      dpnt.y = contour->y;
+
+      n = p.size();
+      if ((n>0) && (p[n-1].ix == dpnt.ix) && (p[n-1].iy == dpnt.iy)) { }
+      else { p.push_back( dpnt ); }
+
+      prev_pnt = dpnt;
+      first = 0;
     }
     else {
-      p.push_back( dpnt );
+      fprintf(stderr, "WARNING: populate_gerber_point_vector_from_contour found unknown type %i\n", contour->type);
     }
 
-    prev_pnt = dpnt;
-    first = 0;
-
-    contour = contour->next;
   }
+
+  //DEBUG
+  for (int ii=0; ii<p.size(); ii++) {
+    printf("( <%i> %f %f )\n", ii, (float)p[ii].x, (float)p[ii].y);
+  }
+
 
 }
 
@@ -222,7 +295,7 @@ int gerber_point_2_decorate_with_jump_pos( std::vector< Gerber_point_2 > &p ) {
 // vector.
 //
 //int construct_contour_region( PathSet &pwh_vec, gerber_region_t *contour ) {
-int construct_contour_region( PathSet &pwh_vec, gerber_item_ll_t *contour ) {
+int construct_contour_region( gerber_state_t *gs, PathSet &pwh_vec, gerber_item_ll_t *contour ) {
   int i, ds;
 
   std::vector< Gerber_point_2 > p;
@@ -234,7 +307,7 @@ int construct_contour_region( PathSet &pwh_vec, gerber_item_ll_t *contour ) {
 
   // Initially populate p vector
   //
-  populate_gerber_point_vector_from_contour( p, contour );
+  populate_gerber_point_vector_from_contour( gs, p, contour );
 
   // Find the start and end regions for each of the
   // holes.
@@ -477,7 +550,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
     else if (item_nod->type == GERBER_REGION) {
 
       temp_pwh_vec.clear();
-      construct_contour_region(temp_pwh_vec, item_nod->region_head);
+      construct_contour_region(gs, temp_pwh_vec, item_nod->region_head);
 
       /*
       for (i=0; i<temp_pwh_vec.size(); i++) {
@@ -506,6 +579,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
         }
 
       }
+
+
 
       if (_clip_update) {
         clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
@@ -613,7 +688,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
     else if (item_nod->type == GERBER_SEGMENT_ARC) {
       name = d_name;
 
-      _get_segment_count(item_nod->arc_r, gMinSegmentLength, gMinSegment);
+      n_seg = _get_segment_count(item_nod->arc_r, gMinSegmentLength, gMinSegment);
 
       ang_rad = item_nod->arc_ang_rad_beg;
       tr = item_nod->arc_r;
