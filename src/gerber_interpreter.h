@@ -45,6 +45,7 @@ struct gerber_item_ll_type;
 //
 enum GERBER_ITEM {
   GERBER_NONE = 0,
+
   GERBER_MO,
   GERBER_D1,
   GERBER_D2,
@@ -85,6 +86,9 @@ enum GERBER_ITEM {
   GERBER_REGION_D02,
   GERBER_REGION_G01,
   GERBER_REGION_G02,
+  
+  // 30
+  //
   GERBER_REGION_G03,
   GERBER_REGION_G74,
   GERBER_REGION_G75,

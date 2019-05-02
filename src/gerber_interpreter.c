@@ -2083,6 +2083,10 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
 
       item_nod->type = ((item_nod->type == GERBER_SEGMENT) ? GERBER_SEGMENT_ARC : GERBER_REGION_SEGMENT_ARC );
 
+      //DEBUG
+      //printf("( quad single, type %i )\n", item_nod->type);
+
+
       c[2*0] = prev_x + cur_i; c[2*0 + 1] = prev_y + cur_j;
       c[2*1] = prev_x - cur_i; c[2*1 + 1] = prev_y + cur_j;
       c[2*2] = prev_x - cur_i; c[2*2 + 1] = prev_y - cur_j;
@@ -2100,44 +2104,53 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
 
       }
 
-      if (gs->interpolation_mode == INTERPOLATION_MODE_CCW) {
-
-        for (n_candidates=0, ii=0; ii<4; ii++) {
-
-          if ( ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) && ((a[ii] > -deps) && (a[ii] <  (M_PI + deps)))) ||
-               ((gs->interpolation_mode == INTERPOLATION_MODE_CW)  && ((a[ii] >  deps) && (a[ii] < -(M_PI + deps)))) ) {
-            candidates[3*n_candidates] = del_d[ii];
-            candidates[3*n_candidates + 1] = c[2*ii];
-            candidates[3*n_candidates + 2] = c[2*ii+1];
-            n_candidates++;
-          }
+      for (n_candidates=0, ii=0; ii<4; ii++) {
+        if ( ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) && ((a[ii] > -deps) && (a[ii] <  (M_PI + deps)))) ||
+             ((gs->interpolation_mode == INTERPOLATION_MODE_CW)  && ((a[ii] <  deps) && (a[ii] > -(M_PI + deps)))) ) {
+          candidates[3*n_candidates] = del_d[ii];
+          candidates[3*n_candidates + 1] = c[2*ii];
+          candidates[3*n_candidates + 2] = c[2*ii+1];
+          n_candidates++;
         }
-        if (n_candidates==0) { parse_error("invalid ccw arc interpolation center", gs->line_no, ""); }
-
-        qsort(candidates, (size_t)n_candidates, sizeof(double)*3, _interpolation_center_cmp);
-
-        tx = candidates[1];
-        ty = candidates[2];
-
-        item_nod->arc_center_x = tx;
-        item_nod->arc_center_y = ty;
-        item_nod->arc_r = sqrt( (prev_x - tx)*(prev_x - tx) + (prev_y - ty)*(prev_y - ty) );
-        item_nod->arc_r_deviation =
-          sqrt( (cur_x - tx)*(cur_x - tx) + (cur_y - ty)*(cur_y - ty) ) -
-          item_nod->arc_r;
-        item_nod->arc_ang_rad_beg = atan2( prev_y - ty, prev_x - tx );
-        item_nod->arc_ang_rad_del = atan2(  cur_y - ty,  cur_x - tx ) - item_nod->arc_ang_rad_beg;
-
-        if ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) &&
-            (item_nod->arc_ang_rad_del < 0.0)) {
-          item_nod->arc_ang_rad_del += 2.0*M_PI;
-        }
-        else if ((gs->interpolation_mode == INTERPOLATION_MODE_CW) &&
-                 (item_nod->arc_ang_rad_del > 0.0)) {
-          item_nod->arc_ang_rad_del -= 2.0*M_PI;
-        }
-
       }
+      if (n_candidates==0) { parse_error("invalid ccw arc interpolation center", gs->line_no, ""); }
+
+      qsort(candidates, (size_t)n_candidates, sizeof(double)*3, _interpolation_center_cmp);
+
+      tx = candidates[1];
+      ty = candidates[2];
+
+      item_nod->arc_center_x = tx;
+      item_nod->arc_center_y = ty;
+      item_nod->arc_r = sqrt( (prev_x - tx)*(prev_x - tx) + (prev_y - ty)*(prev_y - ty) );
+      item_nod->arc_r_deviation =
+        sqrt( (cur_x - tx)*(cur_x - tx) + (cur_y - ty)*(cur_y - ty) ) -
+        item_nod->arc_r;
+      item_nod->arc_ang_rad_beg = atan2( prev_y - ty, prev_x - tx );
+      item_nod->arc_ang_rad_del = atan2(  cur_y - ty,  cur_x - tx ) - item_nod->arc_ang_rad_beg;
+
+      if ((gs->interpolation_mode == INTERPOLATION_MODE_CCW) &&
+          (item_nod->arc_ang_rad_del < 0.0)) {
+        item_nod->arc_ang_rad_del += 2.0*M_PI;
+      }
+      else if ((gs->interpolation_mode == INTERPOLATION_MODE_CW) &&
+               (item_nod->arc_ang_rad_del > 0.0)) {
+        item_nod->arc_ang_rad_del -= 2.0*M_PI;
+      }
+
+      //DEBUG
+      /*
+      printf("( added arc single r%f+%f x%f,y%f a%f+%f ... orig x%f,y%f x%f,y%f i%f,j%f %s )\n",
+          item_nod->arc_r,
+          item_nod->arc_r_deviation,
+          item_nod->arc_center_x,
+          item_nod->arc_center_y,
+          item_nod->arc_ang_rad_beg,
+          item_nod->arc_ang_rad_del,
+          prev_x, prev_y, cur_x, cur_y, cur_i, cur_j,
+          ( gs->interpolation_mode == INTERPOLATION_MODE_CCW) ? "ccw" : "cw"
+          );
+          */
 
     }
 
@@ -2145,8 +2158,10 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
     //
     else if (gs->quadrent_mode == QUADRENT_MODE_MULTI) {
 
-      //item_nod->type = GERBER_SEGMENT_ARC;
       item_nod->type = ((item_nod->type == GERBER_SEGMENT) ? GERBER_SEGMENT_ARC : GERBER_REGION_SEGMENT_ARC );
+
+      //DEBUG
+      //printf("( quad multi, type %i )\n", item_nod->type);
 
       tx = prev_x + cur_i;
       ty = prev_y + cur_j;
@@ -2177,10 +2192,23 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
 
       // force full 360 rotation if end point is equal to start point
       //
-      if ( (_iprv_x == _icur_x) && (_iprv_y = _icur_y) ) {
+      if ( (_iprv_x == _icur_x) && (_iprv_y == _icur_y) ) {
         if (gs->interpolation_mode == INTERPOLATION_MODE_CCW) { item_nod->arc_ang_rad_del = -2.0*M_PI; }
         if (gs->interpolation_mode == INTERPOLATION_MODE_CW)  { item_nod->arc_ang_rad_del =  2.0*M_PI; }
       }
+
+      //DEBUG
+      /*
+      printf("( added arc multi r%f+%f x%f,y%f a%f+%f .... orig x%f,y%f x%f,y%f i%f,j%f %s )\n",
+          item_nod->arc_r,
+          item_nod->arc_r_deviation,
+          item_nod->arc_center_x,
+          item_nod->arc_center_y,
+          item_nod->arc_ang_rad_beg,
+          item_nod->arc_ang_rad_del,
+          prev_x, prev_y, cur_x, cur_y, cur_i, cur_j,
+          ( gs->interpolation_mode == INTERPOLATION_MODE_CCW) ? "ccw" : "cw");
+          */
 
 
     }
@@ -2377,6 +2405,18 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       region_nod->j = gs->cur_j;
 
       segment_update_arc_info(gs, region_nod, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->cur_i, gs->cur_j);
+
+      //DEBUG
+      /*
+      if (region_nod->type == GERBER_REGION_SEGMENT_ARC) {
+        printf("( added region arc r%f, x%f,y%f a%f+%f )\n",
+            (float)region_nod->arc_r,
+            (float)region_nod->arc_center_x,
+            (float)region_nod->arc_center_y,
+            (float)region_nod->arc_ang_rad_beg,
+            (float)region_nod->arc_ang_rad_del);
+      }
+      */
 
       gerber_region_add_item(item_nod, region_nod);
 

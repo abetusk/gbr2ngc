@@ -183,6 +183,7 @@ void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
       n_seg = _get_segment_count(contour->arc_r, gMinSegmentLength, gMinSegment);
 
       //DEBUG
+      /*
       printf("( adding region arc r%f+%f, x%f,y%f a%f+%f nseg:%i _%f,%i_ )\n",
           (float)contour->arc_r,
           (float)contour->arc_r_deviation,
@@ -193,6 +194,7 @@ void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
           n_seg,
           gMinSegmentLength,
           gMinSegment);
+          */
 
       for (_segment=1; _segment<n_seg; _segment++) {
 
@@ -225,6 +227,7 @@ void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
 
     }
     else if (contour->type == GERBER_REGION_MOVE) {
+
       dpnt.ix = (int64_t)(contour->x * C);
       dpnt.iy = (int64_t)(contour->y * C);
 
@@ -245,9 +248,7 @@ void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
   }
 
   //DEBUG
-  for (int ii=0; ii<p.size(); ii++) {
-    printf("( <%i> %f %f )\n", ii, (float)p[ii].x, (float)p[ii].y);
-  }
+  //for (int ii=0; ii<p.size(); ii++) { printf("( <%i> %f %f )\n", ii, (float)p[ii].x, (float)p[ii].y); }
 
 
 }
@@ -305,9 +306,29 @@ int construct_contour_region( gerber_state_t *gs, PathSet &pwh_vec, gerber_item_
 
   Clipper clip;
 
+  gerber_item_ll_t *xnod;
+
+  //DEBUG
+  /*
+  for (xnod = contour; xnod; xnod = xnod->next) {
+    switch (xnod->type) {
+      case GERBER_REGION_G74: continue; break;
+      case GERBER_REGION_G75: continue; break;
+      case GERBER_REGION_G01: continue; break;
+      case GERBER_REGION_G02: continue; break;
+      case GERBER_REGION_G03: continue; break;
+      default: break;
+    }
+    printf("## %f %f #%i\n", xnod->x, xnod->y, xnod->type);
+  }
+  */
+
   // Initially populate p vector
   //
   populate_gerber_point_vector_from_contour( gs, p, contour );
+
+  //DEBUG
+  //for (i=0; i<p.size(); i++) { printf("# %f %f\n", (float)p[i].x, (float)p[i].y); }
 
   // Find the start and end regions for each of the
   // holes.

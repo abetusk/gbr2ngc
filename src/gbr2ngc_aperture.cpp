@@ -170,7 +170,7 @@ void realize_polygon( gerber_state_t *gs,
   Path empty_path;
 
   if ((n_vert < 3) || (n_vert > 12)) {
-    printf("ERROR! Number of polygon vertices out of range\n");
+    fprintf(stderr, "ERROR! Number of polygon vertices out of range\n");
   }
 
   idx = (int)ap.m_path.size();
@@ -607,6 +607,8 @@ int add_AM_moire( am_ll_node_t *am_node,
   double hair_thick=0.0, hair_width = 0.0;
   int max_ring = 0;
 
+  int n;
+
   err = _eval_var(eval_param, am_node->eval_line, am_node->n_eval_line, macro_param);
   if (err!=0) { return err; }
 
@@ -649,7 +651,6 @@ int add_AM_moire( am_ll_node_t *am_node,
       _path.push_back( dtoc( cx + px, cy + py ) );
     }
     if (_path.size() > 0) { _path.push_back( _path[0] ); }
-    _paths.push_back(_path);
 
     clip.AddPath( _path, ptSubject, true );
 
@@ -668,7 +669,6 @@ int add_AM_moire( am_ll_node_t *am_node,
       _path.push_back( dtoc( cx + px, cy + py ) );
     }
     if (_path.size() > 0) { _path.push_back( _path[0] ); }
-    _paths.push_back(_path);
 
     clip.AddPath( _path, ptClip, true );
 
@@ -683,6 +683,7 @@ int add_AM_moire( am_ll_node_t *am_node,
 
   exposure.push_back(expose);
 
+  clip.Clear();
   clip.AddPaths( _paths, ptSubject, true );
   clip.Execute( ctUnion, _tmp_paths, pftPositive, pftPositive );
 
@@ -698,6 +699,32 @@ int add_AM_moire( am_ll_node_t *am_node,
   clip.AddPath( _path, ptClip, true );
 
   clip.Execute( ctUnion, paths, pftNonZero, pftNonZero);
+
+  for (ii=0; ii<paths.size(); ii++) {
+    n = paths[ii].size();
+    if (n<2) { continue; }
+    if ((paths[ii][0].X != paths[ii][n-1].X) ||
+        (paths[ii][0].Y != paths[ii][n-1].Y)) {
+      paths[ii].push_back(paths[ii][0]);
+    }
+  }
+
+  /*
+  //DEBUG
+  for (ii=0; ii<paths.size(); ii++) {
+    n = paths[ii].size();
+    if (n<2) { printf("( paths[%i] < 2 )\n", ii); continue; }
+    if ( (paths[ii][0].X != paths[ii][n-1].X) ||
+         (paths[ii][0].Y != paths[ii][n-1].Y) ) {
+      printf("( paths[%i][0] != paths[%i][%i]  ;%lli,%lli != %lli,%lli; )\n",
+          ii, ii, n-1,
+          (long long int)paths[ii][0].X,
+          (long long int)paths[ii][0].Y,
+          (long long int)paths[ii][n-1].X,
+          (long long int)paths[ii][n-1].Y);
+    }
+  }
+  */
 
   return 0;
 }
@@ -1243,7 +1270,7 @@ int realize_apertures_r(gerber_state_t *gs, int level) {
           realize_obround( gs, ap, aperture->crop[0], aperture->crop[1], min_segments, min_segment_length  );
           break;
         case AD_ENUM_POLYGON:
-          realize_polygon( gs, ap, aperture->crop[0], aperture->crop[1], aperture->crop[2] );
+          realize_polygon( gs, ap, aperture->crop[0]/2.0, aperture->crop[1], aperture->crop[2] );
           break;
 
         // an aperture defintion which references a macro (not the aperture macro itself)

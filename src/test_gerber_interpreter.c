@@ -599,6 +599,8 @@ int main(int argc, char **argv) {
   int image_parameter_code;
   int function_code;
 
+  int print_summary=0;
+
   gerber_state_t gs;
 
   gerber_state_init(&gs);
@@ -610,9 +612,12 @@ int main(int argc, char **argv) {
     perror(argv[1]);
   }
 
-  _print_summary(&gs, 0);
-
-  //print_gerber_state(&gs);
+  if (print_summary) {
+    _print_summary(&gs, 0);
+  }
+  else {
+    print_gerber_state(&gs);
+  }
 
   //gerber_report_state(&gs);
 
