@@ -1,9 +1,9 @@
-gbl2ngc
+gbr2ngc
 =======
 
 Open source no frills Gerber to gcode converter, using (a slightly modified) [Clipper Lib](http://www.angusj.com/delphi/clipper.php).  Produces an isolation routing gcode file for the given Gerber file.
 
-gbl2ngc will convert a Gerber file like this:
+gbr2ngc will convert a Gerber file like this:
 
 
 ![Gerber example](/example/gerbExample.png)
@@ -19,12 +19,12 @@ to compile:
 -----------
 
     cd src
-    ./cmp.sh
+    make
 
 example usage:
 --------------
 
-    gbl2ngc --input example/example.gbl --radius 0.0025 --output example.ngc
+    gbr2ngc --input example/example.gbr --radius 0.0025 --output example.ngc
 
 Current version is in an alpha state, so use at your own risk.
 
@@ -32,10 +32,10 @@ command line options
 ---
 
 ```
-$ ./gbl2ngc -h
+$ ./gbr2ngc -h
 
-gbl2ngc: A gerber to gcode converter
-Version 0.7.0
+gbr2ngc: A gerber to gcode converter
+Version 0.8.0
   -r, --radius radius                 radius (default 0)
   -F, --fillradius fillradius         radius to be used for fill pattern (default to radius above)
   -i, --input input                   input file
