@@ -1,15 +1,15 @@
-Documentation for `gbl2ngc`
+Documentation for `gbr2ngc`
 ===
 
-Detailed documentation for `gbl2ngc`, a Gerber to GCode
+Detailed documentation for `gbr2ngc`, a Gerber to GCode
 converter.
 
 ## Command Line Options
 
 ```
-$ ./gbl2ngc -h
+$ ./gbr2ngc -h
 
-gbl2ngc: A Gerber to GCode converter
+gbr2ngc: A Gerber to GCode converter
 Version 0.7.0
   -r, --radius radius                 radius (default 0)
   -F, --fillradius fillradius         radius to be used for fill pattern (default to radius above)
@@ -72,7 +72,7 @@ the specified too radius amount.
 For example:
 
 ```
-$ gbl2ngc -r 0.05 -i ../example/fet.gbl
+$ gbr2ngc -r 0.05 -i ../example/fet.gbr
 ```
 
 The left image is without an offset radius, the right image is with an offset radius of `0.05`:
@@ -93,7 +93,7 @@ Specify the input Gerber file.  This option can be `-` to indicate the file shou
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl 
+$ gbr2ngc -i ../example/fet.gbr 
 ```
 
 ### `-o gcode-file`
@@ -103,7 +103,7 @@ An optional parameter for where the output GCode should be stored.  If no option
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -o ../example/fet.ngc
+$ gbr2ngc -i ../example/fet.gbr -o ../example/fet.ngc
 ```
 
 ### `-f feed-rate`
@@ -113,7 +113,7 @@ Specify the feed rate for the output GCode file.
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl
+$ gbr2ngc -i ../example/fet.gbr
 ( union path size 5 )
 g21
 g90
@@ -134,7 +134,7 @@ Currently not implemented.
 Specify the "safe" Z height where rapid (`G1`) motion should occur.
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -z 1.2
+$ gbr2ngc -i ../example/fet.gbr -z 1.2
 ( union path size 5 )
 g21
 g90
@@ -158,7 +158,7 @@ Specify the "cut" Z depth, where the cutting tool should plunge to do the cut.
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -Z -0.0215
+$ gbr2ngc -i ../example/fet.gbr -Z -0.0215
 ( union path size 5 )
 g21
 g90
@@ -184,7 +184,7 @@ Use metric units for resulting GCode file.
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -M
+$ gbr2ngc -i ../example/fet.gbr -M
 ( union path size 5 )
 g21
 g90
@@ -212,7 +212,7 @@ Use imperial units for resulting GCode file.
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -I
+$ gbr2ngc -i ../example/fet.gbr -I
 ( union path size 5 )
 g20
 g90
@@ -238,7 +238,7 @@ Don't provide comments in GCode file.
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -C
+$ gbr2ngc -i ../example/fet.gbr -C
 g21
 g90
 f10
@@ -259,7 +259,7 @@ Make output more "machine readable" by converting all GCodes to uppercase and re
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -R
+$ gbr2ngc -i ../example/fet.gbr -R
 G21
 G90
 F10
@@ -283,7 +283,7 @@ One of `-r` or `-F` must be specified.
 Example:
 
 ```
-$ gbl2ngc -r 0.05 -H -i ../example/fet.gbl -o ../example/fet.ngc
+$ gbr2ngc -r 0.05 -H -i ../example/fet.gbr -o ../example/fet.ngc
 ```
 
 ![horizontal fill pattern](../img/hfill.png)
@@ -298,7 +298,7 @@ One of `-r` or `-F` must be specified.
 Example:
 
 ```
-$ gbl2ngc -r 0.05 -V -i ../example/fet.gbl -o ../example/fet.ngc
+$ gbr2ngc -r 0.05 -V -i ../example/fet.gbr -o ../example/fet.ngc
 ```
 
 ![vertical fill pattern](../img/vfill.png)
@@ -313,7 +313,7 @@ One of `-r` or `-F` must be specified.
 Example:
 
 ```
-$ gbl2ngc -r 0.05 -G -i ../example/fet.gbl -o ../example/fet.ngc
+$ gbr2ngc -r 0.05 -G -i ../example/fet.gbr -o ../example/fet.ngc
 ```
 
 ![zen garden fill pattern](../img/zenfill.png)
@@ -325,7 +325,7 @@ Output polygon regions in "gnuplot" format instead of GCode format.
 Example:
 
 ```
-$ gbl2ngc -i ../example/fet.gbl -P
+$ gbr2ngc -i ../example/fet.gbr -P
 
 
 15200690000 18446744048109121616
@@ -370,7 +370,7 @@ Route out material that would normally be kept with a simple pattern, either hor
 The option `-H` or `-V` must also be specified along with a fill radius (`-F`).
 
 ```
-gbl2ngc -F 0.05 -V --simple-infill -i ../example/fet.gbl
+gbr2ngc -F 0.05 -V --simple-infill -i ../example/fet.gbr
 ```
 
 ![infill, vertical, fill 0.05](../img/simpinfill.png)
@@ -382,7 +382,7 @@ When doing the infill, do not cut out the outline.
 Example:
 
 ```
-$ gbl2ngc -F 0.05 --no-outline --simple-infill  -H -i ../example/fet.gbl
+$ gbr2ngc -F 0.05 --no-outline --simple-infill  -H -i ../example/fet.gbr
 ```
 
 ![infill, no outline](../img/hinfill_nooutline.png)
