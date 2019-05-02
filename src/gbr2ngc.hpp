@@ -30,10 +30,11 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.7.4"
+#define GBL2NGC_VERSION "0.8.0"
 
 extern "C" {
   #include "gerber_interpreter.h"
+  #include "tesexpr.h"
 }
 
 
@@ -41,48 +42,71 @@ extern "C" {
 #include <algorithm>
 #include <map>
 
+#include <string>
+#include <vector>
+
+#include <cmath>
+
+#include "jc_voronoi.h"
 
 #include "clipper.hpp"
 using namespace ClipperLib;
-
-
 
 //#define g_scalefactor 1000000.0
 #define g_scalefactor 1000000000.0
 //#define dtoc(x,y) IntPoint( (cInt)((double)(g_scalefactor*((double)(x)) + 0.5)), (cInt)((double)(g_scalefactor*((double)(y)) + 0.5)) )
 #define dtoc(x,y) IntPoint( (cInt)(g_scalefactor*(x)), (cInt)(g_scalefactor*(y)) )
-#define ctod(x) ((x)/g_scalefactor)
-
+#define ctod(x) (((double)(x))/g_scalefactor)
 
 //----- Class definitions
 
-
+typedef std::vector< DoublePoint > PathDouble;
+typedef std::vector< PathDouble > PathsDouble;
 
 class Aperture_realization {
   public:
     Aperture_realization() { };
-    //~Aperture_realization() { } ;
+    ~Aperture_realization() { };
 
     int m_name;
     int m_type;
     int m_crop_type;
     double m_crop[5];
 
-    Path m_outer_boundary;
-    Path m_hole;
-    
+    std::string m_macro_name;
+    std::vector< double > m_macro_param;
 
-    //std::vector<Point_2> m_outer_boundary;
-    //std::vector<Point_2> m_hole;
+    Paths m_macro_path;
+    std::vector< int > m_macro_exposure;
 
+    // The paths that are queued to be rendered, additive or subtractive
+    // depending on exposure.
+    //
+    Paths m_path;
+
+    // exposures indicate whether the path in m_path is additive or subtractive
+    // 1 - additive
+    // 0 - subtractive
+    //
+    std::vector< int > m_exposure;
+
+    // Final realized geometry from m_path and m_exposure.
+    //
+    Paths m_geom;
+
+    // Copy of paths as doubles
+    //
+    std::vector< std::vector< DoublePoint > > m_path_d;
 };
 
 typedef std::map<int, Aperture_realization> ApertureNameMap;
 typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 
-
+typedef std::map<int, gerber_state_t *> ApertureBlockMap;
 
 //------------- GLOBALS
+
+extern int gDebug;
 
 extern int gVerboseFlag;
 extern int gMetricUnits;
@@ -120,9 +144,18 @@ extern int gInvertFlag;
 extern int gSimpleInfill;
 extern int gDrawOutline;
 
+extern int gMinSegment;
+extern double gMinSegmentLengthInch;
+extern double gMinSegmentLengthMM;
+extern double gMinSegmentLength;
 
 extern std::vector<int> gApertureName;
 extern ApertureNameMap gAperture;
+
+extern ApertureBlockMap gApertureBlock;
+
+extern struct timeval gProfileStart;
+extern struct timeval gProfileEnd;
 
 //----- aperture functions
 
@@ -135,11 +168,15 @@ typedef std::vector< Paths > PathSet;
 
 
 void print_polygon_set(gerber_state_t *gs);
-void join_polygon_set(Paths &result, gerber_state_t *gs);
+int join_polygon_set(Paths &result, gerber_state_t *gs);
 
 //----- export functions
 
 void export_paths_to_gcode( FILE *ofp, Paths &paths);
 void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in);
+
+//int _expose_bit(int local_exposure, int global_exposure = 1);
+int _expose_bit(int local_exposure, int global_exposure = 1);
+//int _expose_bit(int,int);
 
 #endif

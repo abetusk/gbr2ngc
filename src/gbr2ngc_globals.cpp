@@ -18,7 +18,9 @@
 * Dated May 20th 2013
 */
 
-#include "gbl2ngc.hpp"
+#include "gbr2ngc.hpp"
+
+int gDebug = 0;
 
 int gVerboseFlag = 0;
 int gMetricUnits = 0;
@@ -56,6 +58,13 @@ int gInvertFlag = 0;
 int gSimpleInfill = 0;
 int gDrawOutline = 1;
 
+int gMinSegment = 8;
+//double gMinSegmentLengthInch = 0.001;
+//double gMinSegmentLengthMM = 0.01;
+double gMinSegmentLengthInch = 0.004;
+double gMinSegmentLengthMM = 0.1;
+double gMinSegmentLength = -1.0;
+
 /*
 Polygon_set_2 gPolygonSet;
 Offset_polygon_set_2 gOffsetPolygonSet;
@@ -67,6 +76,20 @@ Pwh_vector_2 gerber_list;
 std::vector<int> gApertureName;
 ApertureNameMap gAperture;
 
+ApertureBlockMap gApertureBlock;
 
+struct timeval gProfileStart;
+struct timeval gProfileEnd;
 
+// local_exposure - { 1 - add, 0 - remove }
+// global_exposure - { 1 - additive, 0 - subtractive}
+//
+//int _expose_bit(int local_exposure, int global_exposure = 1) {
+int _expose_bit(int local_exposure, int global_exposure) {
+  int gbit=0;
+  local_exposure  = ( (local_exposure  > 0) ? 1 : 0);
+  gbit = ( (global_exposure > 0) ? 0 : 1);
+
+  return local_exposure ^ gbit;
+}
 
