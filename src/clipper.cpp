@@ -4883,21 +4883,21 @@ static int cross_sign( const IntPoint &O, const IntPoint &A, const IntPoint &B )
 // http://en.wikibooks.org/wiki/Algorithm_Implementation/Geometry/Convex_hull/Monotone_chain
 //
 
-void ConvexHull( const Path& pnt, Path& solution) {
+void ConvexHull( const Path &pnt, Path &solution) {
   Path P = pnt;
   Path s;
-  int n = P.size(), k = 0;
+  int i, t, n = P.size(), k = 0;
 
   s.resize(2*n);
   std::sort(P.begin(), P.end());
 
-  for (int i = 0; i < n; i++) {
-    while (k >= 2 && cross_sign(s[k-2], s[k-1], P[i]) <= 0) k--;
+  for (i = 0; i < n; i++) {
+    while (k >= 2 && cross_sign(s[k-2], s[k-1], P[i]) <= 0) { k--; }
     s[k++] = P[i];
   }
 
-  for (int i = n-2, t = k+1; i >= 0; i--) {
-    while (k >= t && cross_sign(s[k-2], s[k-1], P[i]) <= 0) k--;
+  for (i = n-2, t = k+1; i >= 0; i--) {
+    while (k >= t && cross_sign(s[k-2], s[k-1], P[i]) <= 0) { k--; }
     s[k++] = P[i];
   }
 

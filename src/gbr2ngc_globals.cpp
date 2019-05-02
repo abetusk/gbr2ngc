@@ -59,8 +59,10 @@ int gSimpleInfill = 0;
 int gDrawOutline = 1;
 
 int gMinSegment = 8;
-double gMinSegmentLengthInch = 0.001;
-double gMinSegmentLengthMM = 0.01;
+//double gMinSegmentLengthInch = 0.001;
+//double gMinSegmentLengthMM = 0.01;
+double gMinSegmentLengthInch = 0.004;
+double gMinSegmentLengthMM = 0.1;
 double gMinSegmentLength = -1.0;
 
 /*

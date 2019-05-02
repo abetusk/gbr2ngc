@@ -100,6 +100,8 @@ enum GERBER_ITEM {
   GERBER_M02,
 };
 
+extern const char *g_gerber_enum_item_str[];
+
 typedef enum {
   QUADRENT_MODE_NONE = 0,
   QUADRENT_MODE_SINGLE,

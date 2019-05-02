@@ -28,6 +28,65 @@
 
 #include "gerber_interpreter.h"
 
+const char *g_gerber_enum_item_str[] = {
+  "GERBER_NONE",
+
+  "GERBER_MO",
+  "GERBER_D1",
+  "GERBER_D2",
+  "GERBER_D3",
+  "GERBER_D10P",
+  "GERBER_AD",
+  "GERBER_ADE",
+  "GERBER_G36",
+  "GERBER_AM",
+
+  // 10
+  //
+  "GERBER_G37",
+
+  "GERBER_AB",
+  "GERBER_SR",
+  "GERBER_LP",
+  "GERBER_LM",
+  "GERBER_LR",
+  "GERBER_LS",
+
+  "GERBER_G01",
+  "GERBER_G02",
+  "GERBER_G03",
+
+  // 20
+  //
+  "GERBER_G74",
+  "GERBER_G75",
+
+
+  "GERBER_FLASH",
+  "GERBER_SEGMENT",
+  "GERBER_SEGMENT_ARC",
+  "GERBER_REGION",
+
+  "GERBER_REGION_D01",
+  "GERBER_REGION_D02",
+  "GERBER_REGION_G01",
+  "GERBER_REGION_G02",
+
+  // 30
+  //
+  "GERBER_REGION_G03",
+  "GERBER_REGION_G74",
+  "GERBER_REGION_G75",
+
+  "GERBER_REGION_MOVE",
+  "GERBER_REGION_SEGMENT",
+  "GERBER_REGION_SEGMENT_ARC",
+
+  "GERBER_M02",
+};
+
+
+
 //#define DEBUG_INTERPRETER
 
 void gerber_state_add_item(gerber_state_t *gs, gerber_item_ll_t *item_nod) {

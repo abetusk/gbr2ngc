@@ -182,20 +182,6 @@ void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
 
       n_seg = _get_segment_count(contour->arc_r, gMinSegmentLength, gMinSegment);
 
-      //DEBUG
-      /*
-      printf("( adding region arc r%f+%f, x%f,y%f a%f+%f nseg:%i _%f,%i_ )\n",
-          (float)contour->arc_r,
-          (float)contour->arc_r_deviation,
-          (float)contour->arc_center_x,
-          (float)contour->arc_center_y,
-          (float)contour->arc_ang_rad_beg,
-          (float)contour->arc_ang_rad_del,
-          n_seg,
-          gMinSegmentLength,
-          gMinSegment);
-          */
-
       for (_segment=1; _segment<n_seg; _segment++) {
 
         _p = ((double)_segment) / ((double)(n_seg-1));
@@ -246,10 +232,6 @@ void populate_gerber_point_vector_from_contour( gerber_state_t *gs,
     }
 
   }
-
-  //DEBUG
-  //for (int ii=0; ii<p.size(); ii++) { printf("( <%i> %f %f )\n", ii, (float)p[ii].x, (float)p[ii].y); }
-
 
 }
 
@@ -308,27 +290,9 @@ int construct_contour_region( gerber_state_t *gs, PathSet &pwh_vec, gerber_item_
 
   gerber_item_ll_t *xnod;
 
-  //DEBUG
-  /*
-  for (xnod = contour; xnod; xnod = xnod->next) {
-    switch (xnod->type) {
-      case GERBER_REGION_G74: continue; break;
-      case GERBER_REGION_G75: continue; break;
-      case GERBER_REGION_G01: continue; break;
-      case GERBER_REGION_G02: continue; break;
-      case GERBER_REGION_G03: continue; break;
-      default: break;
-    }
-    printf("## %f %f #%i\n", xnod->x, xnod->y, xnod->type);
-  }
-  */
-
   // Initially populate p vector
   //
   populate_gerber_point_vector_from_contour( gs, p, contour );
-
-  //DEBUG
-  //for (i=0; i<p.size(); i++) { printf("# %f %f\n", (float)p[i].x, (float)p[i].y); }
 
   // Find the start and end regions for each of the
   // holes.
@@ -486,7 +450,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
   unsigned int i, ii, jj, _i, _j;
 
   gerber_item_ll_t *item_nod;
-  //gerber_region_t *region;
   gerber_item_ll_t *region;
 
   PathSet temp_pwh_vec;
@@ -504,7 +467,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
   double dx, dy;
 
   cInt tX, tY, uX, uY, vX, vY;
-  IntPoint _pnt0, _pnt1;
+  IntPoint _pnt0, _pnt1, _pnt;
 
   IntPoint _prv_arc_pnt;
   double ang_rad, tx, ty, tr, _p;
@@ -521,6 +484,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
 
   double transformMatrix[3*3];
   double dpnt[3];
+
+  struct timeval tv;
 
   memcpy(transformMatrix, transformMatrixParent, sizeof(double)*3*3);
   memset( dpnt, 0, sizeof(double)*3);
@@ -635,7 +600,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
       cur_pnt = dtoc( region->x, region->y );
 
       point_list.clear();
-      res_point.clear();
 
       _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, ctod(prev_pnt.X), ctod(prev_pnt.Y));
       _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
@@ -671,6 +635,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
         }
       }
 
+      res_point.clear();
       ConvexHull( point_list, res_point );
 
       if (res_point.size() == 0) {
@@ -707,6 +672,8 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
     //--
 
     else if (item_nod->type == GERBER_SEGMENT_ARC) {
+
+
       name = d_name;
 
       n_seg = _get_segment_count(item_nod->arc_r, gMinSegmentLength, gMinSegment);
@@ -718,7 +685,7 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
 
       for (int _segment=1; _segment<n_seg; _segment++) {
 
-        _p = ((double)_segment) / ((double)(n_seg-1));
+        _p = ((double)(_segment-1)) / ((double)(n_seg-1));
 
         ang_rad = item_nod->arc_ang_rad_beg;
         ang_rad += item_nod->arc_ang_rad_del * _p;
@@ -728,42 +695,49 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
         ty = tr*sin(ang_rad) + item_nod->arc_center_y;
 
         point_list.clear();
+
+        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, tx, ty);
+        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
+
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+
+            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+            dpnt[2] = 1.0;
+
+            _mulvec3(dpnt, transformMatrix, dpnt);
+
+            point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
+          }
+        }
+
+        _p = ((double)(_segment)) / ((double)(n_seg-1));
+
+        ang_rad = item_nod->arc_ang_rad_beg;
+        ang_rad += item_nod->arc_ang_rad_del * _p;
+
+        tr = item_nod->arc_r + (_p * item_nod->arc_r_deviation);
+        tx = tr*cos(ang_rad) + item_nod->arc_center_x;
+        ty = tr*sin(ang_rad) + item_nod->arc_center_y;
+
+        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, tx, ty);
+        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
+
+        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
+          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
+
+            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
+            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
+            dpnt[2] = 1.0;
+
+            _mulvec3(dpnt, transformMatrix, dpnt);
+
+            point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
+          }
+        }
+
         res_point.clear();
-
-        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, tx, ty);
-        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
-
-        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
-          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-
-            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
-            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
-            dpnt[2] = 1.0;
-
-            _mulvec3(dpnt, transformMatrix, dpnt);
-
-            point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
-
-          }
-        }
-
-        _construct_transform_matrix(transformMatrix, gs->mirror_axis, gs->rotation_degree, gs->scale, tx, ty);
-        _mulmat3x3(transformMatrix, transformMatrixParent, transformMatrix);
-
-        for (ii=0; ii<gAperture[ name ].m_path.size(); ii++) {
-          for (jj=0; jj<gAperture[ name ].m_path[ii].size(); jj++) {
-
-            dpnt[0] = ctod( gAperture[ name ].m_path[ii][jj].X );
-            dpnt[1] = ctod( gAperture[ name ].m_path[ii][jj].Y );
-            dpnt[2] = 1.0;
-
-            _mulvec3(dpnt, transformMatrix, dpnt);
-
-            point_list.push_back( dtoc( dpnt[0], dpnt[1] ) );
-
-          }
-        }
-
         ConvexHull( point_list, res_point );
 
         if (res_point.size() == 0) {
@@ -789,10 +763,10 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
             _clip_update = 1;
           }
 
-          if (_clip_update) {
-            clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
-          }
+        }
 
+        if (_clip_update) {
+          clip.Execute( ctUnion, result, pftNonZero, pftNonZero );
         }
 
         _prv_arc_pnt = cur_pnt;

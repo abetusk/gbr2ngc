@@ -926,6 +926,8 @@ int main(int argc, char **argv) {
   int k;
   gerber_state_t gs;
 
+  struct timeval tv;
+
   Paths offset_polygons;
 
   Paths pgn_union;
@@ -948,6 +950,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+
   // Construct library of atomic shapes and create polygons
   //
   realize_apertures(&gs);
@@ -955,10 +958,6 @@ int main(int argc, char **argv) {
   // aperture blocks need a lookup, so set that up
   //
   setup_aperture_blocks(&gs);
-
-  //DEBUG
-  //print_some_state(&gs, 0);
-  //print_ast(&gs, 0);
 
   if (gPrintPolygon) {
     //print_polygon_set(&gs);
@@ -979,14 +978,11 @@ int main(int argc, char **argv) {
     fprintf( gOutStream, "( segment length %f )\n", gMinSegmentLength );
   }
 
-
-
   join_polygon_set( pgn_union, &gs );
 
   if (gShowComments) {
     fprintf( gOutStream, "( union path size %lu )\n", pgn_union.size());
   }
-
 
 
   // G20 - inch
