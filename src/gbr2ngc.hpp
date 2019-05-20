@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.8.0"
+#define GBL2NGC_VERSION "0.8.1"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -149,6 +149,10 @@ extern double gMinSegmentLengthInch;
 extern double gMinSegmentLengthMM;
 extern double gMinSegmentLength;
 
+extern int gHeightOffset;
+extern std::string gHeightFileName;
+extern std::string gHeightAlgorithm;
+
 extern std::vector<int> gApertureName;
 extern ApertureNameMap gAperture;
 
@@ -178,5 +182,12 @@ void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, 
 //int _expose_bit(int local_exposure, int global_exposure = 1);
 int _expose_bit(int local_exposure, int global_exposure = 1);
 //int _expose_bit(int,int);
+
+//----- heightmap
+
+int read_heightmap( std::string &fn, std::vector< double > &heightmap);
+int catmull_rom( double *q, double s, double *p_m2, double *p_m1, double *p, double *p_1 );
+int catmull_rom_grid(std::vector< double > &heightmap);
+
 
 #endif
