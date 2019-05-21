@@ -20,6 +20,8 @@
 
 #include "gbr2ngc.hpp"
 
+#include <unistd.h>
+
 // gbr2ngc will look here by default for a config file
 //
 #define DEFAULT_CONFIG_FILENAME "./gbr2ngc.ini"
@@ -960,7 +962,8 @@ void print_ast(gerber_state_t *gs, int level) {
 }
 
 int main(int argc, char **argv) {
-  int k, ret;
+  int i, j, k, ret;
+  double x, y, prv_x, prv_y;
   gerber_state_t gs;
 
   struct timeval tv;
@@ -971,28 +974,43 @@ int main(int argc, char **argv) {
   Paths offset;
 
   std::vector< double > heightmap;
+  std::vector< double > xyz;
 
   //----
 
   process_command_line_options(argc, argv);
 
   if (gHeightOffset) {
+
     ret = read_heightmap(gHeightFileName, heightmap);
     if (ret != 0) {
       fprintf(stderr, "ERROR reading heightmap, got %i, exiting\n", ret);
       exit(-1);
     }
 
-    /*
-    printf("# heightmap %i", (int)heightmap.size());
-    for (int i=0; i<heightmap.size(); i++) {
-      if ((i%3)==0) { printf("\n"); }
-      printf(" %.8f", (float)heightmap[i]);
+    for (x=1.0; x<=5.5; x+=1.0/32.0) {
+      for (y=-5.0; y<=-1.4; y+=1.0/32.0) {
+        xyz.push_back(x);
+        xyz.push_back(y);
+        xyz.push_back(0.0);
+      }
     }
-    printf("\n");
-    */
 
-    catmull_rom_grid(heightmap);
+    ret = catmull_rom_grid(xyz, heightmap);
+    printf("## got %i\n", ret);
+
+    prv_y = heightmap[1];
+    for (i=0; i<heightmap.size(); i+=3) {
+      if (prv_y != heightmap[i+1]) { printf("#\n"); prv_y = heightmap[i+1]; }
+      printf("#%f %f %f\n", (float)heightmap[i], (float)heightmap[i+1], (float)heightmap[i+2]);
+    }
+    printf("#\n");
+
+    prv_y = xyz[1];
+    for (i=0; i<xyz.size(); i+=3) {
+      if (prv_y != xyz[i+1]) { printf("#\n"); prv_y = xyz[i+1]; }
+      printf("%f %f %f\n", (float)xyz[i], (float)xyz[i+1], (float)xyz[i+2]);
+    }
 
     //DEBUG
     exit(-1);

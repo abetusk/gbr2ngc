@@ -187,7 +187,8 @@ int _expose_bit(int local_exposure, int global_exposure = 1);
 
 int read_heightmap( std::string &fn, std::vector< double > &heightmap);
 int catmull_rom( double *q, double s, double *p_m2, double *p_m1, double *p, double *p_1 );
-int catmull_rom_grid(std::vector< double > &heightmap);
+double catmull_rom_2d( double s, double t, std::vector< std::vector< std::vector< double > > > &grid);
+int catmull_rom_grid(std::vector< double > &xyz, std::vector< double > &heightmap);
 
 
 #endif

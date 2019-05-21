@@ -3,7 +3,6 @@
 // store heightmap in `heightmap` vector.
 // `heightmap` should result in n points where `heightmap` should have 3*n entries,
 //
-//int read_heightmap( FILE *fp, std::vector< double > &heightmap ) {
 int read_heightmap( std::string &fn, std::vector< double > &heightmap ) {
   FILE *fp;
   int ch, _is_comment=0;
@@ -52,6 +51,14 @@ int read_heightmap( std::string &fn, std::vector< double > &heightmap ) {
   return 0;
 }
 
+//            _                   _ _
+//   ___ __ _| |_ _ __ ___  _   _| | |      _ __ ___  _ __ ___
+//  / __/ _` | __| '_ ` _ \| | | | | |_____| '__/ _ \| '_ ` _ \
+// | (_| (_| | |_| | | | | | |_| | | |_____| | | (_) | | | | | |
+//  \___\__,_|\__|_| |_| |_|\__,_|_|_|     |_|  \___/|_| |_| |_|
+//
+
+
 // http://www.cs.cmu.edu/~462/projects/assn2/assn2/catmullRom.pdf
 //
 int catmull_rom( double *q, double s, double *p_m2, double *p_m1, double *p, double *p_1 ) {
@@ -74,25 +81,23 @@ int catmull_rom( double *q, double s, double *p_m2, double *p_m1, double *p, dou
   return 0;
 }
 
-//double catmull_rom_2d(double x, double y, double *grid) {
-double catmull_rom_2d(double x, double y, std::vector< std::vector< std::vector< double > > > &grid) {
+// Catmull-Rom on a 2D grid.
+// First do x interpolation then do y.
+// `s` and `t` are "x" and "y" parameters to the polynomial, respectively.
+// A common use case is to vary `s` and `t` from [0,1], representing the parameter to be passed
+//   in for the spline-polynomial.
+//
+double catmull_rom_2d(double s, double t, std::vector< std::vector< std::vector< double > > > &grid) {
   int ret;
   double v0[3], v1[3], v2[3], v3[3];
   double r[3];
 
-  catmull_rom( v0, x, &(grid[0][0][0]), &(grid[1][0][0]), &(grid[2][0][0]), &(grid[3][0][0]));
-  catmull_rom( v1, x, &(grid[0][1][0]), &(grid[1][1][0]), &(grid[2][1][0]), &(grid[3][1][0]));
-  catmull_rom( v2, x, &(grid[0][2][0]), &(grid[1][2][0]), &(grid[2][2][0]), &(grid[3][2][0]));
-  catmull_rom( v3, x, &(grid[0][3][0]), &(grid[1][3][0]), &(grid[2][3][0]), &(grid[3][3][0]));
+  catmull_rom( v0, s, &(grid[0][0][0]), &(grid[1][0][0]), &(grid[2][0][0]), &(grid[3][0][0]));
+  catmull_rom( v1, s, &(grid[0][1][0]), &(grid[1][1][0]), &(grid[2][1][0]), &(grid[3][1][0]));
+  catmull_rom( v2, s, &(grid[0][2][0]), &(grid[1][2][0]), &(grid[2][2][0]), &(grid[3][2][0]));
+  catmull_rom( v3, s, &(grid[0][3][0]), &(grid[1][3][0]), &(grid[2][3][0]), &(grid[3][3][0]));
 
-  /*
-  catmull_rom( v0, x, g[0*4 + 0], g[1*4 + 0], g[2*4 + 0], g[3*4 + 0]);
-  catmull_rom( v1, x, g[0*4 + 1], g[1*4 + 1], g[2*4 + 0], g[3*4 + 1]);
-  catmull_rom( v2, x, g[0*4 + 2], g[1*4 + 2], g[2*4 + 0], g[3*4 + 2]);
-  catmull_rom( v3, x, g[0*4 + 3], g[1*4 + 3], g[2*4 + 0], g[3*4 + 3]);
-  */
-
-  ret = catmull_rom(r, y, v0, v1, v2, v3);
+  ret = catmull_rom(r, t, v0, v1, v2, v3);
 
   return r[2];
 }
@@ -118,6 +123,27 @@ double _clamp(double v, double l, double u) {
   return v;
 }
 
+int _iclamp(int v, int l, int u) {
+  if (v<l) { return l; }
+  if (v>u) { return u; }
+  return v;
+}
+
+static int _heightmap_cmp(const void *a, const void *b) {
+  double *_p, *_q;
+
+  _p = (double *)((double *)a);
+  _q = (double *)((double *)b);
+
+  if      (_p[1] < _q[1]) { return -1; }
+  else if (_p[1] > _q[1]) { return  1; }
+
+  if      (_p[0] < _q[0]) { return -1; }
+  else if (_p[0] > _q[0]) { return  1; }
+
+  return 0;
+}
+
 static int _dcmp(const void *a, const void *b) {
   double _da, _db;
 
@@ -129,9 +155,15 @@ static int _dcmp(const void *a, const void *b) {
   return 0;
 }
 
-int catmull_rom_grid(std::vector< double > &heightmap) {
-  int i, j, k;
-  double d, _n;
+// `xyz1 is updated in place with the interpolated z-coordinate
+// both `xyz` and `heightmap` have a packed x,y,z format.
+// `heightmap` is altered to be sorted by x-ascending, y-ascending order.
+//
+int catmull_rom_grid(std::vector< double > &xyz, std::vector< double > &heightmap) {
+  int i, j, k, x_idx, y_idx, _x_idx_actual, _y_idx_actual, xyz_idx;
+  int _ix, _iy;
+  double d, _n, x, y, del_x, del_y, s_x, s_y;
+  double interpolated_z;
   std::vector< double > x_pnt_wdup, y_pnt_wdup;
   std::vector< double > x_pnt, y_pnt;
   double _eps = 1.0/1024.0;
@@ -139,6 +171,8 @@ int catmull_rom_grid(std::vector< double > &heightmap) {
   std::vector< std::vector< std::vector< double > > > subgrid;
   std::vector< std::vector< double > > __vvd;
   std::vector< double > __vd;
+
+  qsort( &(heightmap[0]), heightmap.size()/3, sizeof(double)*3, _heightmap_cmp);
 
   // grab all x and y positions
   //
@@ -180,34 +214,68 @@ int catmull_rom_grid(std::vector< double > &heightmap) {
     }
   }
 
-  printf("# x %i\n", (int)x_pnt.size());
-  for (i=0; i<x_pnt.size(); i++) {
-    printf("%f\n", (float)x_pnt[i]);
-  }
+  if ((x_pnt.size() * y_pnt.size()) != (heightmap.size()/3)) { return -2; }
 
-  printf("\n\n");
-  printf("# y %i\n", (int)y_pnt.size());
-  for (i=0; i<y_pnt.size(); i++) {
-    printf("%f\n", (float)y_pnt[i]);
-  }
+  // grid is uniform so assume first point represents the delta x and y
+  // in each dimension and calculate it.
+  //
+  del_x = 1.0; del_y = 1.0;
+  if (x_pnt.size()>1) { del_x = x_pnt[1] - x_pnt[0]; } else { return -3; }
+  if (y_pnt.size()>1) { del_y = y_pnt[1] - y_pnt[0]; } else { return -4; }
 
-  exit(0);
-
+  // allocate subgrid
+  //
   for (i=0; i<4; i++) {
     subgrid.push_back( __vvd );
     for (j=0; j<4; j++) {
       subgrid[i].push_back( __vd );
-      for (k=0; k<4; k++) {
+      for (k=0; k<3; k++) {
         subgrid[i][j].push_back(0.0);
       }
     }
   }
 
+  // interpolate for each point in `xyz`, placing resulting interpolated z
+  // point in the `xyz` array.
+  // This is inefficient in the sense that the subgrid is being repopulated
+  // each iteration.
+  // In theory, the subgrid could be re-used if the data in the `xyz` array
+  // were properly sorted.
+  // I suspect this will be 'good enough' for most purposes.
+  // If speed becomes an issue, feel free to open an issue (or fix it yourself
+  // and push changes to the main repo)
+  //
+  for (xyz_idx = 0; xyz_idx<xyz.size(); xyz_idx+=3) {
+    
+    x = xyz[xyz_idx];
+    y = xyz[xyz_idx+1];
 
-  for (i=0; i<4; i++) {
-    for (j=0; j<4; j++) {
-      //x_pos = clam
+    x_idx = _get_list_index(x, x_pnt);
+    y_idx = _get_list_index(y, y_pnt);
+
+    for (_iy=0; _iy<4; _iy++) {
+      for (_ix=0; _ix<4; _ix++) {
+
+        _x_idx_actual = _iclamp( x_idx+_ix-1, 0, (int)(x_pnt.size()-1) );
+        _y_idx_actual = _iclamp( y_idx+_iy-1, 0, (int)(y_pnt.size()-1) );
+
+        subgrid[_ix][_iy][0] = x_pnt[ _x_idx_actual ];
+        subgrid[_ix][_iy][1] = y_pnt[ _y_idx_actual ];
+        subgrid[_ix][_iy][2] = heightmap[ 3*(_y_idx_actual * x_pnt.size()  + _x_idx_actual) + 2 ];
+
+      }
     }
+
+    s_x = (x - x_pnt[x_idx] ) / del_x;
+    s_y = (y - y_pnt[y_idx] ) / del_y;
+    xyz[xyz_idx+2] = catmull_rom_2d(s_x, s_y, subgrid);
+
+
   }
 
+  // sort the resultin `xyz` array
+  //
+  qsort( &(xyz[0]), xyz.size()/3, sizeof(double)*3, _heightmap_cmp);
+
+  return 0;
 }
