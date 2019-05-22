@@ -1,5 +1,7 @@
 #include "gbr2ngc.hpp"
 
+#include "delaunay.h"
+
 // store heightmap in `heightmap` vector.
 // `heightmap` should result in n points where `heightmap` should have 3*n entries,
 //
@@ -159,7 +161,7 @@ static int _dcmp(const void *a, const void *b) {
 // both `xyz` and `heightmap` have a packed x,y,z format.
 // `heightmap` is altered to be sorted by x-ascending, y-ascending order.
 //
-int catmull_rom_grid(std::vector< double > &xyz, std::vector< double > &heightmap) {
+int interpolate_height_catmull_rom_grid(std::vector< double > &xyz, std::vector< double > &heightmap) {
   int i, j, k, x_idx, y_idx, _x_idx_actual, _y_idx_actual, xyz_idx;
   int _ix, _iy;
   double d, _n, x, y, del_x, del_y, s_x, s_y;
@@ -279,3 +281,197 @@ int catmull_rom_grid(std::vector< double > &xyz, std::vector< double > &heightma
 
   return 0;
 }
+
+//----
+
+
+
+// inverse distance weighting (idw)
+// https://en.wikipedia.org/wiki/Inverse_distance_weighting
+//
+int interpolate_height_idw(std::vector< double > &xyz, std::vector< double > &heightmap, double exponent, double _eps) {
+  int i, j;
+  double x, y, dx, dy, d, interpolated_z, d_me, R;
+  std::vector<double> dist_p;
+
+  double W = 1.0;
+
+  // sort the resultin `xyz` array
+  //
+  qsort( &(heightmap[0]), heightmap.size()/3, sizeof(double)*3, _heightmap_cmp);
+
+  for (i=0; i<xyz.size(); i+=3) {
+
+    x = xyz[i];
+    y = xyz[i+1];
+
+    R = 0.0;
+    dist_p.clear();
+    for (j=0; j<heightmap.size(); j+=3) {
+      dx = heightmap[j]   - x;
+      dy = heightmap[j+1] - y;
+      d = sqrt(dx*dx + dy*dy);
+
+      if (d <= _eps) { xyz[i+2] = heightmap[j+2]; break; }
+
+      d_me = W / pow(d, exponent);
+      R += d_me;
+      dist_p.push_back(d_me);
+    }
+    if (j!=heightmap.size()) { continue; }
+
+    interpolated_z = 0.0;
+    for (j=0; j<dist_p.size(); j++) {
+      interpolated_z += dist_p[j] * heightmap[3*j+2] / R;
+    }
+
+    xyz[i+2] = interpolated_z;
+
+  }
+
+  // sort the resultin `xyz` array
+  //
+  qsort( &(xyz[0]), xyz.size()/3, sizeof(double)*3, _heightmap_cmp);
+
+  return 0;
+}
+
+//----
+
+class _iEdge {
+  public:
+    int64_t v[2];
+};
+
+int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double > &heightmap) {
+  int i, j, k, idx, idx_x, idx_y;
+  double x, y, dx, dy, d, interpolated_z, d_me, R;
+  double mx, my, Mx, My;
+
+  Delaunay<double> triangulation;
+  std::vector< Triangle<double> > tris;
+  //std::vector< Edge<double> > edges;
+  std::vector< Vector2<double>> pnts;
+
+  int grid_nx, grid_ny;
+  double grid_dx, grid_dy, grid_ds;
+  double min_x, min_y, max_x, max_y;
+  std::vector< std::vector< int > > grid_idx;
+  std::vector< int > _vi;
+
+  double _eps = 0.0000001;
+
+  if (heightmap.size() < 3) { return -1; }
+
+  min_x = heightmap[0]; min_y = heightmap[1];
+  max_x = min_x; max_y = min_y;
+
+  for (i=0; i<heightmap.size(); i+=3) {
+    if (min_x > heightmap[i]) { min_x = heightmap[i]; }
+    if (max_x < heightmap[i]) { max_x = heightmap[i]; }
+
+    if (min_y > heightmap[i+1]) { min_y = heightmap[i+1]; }
+    if (max_y < heightmap[i+1]) { max_y = heightmap[i+1]; }
+
+    pnts.push_back( Vector2<double>(heightmap[i], heightmap[i+1], heightmap[i+2]) );
+  }
+
+  grid_ds = sqrt((double)(heightmap.size()/3));
+  grid_dx = (max_x - min_x) / grid_ds;
+  grid_dy = (max_y - min_y) / grid_ds;
+
+  if (grid_dx <= _eps) { grid_dx = 1.0; }
+  if (grid_dy <= _eps) { grid_dy = 1.0; }
+
+  grid_nx = (int)( ((max_x - min_x)/grid_dx) + 0.5 );
+  grid_ny = (int)( ((max_y - min_y)/grid_dy) + 0.5 );
+  grid_nx ++;
+  grid_ny ++;
+
+  //printf("grid_ds %f, grid_dx %f, grid_dy %f, grid_nx %i, grid_ny %i\n", (float)grid_ds, (float)grid_dx, (float)grid_dy, grid_nx, grid_ny);
+
+  tris  = triangulation.triangulate(pnts);
+
+  for (i=0; i<grid_nx*grid_ny; i++) {
+    grid_idx.push_back( _vi );
+  }
+
+  for (i=0; i<tris.size(); i++) {
+
+    mx = tris[i].p1.x;
+    my = tris[i].p1.y;
+
+    Mx = mx;
+    My = my;
+
+    if (mx > tris[i].p2.x) { mx = tris[i].p2.x; }
+    if (Mx < tris[i].p2.x) { Mx = tris[i].p2.x; }
+    if (my > tris[i].p2.y) { my = tris[i].p2.y; }
+    if (My < tris[i].p2.y) { My = tris[i].p2.y; }
+
+    if (mx > tris[i].p3.x) { mx = tris[i].p3.x; }
+    if (Mx < tris[i].p3.x) { Mx = tris[i].p3.x; }
+    if (my > tris[i].p3.y) { my = tris[i].p3.y; }
+    if (My < tris[i].p3.y) { My = tris[i].p3.y; }
+
+    for (x = mx; x <= (Mx + grid_dx); x += grid_dx) {
+      for (y = my; y <= (My + grid_dy); y += grid_dy) {
+
+        idx_x = (x - min_x) / grid_dx;
+        idx_y = (y - min_y) / grid_dy;
+
+        idx_x = _iclamp(idx_x, 0, grid_nx-1);
+        idx_y = _iclamp(idx_y, 0, grid_ny-1);
+
+        idx = (idx_y * grid_nx) + idx_x;
+
+        printf("idx_x %i, idx_y %i, idx %i m(%f,%f) M(%f,%f) mxy(%f,%f), Mxy(%f,%f)\n",
+            idx_x, idx_y, idx,
+            min_x, min_y,
+            max_x, max_y,
+            mx, my,
+            Mx, My
+            );
+        fflush(stdout);
+
+        grid_idx[idx].push_back(i);
+
+      }
+    }
+
+  }
+
+  for (i=0; i<xyz.size(); i+=3) {
+
+    x = xyz[i];
+    y = xyz[i+1];
+
+    idx_x = (x - min_x) / grid_dx;
+    idx_y = (y - min_y) / grid_dy;
+
+    idx_x = _iclamp(idx_x, 0, grid_nx-1);
+    idx_y = _iclamp(idx_y, 0, grid_ny-1);
+
+    idx = (idx_y*grid_nx) + idx_x;
+
+    for (j=0; j<grid_idx[idx].size(); j++) {
+    }
+
+  }
+
+
+  for (i=0; i<grid_nx; i++) {
+    for (j=0; j<grid_ny; j++) {
+      printf(" (");
+      for (k=0; k<grid_idx[j*grid_nx+i].size(); k++) {
+        printf(" %i", grid_idx[j*grid_nx + i][k]);
+      }
+      printf(")");
+    }
+    printf("\n");
+  }
+
+  return 0;
+}
+
+

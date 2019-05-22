@@ -996,7 +996,12 @@ int main(int argc, char **argv) {
       }
     }
 
-    ret = catmull_rom_grid(xyz, heightmap);
+    //ret = interpolate_height_catmull_rom_grid(xyz, heightmap);
+    //ret = interpolate_height_idw(xyz, heightmap);
+    ret = interpolate_height_delaunay(xyz, heightmap);
+
+    exit(-1);
+
     printf("## got %i\n", ret);
 
     prv_y = heightmap[1];
@@ -1008,7 +1013,7 @@ int main(int argc, char **argv) {
 
     prv_y = xyz[1];
     for (i=0; i<xyz.size(); i+=3) {
-      if (prv_y != xyz[i+1]) { printf("#\n"); prv_y = xyz[i+1]; }
+      if (prv_y != xyz[i+1]) { printf("\n"); prv_y = xyz[i+1]; }
       printf("%f %f %f\n", (float)xyz[i], (float)xyz[i+1], (float)xyz[i+2]);
     }
 
