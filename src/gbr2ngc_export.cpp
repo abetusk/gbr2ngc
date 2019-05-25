@@ -40,6 +40,7 @@ static double unit_identity(double v) {
 // `axes` is a string containing the letters of the axes to move.
 // Up to three axis coordinates can be provided.
 // Ex: rapid(f, "xz", 3, -5) will move X3 and Y-5
+//
 void rapid(FILE* file, const char* axes, double one, double two=0, double three=0) {
   int i;
   double coords[] = {one, two, three};
@@ -60,6 +61,7 @@ void rapid(FILE* file, const char* axes, double one, double two=0, double three=
 }
 
 // G1 equiv. of rapid()
+//
 void cut(FILE* file, const char* axes, double one, double two=0, double three=0) {
   int i;
   double coords[] = {one, two, three};
@@ -80,136 +82,145 @@ void cut(FILE* file, const char* axes, double one, double two=0, double three=0)
 }
 
 
-void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, int dst_units_0in_1mm)
-{
-  int i, j, n, m;
+int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, int dst_units_0in_1mm, double ds) {
+  int i, j, n, m, n_t;
   int first;
+  int ret;
 
   double (*f)(double);
+
+  double x, y, start_x, start_y;
+
+  double _gZCut, len_d, t;
+  double _x, _y, _prev_x, _prev_y;
+  double _ds;
+
+  _ds = ds;
+  if (_ds == 0.0) {
+    _ds = ( dst_units_0in_1mm ? 0.125 : 1.0/1024.0 );
+  }
+
+  printf("( _ds %f, ds %f )\n", _ds, ds);
 
   f = unit_identity;
   if (src_units_0in_1mm != dst_units_0in_1mm) {
     if ((src_units_0in_1mm == 1) && (dst_units_0in_1mm == 0)) {
       f = unit_mm2in;
-    } else {
+    }
+    else {
       f = unit_in2mm;
     }
   }
 
-  if (gGCodeHeader) {
-    fprintf(ofp, "%s\n", gGCodeHeader);
-  }
-
-
-  if (gHumanReadable) {
-    fprintf(ofp, "f%i\n", gFeedRate);
-  } else {
-    fprintf(ofp, "F%i\n", gFeedRate);
-  }
+  if (gGCodeHeader)   { fprintf(ofp, "%s\n", gGCodeHeader); }
+  if (gHumanReadable) { fprintf(ofp, "f%i\n", gFeedRate); }
+  else                { fprintf(ofp, "F%i\n", gFeedRate); }
 
   cut(ofp, "z", gZSafe);
 
-  if (gHumanReadable) {
-    fprintf(ofp, "\n");
-  }
-
-  if (gShowComments) {
-    fprintf(ofp, "\n( feed %i zsafe %f, zcut %f )\n", gFeedRate, gZSafe, gZCut );
-  }
+  if (gHumanReadable) { fprintf(ofp, "\n"); }
+  if (gShowComments)  { fprintf(ofp, "\n( feed %i zsafe %f, zcut %f )\n", gFeedRate, gZSafe, gZCut ); }
 
   n = paths.size();
-  for (i=0; i<n; i++)
-  {
+  for (i=0; i<n; i++) {
 
-    if (gHumanReadable) {
-      fprintf(ofp, "\n\n");
-    }
-
-    if (gShowComments) {
-      fprintf(ofp, "( path %i )\n", i);
-    }
+    if (gHumanReadable) { fprintf(ofp, "\n\n"); }
+    if (gShowComments)  { fprintf(ofp, "( path %i )\n", i); }
 
     first = 1;
     m = paths[i].size();
-    for (j=0; j<m; j++)
-    {
-      double x = f(ctod( paths[i][j].X ));
-      double y = f(ctod( paths[i][j].Y ));
 
-      if (first)
-      {
+    if (m<1) { continue; }
+    start_x = f(ctod( paths[i][0].X ));
+    start_y = f(ctod( paths[i][0].Y ));
+
+    _prev_x = start_x;
+    _prev_y = start_y;
+
+
+    for (j=0; j<m; j++) {
+      x = f(ctod( paths[i][j].X ));
+      y = f(ctod( paths[i][j].Y ));
+
+      _prev_x = x;
+      _prev_y = y;
+
+      if (first) {
         rapid(ofp, "xy", x, y);
-        cut(ofp, "z", gZCut);
+
+        if (!gHeightOffset) {
+          cut(ofp, "z", gZCut);
+        }
+        else {
+          ret = gHeightMap.zOffset(_gZCut, x,y);
+          if (ret!=0) { return -2; }
+          cut(ofp, "z", _gZCut);
+        }
 
         first = 0;
       }
-      else
-      {
-        cut(ofp, "xy", x, y);
+      else {
+
+        if (!gHeightOffset) {
+          cut(ofp, "xy", x, y);
+        }
+        else {
+
+          len_d = sqrt( (_prev_y - y)*(_prev_y - y) + (_prev_x - x)*(_prev_x - x) );
+          n_t = (int)(len_d/_ds);
+          for (int __i=1; __i<n_t; __i++) {
+            t = (double)__i/(double)n_t;
+            _x = _prev_x + t*(x - _prev_x);
+            _y = _prev_y + t*(y - _prev_y);
+
+            ret = gHeightMap.zOffset(_gZCut, _x, _y);
+            if (ret!=0) { return -2; }
+
+            cut(ofp, "xyz", _x, _y, _gZCut);
+          }
+          ret = gHeightMap.zOffset(_gZCut, x,y);
+          if (ret!=0) { return -2; }
+
+          cut(ofp, "xyz", x, y, _gZCut);
+
+        }
+
+
       }
     }
 
     // go back to start
     //
-    double start_x = f(ctod( paths[i][0].X));
-    double start_y = f(ctod( paths[i][0].Y));
-    cut(ofp, "xy", start_x, start_y);
+
+    if (!gHeightOffset) {
+      cut(ofp, "xy", start_x, start_y);
+    }
+    else {
+      ret = gHeightMap.zOffset(_gZCut, start_x,start_y);
+
+      x = start_x;
+      y = start_y;
+
+      len_d = sqrt( (_prev_y - y)*(_prev_y - y) + (_prev_x - x)*(_prev_x - x) );
+      n_t = (int)(len_d/_ds);
+      for (int __i=1; __i<n_t; __i++) {
+        t = (double)__i/(double)n_t;
+        _x = _prev_x + t*(x - _prev_x);
+        _y = _prev_y + t*(y - _prev_y);
+
+        ret = gHeightMap.zOffset(_gZCut, _x, _y);
+        if (ret!=0) { return -2; }
+
+        cut(ofp, "xyz", _x, _y, _gZCut);
+      }
+
+      cut(ofp, "xyz", start_x, start_y, _gZCut);
+    }
+
     cut(ofp, "z", gZSafe);
   }
 
-  if (gHumanReadable) {
-    fprintf(ofp, "\n\n");
-  }
-
-  if (gGCodeFooter) {
-    fprintf(ofp, "%s\n", gGCodeFooter);
-  }
+  if (gHumanReadable) { fprintf(ofp, "\n\n"); }
+  if (gGCodeFooter)   { fprintf(ofp, "%s\n", gGCodeFooter); }
 
 }
-
-
-// deprecated
-/*
-void export_paths_to_gcode( FILE *ofp, Paths &paths)
-{
-  int i, j, n, m;
-  int first;
-
-  fprintf(ofp, "f%i\n", gFeedRate);
-  fprintf(ofp, "g1 z%f", gZSafe);
-
-  fprintf(ofp, "\n( feed %i zsafe %f, zcut %f )\n", gFeedRate, gZSafe, gZCut );
-
-  n = paths.size();
-  for (i=0; i<n; i++)
-  {
-    fprintf(ofp, "\n\n( path %i )\n", i);
-
-    first = 1;
-    m = paths[i].size();
-    for (j=0; j<m; j++)
-    {
-      if (first)
-      {
-        fprintf(ofp, "g0 x%f y%f\n", ctod( paths[i][j].X ), ctod( paths[i][j].Y ) );
-        fprintf(ofp, "g1 z%f\n", gZCut);
-        first = 0;
-      }
-      else
-      {
-        fprintf(ofp, "g1 x%f y%f\n", ctod( paths[i][j].X ), ctod( paths[i][j].Y ) );
-      }
-
-    }
-
-    // go back to start
-    //
-    fprintf(ofp, "g1 x%f y%f\n", ctod( paths[i][0].X ), ctod( paths[i][0].Y ) );
-    fprintf(ofp, "g1 z%f\n", gZSafe);
-
-  }
-
-  fprintf(ofp, "\n\n");
-
-}
-*/

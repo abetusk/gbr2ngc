@@ -69,6 +69,8 @@ int gHeightOffset = 0;
 std::string gHeightFileName;
 std::string gHeightAlgorithm;
 
+HeightMap gHeightMap;
+
 /*
 Polygon_set_2 gPolygonSet;
 Offset_polygon_set_2 gOffsetPolygonSet;

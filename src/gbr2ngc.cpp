@@ -988,38 +988,17 @@ int main(int argc, char **argv) {
       exit(-1);
     }
 
-    /*
-    for (x=(1.0-0.5); x<=(5.5+0.5); x+=1.0/32.0) {
-      for (y=(-5.0-0.5); y<=(-1.4+0.5); y+=1.0/32.0) {
-        xyz.push_back(x);
-        xyz.push_back(y);
-        xyz.push_back(0.0);
-      }
+    if ((gHeightAlgorithm.size()==0)  || (gHeightAlgorithm == "catmull-rom")) {
     }
-
-
-    //ret = interpolate_height_catmull_rom_grid(xyz, heightmap);
-    //ret = interpolate_height_idw(xyz, heightmap);
-    ret = interpolate_height_delaunay(xyz, heightmap);
-
-    printf("## got %i\n", ret);
-
-    prv_y = heightmap[1];
-    for (i=0; i<heightmap.size(); i+=3) {
-      if (prv_y != heightmap[i+1]) { printf("#\n"); prv_y = heightmap[i+1]; }
-      printf("#%f %f %f\n", (float)heightmap[i], (float)heightmap[i+1], (float)heightmap[i+2]);
+    else if (gHeightAlgorithm == "idw") {
     }
-    printf("#\n");
-
-    prv_y = xyz[1];
-    for (i=0; i<xyz.size(); i+=3) {
-      if (prv_y != xyz[i+1]) { printf("\n"); prv_y = xyz[i+1]; }
-      printf("%f %f %f\n", (float)xyz[i], (float)xyz[i+1], (float)xyz[i+2]);
+    else if (gHeightAlgorithm == "delaunay-linear") {
+      gHeightMap.setup_delaunay(heightmap);
     }
-
-    //DEBUG
-    exit(-1);
-    */
+    else {
+      fprintf(stderr, "ERROR invalid height algorithm\n");
+      exit(-2);
+    }
 
   }
 

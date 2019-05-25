@@ -338,12 +338,7 @@ int interpolate_height_idw(std::vector< double > &xyz, std::vector< double > &he
 
 //----
 
-class _iEdge {
-  public:
-    int64_t v[2];
-};
-
-int _lerp_z_tri( Vector2<double> &pnt, Vector2<double> &a, Vector2<double> &b, Vector2<double> &c, double _eps = 0.0000001) {
+static int _lerp_z_tri( Vector2<double> &pnt, Vector2<double> &a, Vector2<double> &b, Vector2<double> &c, double _eps = 0.0000001) {
   Vector2<double> p, q;
   double s, t, det;
 
@@ -365,6 +360,227 @@ int _lerp_z_tri( Vector2<double> &pnt, Vector2<double> &a, Vector2<double> &b, V
   if ((s+t) > 1.0) { return 0; }
   return 1;
 }
+
+static int _lerp_z_tri_v( double *pnt, double *tri_v, double _eps = 0.0000001 ) {
+  double p[3], q[3];
+  double s, t, det;
+
+  double *a, *b, *c;
+
+  a = tri_v;
+  b = tri_v+3;
+  c = tri_v+6;
+
+  p[0] = b[0] - a[0];
+  p[1] = b[1] - a[1];
+  p[2] = b[2] - a[2];
+
+  q[0] = c[0] - a[0];
+  q[1] = c[1] - a[1];
+  q[2] = c[2] - a[2];
+
+  det = q[1]*p[0] - q[0]*p[1];
+  if (fabs(det) <= _eps) {
+    pnt[0] = a[0];
+    pnt[1] = a[1];
+    pnt[2] = a[2];
+    return -1;
+  }
+
+  t =  (p[0]*(pnt[1] - a[1]) - p[1]*(pnt[0] - a[0]))/det;
+  s = -(q[0]*(pnt[1] - a[1]) - q[1]*(pnt[0] - a[0]))/det;
+
+  pnt[2] = p[2]*s + q[2]*t + a[2];
+
+  if ((s<0.0) || (t<0.0) || (s>1.0) || (t>1.0)) { return 0; }
+  if ((s+t) > 1.0) { return 0; }
+  return 1;
+}
+
+
+int HeightMap::setup_delaunay(std::vector< double > &_heightmap) {
+  int i, j, k, idx, idx_x, idx_y;
+  double x, y, dx, dy, d, interpolated_z, d_me, R;
+  double mx, my, Mx, My;
+
+  Delaunay<double> triangulation;
+  std::vector< Triangle<double> > tris;
+  //std::vector< Edge<double> > edges;
+  std::vector< Vector2<double>> pnts;
+
+  Vector2<double> _pnt;
+
+  std::vector<double> tri3;
+
+  //int grid_nx, grid_ny;
+  //double grid_dx, grid_dy, grid_ds;
+  //double min_x, min_y, max_x, max_y;
+  //std::vector< std::vector< int > > grid_idx;
+  std::vector< int > _vi;
+
+  int tri_idx;
+  double _eps = 0.0000001;
+
+  //double min_z, max_z;
+
+  m_heightmap = _heightmap;
+  m_grid_idx.clear();
+  tris.clear();
+
+  if (m_heightmap.size() < 3) { return -1; }
+
+  // find bounding box
+  //
+
+  m_min_x = m_heightmap[0]; m_min_y = m_heightmap[1];
+  m_max_x = m_min_x; m_max_y = m_min_y;
+
+  m_min_z = m_heightmap[2];
+  m_max_z = m_min_z;
+
+  for (i=0; i<m_heightmap.size(); i+=3) {
+    if (m_min_x > m_heightmap[i]) { m_min_x = m_heightmap[i]; }
+    if (m_max_x < m_heightmap[i]) { m_max_x = m_heightmap[i]; }
+
+    if (m_min_y > m_heightmap[i+1]) { m_min_y = m_heightmap[i+1]; }
+    if (m_max_y < m_heightmap[i+1]) { m_max_y = m_heightmap[i+1]; }
+
+    if (m_min_z > m_heightmap[i+2]) { m_min_z = m_heightmap[i+2]; }
+    if (m_max_z < m_heightmap[i+2]) { m_max_z = m_heightmap[i+2]; }
+
+    pnts.push_back( Vector2<double>(m_heightmap[i], m_heightmap[i+1], m_heightmap[i+2]) );
+  }
+
+  // extend the min/max to accomodate any points not in the heightmap
+  // but are needed by the input xyz points
+  //
+  dx = m_max_x - m_min_x;
+  dy = m_max_y - m_min_y;
+
+  m_min_x -= dx/2;
+  m_max_x += dx/2;
+  m_min_y -= dy/2;
+  m_max_y += dy/2;
+
+  pnts.push_back( Vector2<double>( m_min_x, m_min_y, m_max_z ) );
+  pnts.push_back( Vector2<double>( m_min_x, m_max_y, m_max_z ) );
+  pnts.push_back( Vector2<double>( m_max_x, m_max_y, m_max_z ) );
+  pnts.push_back( Vector2<double>( m_max_x, m_min_y, m_max_z ) );
+
+  m_grid_ds = sqrt((double)(m_heightmap.size()/3));
+  m_grid_dx = (m_max_x - m_min_x) / m_grid_ds;
+  m_grid_dy = (m_max_y - m_min_y) / m_grid_ds;
+
+  if (m_grid_dx <= _eps) { m_grid_dx = 1.0; }
+  if (m_grid_dy <= _eps) { m_grid_dy = 1.0; }
+
+  m_grid_nx = (int)( ((m_max_x - m_min_x)/m_grid_dx) + 0.5 );
+  m_grid_ny = (int)( ((m_max_y - m_min_y)/m_grid_dy) + 0.5 );
+  m_grid_nx ++;
+  m_grid_ny ++;
+
+  tris  = triangulation.triangulate(pnts);
+
+  tri3.resize(9);
+  for (i=0; i<tris.size(); i++) {
+
+    tri3[0] = tris[i].p1.x; tri3[1] = tris[i].p1.y; tri3[2] = tris[i].p1.z;
+    tri3[3] = tris[i].p2.x; tri3[4] = tris[i].p2.y; tri3[5] = tris[i].p2.z;
+    tri3[6] = tris[i].p3.x; tri3[7] = tris[i].p3.y; tri3[8] = tris[i].p3.z;
+
+    m_tris.push_back(tri3);
+
+  }
+
+  // allocate grid
+  //
+  for (i=0; i<m_grid_nx*m_grid_ny; i++) {
+    m_grid_idx.push_back( _vi );
+  }
+
+  // populate decimated grid for faster lookup
+  //
+  for (i=0; i<tris.size(); i++) {
+
+    mx = tris[i].p1.x;
+    my = tris[i].p1.y;
+
+    Mx = mx;
+    My = my;
+
+    if (mx > tris[i].p2.x) { mx = tris[i].p2.x; }
+    if (Mx < tris[i].p2.x) { Mx = tris[i].p2.x; }
+    if (my > tris[i].p2.y) { my = tris[i].p2.y; }
+    if (My < tris[i].p2.y) { My = tris[i].p2.y; }
+
+    if (mx > tris[i].p3.x) { mx = tris[i].p3.x; }
+    if (Mx < tris[i].p3.x) { Mx = tris[i].p3.x; }
+    if (my > tris[i].p3.y) { my = tris[i].p3.y; }
+    if (My < tris[i].p3.y) { My = tris[i].p3.y; }
+
+    for (x = (mx-m_grid_dx); x <= (Mx + m_grid_dx); x += m_grid_dx) {
+      for (y = (my-m_grid_dy); y <= (My + m_grid_dy); y += m_grid_dy) {
+
+        idx_x = (x - m_min_x) / m_grid_dx;
+        idx_y = (y - m_min_y) / m_grid_dy;
+
+        idx_x = _iclamp(idx_x, 0, m_grid_nx-1);
+        idx_y = _iclamp(idx_y, 0, m_grid_ny-1);
+
+        idx = (idx_y * m_grid_nx) + idx_x;
+
+        m_grid_idx[idx].push_back(i);
+
+      }
+    }
+
+  }
+
+
+  return 0;
+}
+
+int HeightMap::zOffset_delaunay(double &z, double x, double y) {
+  int i, j, k, idx;
+  int idx_x, idx_y, tri_idx;
+
+  double _p3[3];
+
+  idx_x = (x - m_min_x) / m_grid_dx;
+  idx_y = (y - m_min_y) / m_grid_dy;
+
+  idx_x = _iclamp(idx_x, 0, m_grid_nx-1);
+  idx_y = _iclamp(idx_y, 0, m_grid_ny-1);
+
+  idx = (idx_y*m_grid_nx) + idx_x;
+
+  _p3[0] = x;
+  _p3[1] = y;
+  _p3[2] = -1.0;
+
+  for (j=0; j<m_grid_idx[idx].size(); j++) {
+    tri_idx = m_grid_idx[idx][j];
+
+    if ((k=_lerp_z_tri_v(_p3, &(m_tris[tri_idx][0]))) > 0) {
+      z = _p3[2];
+      break;
+    }
+
+  }
+
+  if (j==m_grid_idx[idx].size()) { return -1; }
+  return 0;
+}
+
+int HeightMap::zOffset( double &z, double x, double y ) {
+
+  if      (m_algorithm == HEIGHTMAP_DELAUNAY) { return zOffset_delaunay(z, x, y); }
+  //else if (m_algorithm == HEIGHTMAP_CATMULL_ROM) { return zOffset_catmull_rom(z, x, y); }
+  //else if (m_algorithm == HEIGHTMAP_INVERSE_DISTANCE_WEIGHT) { return zOffset_idw(z, x, y); }
+
+  return -1;
+}
+
 
 int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double > &heightmap) {
   int i, j, k, idx, idx_x, idx_y;
