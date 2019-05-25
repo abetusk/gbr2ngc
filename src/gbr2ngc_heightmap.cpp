@@ -343,6 +343,29 @@ class _iEdge {
     int64_t v[2];
 };
 
+int _lerp_z_tri( Vector2<double> &pnt, Vector2<double> &a, Vector2<double> &b, Vector2<double> &c, double _eps = 0.0000001) {
+  Vector2<double> p, q;
+  double s, t, det;
+
+  p.x = b.x - a.x; p.y = b.y - a.y; p.z = b.z - a.z;
+  q.x = c.x - a.x; q.y = c.y - a.y; q.z = c.z - a.z;
+
+  det = q.y*p.x - q.x*p.y;
+  if (fabs(det) <= _eps) {
+    pnt.x = a.x; pnt.y = a.y; pnt.z = a.z;
+    return -1;
+  }
+
+  t =  (p.x*(pnt.y - a.y) - p.y*(pnt.x - a.x))/det;
+  s = -(q.x*(pnt.y - a.y) - q.y*(pnt.x - a.x))/det;
+
+  pnt.z = p.z*s + q.z*t + a.z;
+
+  if ((s<0.0) || (t<0.0) || (s>1.0) || (t>1.0)) { return 0; }
+  if ((s+t) > 1.0) { return 0; }
+  return 1;
+}
+
 int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double > &heightmap) {
   int i, j, k, idx, idx_x, idx_y;
   double x, y, dx, dy, d, interpolated_z, d_me, R;
@@ -353,18 +376,30 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
   //std::vector< Edge<double> > edges;
   std::vector< Vector2<double>> pnts;
 
+  Vector2<double> _pnt;
+
   int grid_nx, grid_ny;
   double grid_dx, grid_dy, grid_ds;
   double min_x, min_y, max_x, max_y;
   std::vector< std::vector< int > > grid_idx;
   std::vector< int > _vi;
 
+  int tri_idx;
   double _eps = 0.0000001;
+
+  double min_z, max_z;
+
 
   if (heightmap.size() < 3) { return -1; }
 
+  // find bounding box
+  //
+
   min_x = heightmap[0]; min_y = heightmap[1];
   max_x = min_x; max_y = min_y;
+
+  min_z = heightmap[2];
+  max_z = min_z;
 
   for (i=0; i<heightmap.size(); i+=3) {
     if (min_x > heightmap[i]) { min_x = heightmap[i]; }
@@ -373,8 +408,35 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
     if (min_y > heightmap[i+1]) { min_y = heightmap[i+1]; }
     if (max_y < heightmap[i+1]) { max_y = heightmap[i+1]; }
 
+    if (min_z > heightmap[i+2]) { min_z = heightmap[i+2]; }
+    if (max_z < heightmap[i+2]) { max_z = heightmap[i+2]; }
+
     pnts.push_back( Vector2<double>(heightmap[i], heightmap[i+1], heightmap[i+2]) );
   }
+
+  for (i=0; i<xyz.size(); i+=3) {
+    if (min_x > xyz[i]) { min_x = xyz[i]; }
+    if (max_x < xyz[i]) { max_x = xyz[i]; }
+
+    if (min_y > xyz[i+1]) { min_y = xyz[i+1]; }
+    if (max_y < xyz[i+1]) { max_y = xyz[i+1]; }
+  }
+
+  // extend the min/max to accomodate any points not in the heightmap
+  // but are needed by the input xyz points
+  //
+  dx = max_x - min_x;
+  dy = max_y - min_y;
+
+  min_x -= dx/2;
+  max_x += dx/2;
+  min_y -= dy/2;
+  max_y += dy/2;
+
+  pnts.push_back( Vector2<double>( min_x, min_y, max_z ) );
+  pnts.push_back( Vector2<double>( min_x, max_y, max_z ) );
+  pnts.push_back( Vector2<double>( max_x, max_y, max_z ) );
+  pnts.push_back( Vector2<double>( max_x, min_y, max_z ) );
 
   grid_ds = sqrt((double)(heightmap.size()/3));
   grid_dx = (max_x - min_x) / grid_ds;
@@ -388,14 +450,16 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
   grid_nx ++;
   grid_ny ++;
 
-  //printf("grid_ds %f, grid_dx %f, grid_dy %f, grid_nx %i, grid_ny %i\n", (float)grid_ds, (float)grid_dx, (float)grid_dy, grid_nx, grid_ny);
-
   tris  = triangulation.triangulate(pnts);
 
+  // allocate grid
+  //
   for (i=0; i<grid_nx*grid_ny; i++) {
     grid_idx.push_back( _vi );
   }
 
+  // populate decimated grid for faster lookup
+  //
   for (i=0; i<tris.size(); i++) {
 
     mx = tris[i].p1.x;
@@ -414,8 +478,8 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
     if (my > tris[i].p3.y) { my = tris[i].p3.y; }
     if (My < tris[i].p3.y) { My = tris[i].p3.y; }
 
-    for (x = mx; x <= (Mx + grid_dx); x += grid_dx) {
-      for (y = my; y <= (My + grid_dy); y += grid_dy) {
+    for (x = (mx-grid_dx); x <= (Mx + grid_dx); x += grid_dx) {
+      for (y = (my-grid_dy); y <= (My + grid_dy); y += grid_dy) {
 
         idx_x = (x - min_x) / grid_dx;
         idx_y = (y - min_y) / grid_dy;
@@ -425,15 +489,6 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
 
         idx = (idx_y * grid_nx) + idx_x;
 
-        printf("idx_x %i, idx_y %i, idx %i m(%f,%f) M(%f,%f) mxy(%f,%f), Mxy(%f,%f)\n",
-            idx_x, idx_y, idx,
-            min_x, min_y,
-            max_x, max_y,
-            mx, my,
-            Mx, My
-            );
-        fflush(stdout);
-
         grid_idx[idx].push_back(i);
 
       }
@@ -441,6 +496,9 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
 
   }
 
+
+  // finally, do the interpolation
+  //
   for (i=0; i<xyz.size(); i+=3) {
 
     x = xyz[i];
@@ -455,20 +513,24 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
     idx = (idx_y*grid_nx) + idx_x;
 
     for (j=0; j<grid_idx[idx].size(); j++) {
-    }
+      tri_idx = grid_idx[idx][j];
 
-  }
+      _pnt.x = xyz[i];
+      _pnt.y = xyz[i+1];
+      _pnt.z = -1.0;
 
-
-  for (i=0; i<grid_nx; i++) {
-    for (j=0; j<grid_ny; j++) {
-      printf(" (");
-      for (k=0; k<grid_idx[j*grid_nx+i].size(); k++) {
-        printf(" %i", grid_idx[j*grid_nx + i][k]);
+      if ((k=_lerp_z_tri(_pnt, tris[tri_idx].p1, tris[tri_idx].p2, tris[tri_idx].p3)) > 0) {
+        xyz[i+2] = _pnt.z;
+        break;
       }
-      printf(")");
+
     }
-    printf("\n");
+
+    if (j==grid_idx[idx].size()) {
+      return -1;
+      //printf("# error! xyz %i not found (%f %f)\n", i, (float)xyz[i], (float)xyz[i+1]);
+    }
+
   }
 
   return 0;

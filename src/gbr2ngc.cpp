@@ -988,19 +988,19 @@ int main(int argc, char **argv) {
       exit(-1);
     }
 
-    for (x=1.0; x<=5.5; x+=1.0/32.0) {
-      for (y=-5.0; y<=-1.4; y+=1.0/32.0) {
+    /*
+    for (x=(1.0-0.5); x<=(5.5+0.5); x+=1.0/32.0) {
+      for (y=(-5.0-0.5); y<=(-1.4+0.5); y+=1.0/32.0) {
         xyz.push_back(x);
         xyz.push_back(y);
         xyz.push_back(0.0);
       }
     }
 
+
     //ret = interpolate_height_catmull_rom_grid(xyz, heightmap);
     //ret = interpolate_height_idw(xyz, heightmap);
     ret = interpolate_height_delaunay(xyz, heightmap);
-
-    exit(-1);
 
     printf("## got %i\n", ret);
 
@@ -1019,6 +1019,7 @@ int main(int argc, char **argv) {
 
     //DEBUG
     exit(-1);
+    */
 
   }
 
