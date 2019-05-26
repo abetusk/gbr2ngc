@@ -91,7 +91,7 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
 
   double x, y, start_x, start_y;
 
-  double _gZCut, len_d, t;
+  double _zcut, len_d, t;
   double _x, _y, _prev_x, _prev_y;
   double _ds;
 
@@ -142,9 +142,6 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
       x = f(ctod( paths[i][j].X ));
       y = f(ctod( paths[i][j].Y ));
 
-      _prev_x = x;
-      _prev_y = y;
-
       if (first) {
         rapid(ofp, "xy", x, y);
 
@@ -152,9 +149,9 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
           cut(ofp, "z", gZCut);
         }
         else {
-          ret = gHeightMap.zOffset(_gZCut, x,y);
+          ret = gHeightMap.zOffset(_zcut, x,y);
           if (ret!=0) { return -2; }
-          cut(ofp, "z", _gZCut);
+          cut(ofp, "z", _zcut);
         }
 
         first = 0;
@@ -173,20 +170,24 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
             _x = _prev_x + t*(x - _prev_x);
             _y = _prev_y + t*(y - _prev_y);
 
-            ret = gHeightMap.zOffset(_gZCut, _x, _y);
+            ret = gHeightMap.zOffset(_zcut, _x, _y);
             if (ret!=0) { return -2; }
 
-            cut(ofp, "xyz", _x, _y, _gZCut);
+            cut(ofp, "xyz", _x, _y, _zcut);
           }
-          ret = gHeightMap.zOffset(_gZCut, x,y);
+          ret = gHeightMap.zOffset(_zcut, x,y);
           if (ret!=0) { return -2; }
 
-          cut(ofp, "xyz", x, y, _gZCut);
+          cut(ofp, "xyz", x, y, _zcut);
 
         }
 
 
       }
+
+      _prev_x = x;
+      _prev_y = y;
+
     }
 
     // go back to start
@@ -196,7 +197,7 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
       cut(ofp, "xy", start_x, start_y);
     }
     else {
-      ret = gHeightMap.zOffset(_gZCut, start_x,start_y);
+      ret = gHeightMap.zOffset(_zcut, start_x,start_y);
 
       x = start_x;
       y = start_y;
@@ -208,13 +209,13 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
         _x = _prev_x + t*(x - _prev_x);
         _y = _prev_y + t*(y - _prev_y);
 
-        ret = gHeightMap.zOffset(_gZCut, _x, _y);
+        ret = gHeightMap.zOffset(_zcut, _x, _y);
         if (ret!=0) { return -2; }
 
-        cut(ofp, "xyz", _x, _y, _gZCut);
+        cut(ofp, "xyz", _x, _y, _zcut);
       }
 
-      cut(ofp, "xyz", start_x, start_y, _gZCut);
+      cut(ofp, "xyz", start_x, start_y, _zcut);
     }
 
     cut(ofp, "z", gZSafe);

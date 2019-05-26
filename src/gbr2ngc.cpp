@@ -1100,7 +1100,8 @@ int main(int argc, char **argv) {
     export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
   }
   else {
-    export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    ret = export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    if (ret < 0) { fprintf(stderr, "got %i\n", ret); }
   }
 
   cleanup();
