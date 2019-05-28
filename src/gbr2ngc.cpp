@@ -20,6 +20,8 @@
 
 #include "gbr2ngc.hpp"
 
+#include <unistd.h>
+
 // gbr2ngc will look here by default for a config file
 //
 #define DEFAULT_CONFIG_FILENAME "./gbr2ngc.ini"
@@ -74,9 +76,12 @@ struct option gLongOption[] = {
 
   {"print-polygon", no_argument     , 0, 'P'},
 
-  {"invertfill", no_argument       , &gInvertFlag, 1},
-  {"simple-infill", no_argument       , &gSimpleInfill, 1},
-  {"no-outline", no_argument       , &gDrawOutline, 0},
+  {"invertfill"     , no_argument       , &gInvertFlag, 1},
+  {"simple-infill"  , no_argument       , &gSimpleInfill, 1},
+  {"no-outline"     , no_argument       , &gDrawOutline, 0},
+
+  {"height-file"      , required_argument, 0, 0},
+  {"height-algorithm" , required_argument, 0, 0},
 
   {"verbose", no_argument       , 0, 'v'},
   {"version", no_argument       , 0, 'N'},
@@ -120,6 +125,9 @@ char gOptionDescription[][1024] =
   "invert the fill pattern (experimental)",
   "infill copper polygons with pattern (currently only -H and -V supported)",
   "do not route out outline when doing infill",
+
+  "height file to use for height offseting",
+  "height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square)",
 
   "verbose",
   "display version information",
@@ -166,12 +174,20 @@ void show_help(FILE *fp) {
       fprintf(fp, "  --%s", gLongOption[i].name);
       len -= 4;
     } else {
-      fprintf(fp, "  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
+      if (gLongOption[i].val != 0) {
+        fprintf(fp, "  -%c, --%s", gLongOption[i].val, gLongOption[i].name);
+      }
+      else {
+        fprintf(fp, "  --%s", gLongOption[i].name);
+      }
     }
 
     if (gLongOption[i].has_arg) {
       fprintf(fp, " %s", gLongOption[i].name);
-      len = 2*len + 3;
+
+      len *= 2;
+      if (gLongOption[i].val != 0) { len += 3; }
+      else { len -= 1; }
     }
     else {
       len = len + 2;
@@ -374,6 +390,16 @@ void process_command_line_options(int argc, char **argv) {
   while ((ch = getopt_long(argc, argv, "i:o:c:r:s:z:Z:f:IMHVGvNhCRF:Pl:D", gLongOption, &option_index)) >= 0) {
     switch(ch) {
       case 0:
+
+        if (strncmp(gLongOption[option_index].name, "height-file", strlen("height-file"))==0) {
+          gHeightFileName = optarg;
+          gHeightOffset = 1;
+        }
+        else if (strncmp(gLongOption[option_index].name, "height-algorithm", strlen("height-algorithm"))==0) {
+          gHeightAlgorithm = optarg;
+          gHeightOffset = 1;
+        }
+
         // long option
         //
         break;
@@ -404,7 +430,12 @@ void process_command_line_options(int argc, char **argv) {
 
       default:
         if (!set_option(ch, optarg)) {
-          fprintf(stderr, "bad option: -%c %s\n", ch, optarg);
+          if (optarg!=NULL) {
+            fprintf(stderr, "bad option: -%c %s\n", ch, optarg);
+          }
+          else {
+            fprintf(stderr, "bad option: -%c\n", ch);
+          }
           show_help(stderr);
           exit(1);
         }
@@ -453,6 +484,14 @@ void process_command_line_options(int argc, char **argv) {
     fprintf(stderr, "ERROR: Currently simple infills do not support the zen garden fill pattern, please use -H or -V\n");
     show_help(stderr);
     exit(1);
+  }
+
+  if (gHeightOffset) {
+    if (gHeightFileName.size() == 0) {
+      fprintf(stderr, "ERROR: Must provide height file (only height algorithm specified?)\n");
+      show_help(stderr);
+      exit(1);
+    }
   }
 
   if (gVerboseFlag) {
@@ -923,7 +962,8 @@ void print_ast(gerber_state_t *gs, int level) {
 }
 
 int main(int argc, char **argv) {
-  int k;
+  int i, j, k, ret;
+  double x, y, prv_x, prv_y;
   gerber_state_t gs;
 
   struct timeval tv;
@@ -933,7 +973,39 @@ int main(int argc, char **argv) {
   Paths pgn_union;
   Paths offset;
 
+  std::vector< double > heightmap;
+  std::vector< double > xyz;
+
+  //----
+
   process_command_line_options(argc, argv);
+
+  if (gHeightOffset) {
+
+    ret = read_heightmap(gHeightFileName, heightmap);
+    if (ret != 0) {
+      fprintf(stderr, "ERROR reading heightmap, got %i, exiting\n", ret);
+      exit(-1);
+    }
+
+    if ((gHeightAlgorithm.size()==0)  || (gHeightAlgorithm == "catmull-rom")) {
+      gHeightMap.m_algorithm = HEIGHTMAP_CATMULL_ROM;
+      gHeightMap.setup_catmull_rom(heightmap);
+    }
+    else if (gHeightAlgorithm == "idw") {
+      gHeightMap.m_algorithm = HEIGHTMAP_INVERSE_DISTANCE_WEIGHT;
+      gHeightMap.setup_idw(heightmap);
+    }
+    else if (gHeightAlgorithm == "delaunay-linear") {
+      gHeightMap.m_algorithm = HEIGHTMAP_DELAUNAY;
+      gHeightMap.setup_delaunay(heightmap);
+    }
+    else {
+      fprintf(stderr, "ERROR invalid height algorithm\n");
+      exit(-2);
+    }
+
+  }
 
   // Initalize and load gerber file
   //
@@ -1033,7 +1105,8 @@ int main(int argc, char **argv) {
     export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
   }
   else {
-    export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    ret = export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    if (ret < 0) { fprintf(stderr, "got %i\n", ret); }
   }
 
   cleanup();

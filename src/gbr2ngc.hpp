@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.8.0"
+#define GBL2NGC_VERSION "0.8.2"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -46,8 +46,6 @@ extern "C" {
 #include <vector>
 
 #include <cmath>
-
-#include "jc_voronoi.h"
 
 #include "clipper.hpp"
 using namespace ClipperLib;
@@ -104,6 +102,49 @@ typedef std::pair<int, Aperture_realization> ApertureNameMapPair;
 
 typedef std::map<int, gerber_state_t *> ApertureBlockMap;
 
+//------------- Height Map
+
+
+enum HEIGHTMAP_ALGORITHM_TYPE {
+  HEIGHTMAP_NONE = 0,
+  HEIGHTMAP_CATMULL_ROM,
+  HEIGHTMAP_INVERSE_DISTANCE_WEIGHT,
+  HEIGHTMAP_DELAUNAY,
+};
+
+class HeightMap {
+  public:
+    int m_algorithm;
+    double m_exponent;
+    std::vector<double> m_heightmap;
+
+    std::vector<double> m_x_pnt, m_y_pnt;
+    double m_del_x, m_del_y;
+
+    std::vector< std::vector< int > > m_grid_idx;
+    std::vector< std::vector< double > > m_tris;
+
+    std::vector< std::vector< std::vector< double > > > m_subgrid;
+
+    double m_min_x, m_min_y, m_max_x, m_max_y, m_min_z, m_max_z;
+    int m_grid_nx, m_grid_ny;
+
+    double m_grid_dx, m_grid_dy, m_grid_ds;
+
+    HeightMap() : m_exponent(2.0), m_algorithm(HEIGHTMAP_DELAUNAY) { }
+    ~HeightMap() { }
+
+    int setup_catmull_rom(std::vector<double> &_heightmap);
+    int setup_idw(std::vector<double> &_heightmap, double exponent=2.0);
+    int setup_delaunay(std::vector<double> &_heightmap);
+
+    int zOffset_catmull_rom(double &z, double x, double y);
+    int zOffset_idw(double &z, double x, double y, double _eps = 0.0000001);
+    int zOffset_delaunay(double &z, double x, double y);
+    
+    int zOffset(double &z, double x, double y);
+};
+
 //------------- GLOBALS
 
 extern int gDebug;
@@ -149,6 +190,10 @@ extern double gMinSegmentLengthInch;
 extern double gMinSegmentLengthMM;
 extern double gMinSegmentLength;
 
+extern int gHeightOffset;
+extern std::string gHeightFileName;
+extern std::string gHeightAlgorithm;
+
 extern std::vector<int> gApertureName;
 extern ApertureNameMap gAperture;
 
@@ -156,6 +201,8 @@ extern ApertureBlockMap gApertureBlock;
 
 extern struct timeval gProfileStart;
 extern struct timeval gProfileEnd;
+
+extern HeightMap gHeightMap;
 
 //----- aperture functions
 
@@ -172,11 +219,22 @@ int join_polygon_set(Paths &result, gerber_state_t *gs);
 
 //----- export functions
 
-void export_paths_to_gcode( FILE *ofp, Paths &paths);
-void export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in);
+int export_paths_to_gcode( FILE *ofp, Paths &paths);
+int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in, double ds=0.0);
 
 //int _expose_bit(int local_exposure, int global_exposure = 1);
 int _expose_bit(int local_exposure, int global_exposure = 1);
 //int _expose_bit(int,int);
+
+//----- heightmap
+
+int read_heightmap( std::string &fn, std::vector< double > &heightmap);
+int catmull_rom( double *q, double s, double *p_m2, double *p_m1, double *p, double *p_1 );
+double catmull_rom_2d( double s, double t, std::vector< std::vector< std::vector< double > > > &grid);
+
+int interpolate_height_catmull_rom_grid(std::vector< double > &xyz, std::vector< double > &heightmap);
+int interpolate_height_idw(std::vector< double > &xyz, std::vector< double > &heightmap, double exponent = 2.0, double _eps = 0.00001);
+int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double > &heightmap);
+
 
 #endif
