@@ -989,10 +989,15 @@ int main(int argc, char **argv) {
     }
 
     if ((gHeightAlgorithm.size()==0)  || (gHeightAlgorithm == "catmull-rom")) {
+      gHeightMap.m_algorithm = HEIGHTMAP_CATMULL_ROM;
+      gHeightMap.setup_catmull_rom(heightmap);
     }
     else if (gHeightAlgorithm == "idw") {
+      gHeightMap.m_algorithm = HEIGHTMAP_INVERSE_DISTANCE_WEIGHT;
+      gHeightMap.setup_idw(heightmap);
     }
     else if (gHeightAlgorithm == "delaunay-linear") {
+      gHeightMap.m_algorithm = HEIGHTMAP_DELAUNAY;
       gHeightMap.setup_delaunay(heightmap);
     }
     else {

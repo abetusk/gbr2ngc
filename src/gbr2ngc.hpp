@@ -118,8 +118,13 @@ class HeightMap {
     double m_exponent;
     std::vector<double> m_heightmap;
 
+    std::vector<double> m_x_pnt, m_y_pnt;
+    double m_del_x, m_del_y;
+
     std::vector< std::vector< int > > m_grid_idx;
     std::vector< std::vector< double > > m_tris;
+
+    std::vector< std::vector< std::vector< double > > > m_subgrid;
 
     double m_min_x, m_min_y, m_max_x, m_max_y, m_min_z, m_max_z;
     int m_grid_nx, m_grid_ny;
@@ -129,13 +134,12 @@ class HeightMap {
     HeightMap() : m_exponent(2.0), m_algorithm(HEIGHTMAP_DELAUNAY) { }
     ~HeightMap() { }
 
-
     int setup_catmull_rom(std::vector<double> &_heightmap);
     int setup_idw(std::vector<double> &_heightmap, double exponent=2.0);
     int setup_delaunay(std::vector<double> &_heightmap);
 
     int zOffset_catmull_rom(double &z, double x, double y);
-    int zOffset_idw(double &z, double x, double y);
+    int zOffset_idw(double &z, double x, double y, double _eps = 0.0000001);
     int zOffset_delaunay(double &z, double x, double y);
     
     int zOffset(double &z, double x, double y);

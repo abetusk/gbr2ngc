@@ -60,6 +60,27 @@ int read_heightmap( std::string &fn, std::vector< double > &heightmap ) {
 //  \___\__,_|\__|_| |_| |_|\__,_|_|_|     |_|  \___/|_| |_| |_|
 //
 
+// Catmull-Rom on a 2D grid.
+// First do x interpolation then do y.
+// `s` and `t` are "x" and "y" parameters to the polynomial, respectively.
+// A common use case is to vary `s` and `t` from [0,1], representing the parameter to be passed
+//   in for the spline-polynomial.
+//
+double catmull_rom_2d(double s, double t, std::vector< std::vector< std::vector< double > > > &grid) {
+  int ret;
+  double v0[3], v1[3], v2[3], v3[3];
+  double r[3];
+
+  catmull_rom( v0, s, &(grid[0][0][0]), &(grid[1][0][0]), &(grid[2][0][0]), &(grid[3][0][0]));
+  catmull_rom( v1, s, &(grid[0][1][0]), &(grid[1][1][0]), &(grid[2][1][0]), &(grid[3][1][0]));
+  catmull_rom( v2, s, &(grid[0][2][0]), &(grid[1][2][0]), &(grid[2][2][0]), &(grid[3][2][0]));
+  catmull_rom( v3, s, &(grid[0][3][0]), &(grid[1][3][0]), &(grid[2][3][0]), &(grid[3][3][0]));
+
+  ret = catmull_rom(r, t, v0, v1, v2, v3);
+
+  return r[2];
+}
+
 
 // http://www.cs.cmu.edu/~462/projects/assn2/assn2/catmullRom.pdf
 //
@@ -81,27 +102,6 @@ int catmull_rom( double *q, double s, double *p_m2, double *p_m1, double *p, dou
   q[2] = (a*p_m2[2]) + (b*p_m1[2]) + (c*p[2]) + (d*p_1[2]);
 
   return 0;
-}
-
-// Catmull-Rom on a 2D grid.
-// First do x interpolation then do y.
-// `s` and `t` are "x" and "y" parameters to the polynomial, respectively.
-// A common use case is to vary `s` and `t` from [0,1], representing the parameter to be passed
-//   in for the spline-polynomial.
-//
-double catmull_rom_2d(double s, double t, std::vector< std::vector< std::vector< double > > > &grid) {
-  int ret;
-  double v0[3], v1[3], v2[3], v3[3];
-  double r[3];
-
-  catmull_rom( v0, s, &(grid[0][0][0]), &(grid[1][0][0]), &(grid[2][0][0]), &(grid[3][0][0]));
-  catmull_rom( v1, s, &(grid[0][1][0]), &(grid[1][1][0]), &(grid[2][1][0]), &(grid[3][1][0]));
-  catmull_rom( v2, s, &(grid[0][2][0]), &(grid[1][2][0]), &(grid[2][2][0]), &(grid[3][2][0]));
-  catmull_rom( v3, s, &(grid[0][3][0]), &(grid[1][3][0]), &(grid[2][3][0]), &(grid[3][3][0]));
-
-  ret = catmull_rom(r, t, v0, v1, v2, v3);
-
-  return r[2];
 }
 
 int _get_list_index(double p, std::vector< double > &v) {
@@ -156,6 +156,114 @@ static int _dcmp(const void *a, const void *b) {
   if (_da > _db) { return  1; }
   return 0;
 }
+
+int HeightMap::setup_catmull_rom(std::vector<double> &_heightmap) {
+  int i, j, k, x_idx, y_idx, _x_idx_actual, _y_idx_actual, xyz_idx;
+  int _ix, _iy;
+  double d, _n, x, y, s_x, s_y;
+  double interpolated_z;
+  std::vector< double > x_pnt_wdup, y_pnt_wdup;
+  double _eps = 1.0/1024.0;
+
+  std::vector< std::vector< double > > __vvd;
+  std::vector< double > __vd;
+
+  m_heightmap = _heightmap;
+  qsort( &(m_heightmap[0]), m_heightmap.size()/3, sizeof(double)*3, _heightmap_cmp);
+
+  // grab all x and y positions
+  //
+  for (i=0; i<m_heightmap.size(); i+=3) {
+    x_pnt_wdup.push_back(m_heightmap[i]);
+    y_pnt_wdup.push_back(m_heightmap[i+1]);
+  }
+
+  // sort and de-duplicate them
+  //
+  qsort( &(x_pnt_wdup[0]), x_pnt_wdup.size(), sizeof(double), _dcmp);
+  qsort( &(y_pnt_wdup[0]), y_pnt_wdup.size(), sizeof(double), _dcmp);
+
+  _n = (double)x_pnt_wdup.size();
+  if (_n < 1.0) { return -1; }
+  d = fabs(x_pnt_wdup[ x_pnt_wdup.size()-1 ] - x_pnt_wdup[0]);
+  if ((d > 0.0) && ((1.0/(_n*d)) < _eps)) { _eps = 1.0/(_n*d); }
+
+  _n = (double)y_pnt_wdup.size();
+  if (_n < 1.0) { return -1; }
+  d = fabs(y_pnt_wdup[ y_pnt_wdup.size()-1 ] - y_pnt_wdup[0]);
+  if ((d > 0.0) && ((1.0/(_n*d)) < _eps)) { _eps = 1.0/(_n*d); }
+
+  d = x_pnt_wdup[0];
+  m_x_pnt.push_back(d);
+  for (i=0; i<x_pnt_wdup.size(); i++) {
+    if ( fabs(d - x_pnt_wdup[i]) > _eps) {
+      d = x_pnt_wdup[i];
+      m_x_pnt.push_back(d);
+    }
+  }
+
+  d = y_pnt_wdup[0];
+  m_y_pnt.push_back(d);
+  for (i=0; i<y_pnt_wdup.size(); i++) {
+    if ( fabs(d - y_pnt_wdup[i]) > _eps) {
+      d = y_pnt_wdup[i];
+      m_y_pnt.push_back(d);
+    }
+  }
+
+  if ((m_x_pnt.size() * m_y_pnt.size()) != (m_heightmap.size()/3)) { return -2; }
+
+  // grid is uniform so assume first point represents the delta x and y
+  // in each dimension and calculate it.
+  //
+  m_del_x = 1.0; m_del_y = 1.0;
+  if (m_x_pnt.size()>1) { m_del_x = m_x_pnt[1] - m_x_pnt[0]; } else { return -3; }
+  if (m_y_pnt.size()>1) { m_del_y = m_y_pnt[1] - m_y_pnt[0]; } else { return -4; }
+
+  // allocate subgrid
+  //
+  for (i=0; i<4; i++) {
+    m_subgrid.push_back( __vvd );
+    for (j=0; j<4; j++) {
+      m_subgrid[i].push_back( __vd );
+      for (k=0; k<3; k++) {
+        m_subgrid[i][j].push_back(0.0);
+      }
+    }
+  }
+
+
+
+  return 0;
+}
+
+int HeightMap::zOffset_catmull_rom(double &z, double x, double y) {
+  int x_idx, y_idx, _iy, _ix, _x_idx_actual, _y_idx_actual;
+  double s_x, s_y;
+  //std::vector< std::vector< std::vector< double > > > subgrid;
+
+  x_idx = _get_list_index(x, m_x_pnt);
+  y_idx = _get_list_index(y, m_y_pnt);
+
+  for (_iy=0; _iy<4; _iy++) {
+    for (_ix=0; _ix<4; _ix++) {
+      _x_idx_actual = _iclamp( x_idx+_ix-1, 0, (int)(m_x_pnt.size()-1) );
+      _y_idx_actual = _iclamp( y_idx+_iy-1, 0, (int)(m_y_pnt.size()-1) );
+
+      m_subgrid[_ix][_iy][0] = m_x_pnt[ _x_idx_actual ];
+      m_subgrid[_ix][_iy][1] = m_y_pnt[ _y_idx_actual ];
+      m_subgrid[_ix][_iy][2] = m_heightmap[ 3*(_y_idx_actual * m_x_pnt.size()  + _x_idx_actual) + 2 ];
+    }
+  }
+
+  s_x = (x - m_x_pnt[x_idx] ) / m_del_x;
+  s_y = (y - m_y_pnt[y_idx] ) / m_del_y;
+
+  z = catmull_rom_2d(s_x, s_y, m_subgrid);
+
+  return 0;
+}
+
 
 // `xyz1 is updated in place with the interpolated z-coordinate
 // both `xyz` and `heightmap` have a packed x,y,z format.
@@ -248,7 +356,7 @@ int interpolate_height_catmull_rom_grid(std::vector< double > &xyz, std::vector<
   // and push changes to the main repo)
   //
   for (xyz_idx = 0; xyz_idx<xyz.size(); xyz_idx+=3) {
-    
+
     x = xyz[xyz_idx];
     y = xyz[xyz_idx+1];
 
@@ -284,7 +392,12 @@ int interpolate_height_catmull_rom_grid(std::vector< double > &xyz, std::vector<
 
 //----
 
-
+//  _     _
+// (_) __| |_      __
+// | |/ _` \ \ /\ / /
+// | | (_| |\ V  V /
+// |_|\__,_| \_/\_/
+//
 
 // inverse distance weighting (idw)
 // https://en.wikipedia.org/wiki/Inverse_distance_weighting
@@ -336,7 +449,68 @@ int interpolate_height_idw(std::vector< double > &xyz, std::vector< double > &he
   return 0;
 }
 
+// Inverse distance weighting is inefficient now, looping through the whole
+// heightmap to get the weighted height.
+// Possible speedups include:
+// * specifcying an epsilon for distance, discarding points that are past that
+//   epsilon and storing the relevant points in a grid
+// * I think there are other ways to speed this up (from my memory, some methods
+//   to speed this up are used in astronomy?) but I'm having trouble remembering
+//   them.
+//
+int HeightMap::setup_idw(std::vector< double > &_heightmap, double exponent) {
+  m_heightmap = _heightmap;
+  m_exponent = exponent;
+
+  qsort( &(m_heightmap[0]), m_heightmap.size()/3, sizeof(double)*3, _heightmap_cmp);
+
+  return 0;
+}
+
+int HeightMap::zOffset_idw(double &z, double x, double y, double _eps) {
+  int i, j;
+  double dx, dy, d, interpolated_z, d_me, R;
+  std::vector<double> dist_p;
+
+  double W = 1.0;
+
+  R = 0.0;
+  dist_p.clear();
+  for (j=0; j<m_heightmap.size(); j+=3) {
+    dx = m_heightmap[j]   - x;
+    dy = m_heightmap[j+1] - y;
+    d = sqrt(dx*dx + dy*dy);
+
+    if (d <= _eps) {
+      z = m_heightmap[j+2];
+      return 0;
+    }
+
+    d_me = W / pow(d, m_exponent);
+    R += d_me;
+    dist_p.push_back(d_me);
+  }
+
+  interpolated_z = 0.0;
+  for (j=0; j<dist_p.size(); j++) {
+    //interpolated_z += dist_p[j] * m_heightmap[3*j+2] / R;
+    interpolated_z += dist_p[j] * m_heightmap[3*j+2];
+  }
+  interpolated_z /= R;
+
+  z = interpolated_z;
+
+  return 0;
+}
+
 //----
+
+//      _      _
+//   __| | ___| | __ _ _   _ _ __   __ _ _   _
+//  / _` |/ _ \ |/ _` | | | | '_ \ / _` | | | |
+// | (_| |  __/ | (_| | |_| | | | | (_| | |_| |
+//  \__,_|\___|_|\__,_|\__,_|_| |_|\__,_|\__, |
+//                                       |___/
 
 static int _lerp_z_tri( Vector2<double> &pnt, Vector2<double> &a, Vector2<double> &b, Vector2<double> &c, double _eps = 0.0000001) {
   Vector2<double> p, q;
@@ -575,8 +749,8 @@ int HeightMap::zOffset_delaunay(double &z, double x, double y) {
 int HeightMap::zOffset( double &z, double x, double y ) {
 
   if      (m_algorithm == HEIGHTMAP_DELAUNAY) { return zOffset_delaunay(z, x, y); }
-  //else if (m_algorithm == HEIGHTMAP_CATMULL_ROM) { return zOffset_catmull_rom(z, x, y); }
-  //else if (m_algorithm == HEIGHTMAP_INVERSE_DISTANCE_WEIGHT) { return zOffset_idw(z, x, y); }
+  else if (m_algorithm == HEIGHTMAP_CATMULL_ROM) { return zOffset_catmull_rom(z, x, y); }
+  else if (m_algorithm == HEIGHTMAP_INVERSE_DISTANCE_WEIGHT) { return zOffset_idw(z, x, y); }
 
   return -1;
 }
@@ -742,14 +916,12 @@ int interpolate_height_delaunay(std::vector< double > &xyz, std::vector< double 
 
     }
 
-    if (j==grid_idx[idx].size()) {
-      return -1;
-      //printf("# error! xyz %i not found (%f %f)\n", i, (float)xyz[i], (float)xyz[i+1]);
-    }
+    // we haven't found the triangle in the grid, an error,
+    // so return error
+    //
+    if (j==grid_idx[idx].size()) { return -1; }
 
   }
 
   return 0;
 }
-
-

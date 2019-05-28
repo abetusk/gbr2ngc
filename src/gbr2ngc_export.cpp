@@ -95,12 +95,12 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
   double _x, _y, _prev_x, _prev_y;
   double _ds;
 
+  double tx, ty, tz;
+
   _ds = ds;
   if (_ds == 0.0) {
     _ds = ( dst_units_0in_1mm ? 0.125 : 1.0/1024.0 );
   }
-
-  printf("( _ds %f, ds %f )\n", _ds, ds);
 
   f = unit_identity;
   if (src_units_0in_1mm != dst_units_0in_1mm) {
@@ -151,7 +151,7 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
         else {
           ret = gHeightMap.zOffset(_zcut, x,y);
           if (ret!=0) { return -2; }
-          cut(ofp, "z", _zcut);
+          cut(ofp, "xyz", x,y,_zcut);
         }
 
         first = 0;
@@ -214,6 +214,9 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
 
         cut(ofp, "xyz", _x, _y, _zcut);
       }
+
+      ret = gHeightMap.zOffset(_zcut, start_x, start_y);
+      if (ret!=0) { return -2; }
 
       cut(ofp, "xyz", start_x, start_y, _zcut);
     }
