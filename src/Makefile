@@ -31,7 +31,7 @@ CPPFN = $(wildcard *.cpp)
 	$(CC) $(COPT) -c $< -o $@ -lm
 
 gbr2ngc: $(obj) $(hdr)
-	$(CXX) $(CXXOPT) -o $@ $^ $(CXXLIBS)
+	$(CXX) $(CXXOPT) -o $@ $(obj) $(CXXLIBS)
 
 test_gerber_interpreter: $(csrc)
 	$(CC) $(COPT2) -o $@ $^ $(COPT2)
