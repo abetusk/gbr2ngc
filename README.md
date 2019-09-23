@@ -59,6 +59,25 @@ Version 0.8.0
 
 See the [documentation](doc/Documentation.md) for a more detailed description of each of the options.
 
+Features
+---
+
+* `RS-274X` compliant
+* Polyginal underlying models
+* Tool offsetting
+* Fill pattern options
+
+Many Gerber converters fail with `RS-274X` compliance and have trouble with, say, Aperture Macros (`AM`), Aperture Blocks (`AB`) and other newer definitions from `RS-274D`.
+`gbr2ngc` handles all these cases.
+Providing automated tests is on the roadmap but see the `examples` directory for Gerber files that can be successfully converted with `gbr2ngc`.
+
+Using an underlying polyginal model allows for tool paths that are smoother for non axis-aligned lines.
+In some Gerber to Gcode converters I've used in the past, the rasterization caused a tool path to be 'jagged' when the slope of the line was not aligned to the major axies.
+
+Angus Johnson's [clipperlib](http://www.angusj.com/delphi/clipper.php) is used as the fundamental building block to do polygon boolean operations.
+[clipperlib](http://www.angusj.com/delphi/clipper.php) is also used for polygon offsetting for the tool offsetting and fill pattern features.
+
+
 License:
 -----
 
