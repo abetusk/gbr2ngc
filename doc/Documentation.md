@@ -113,7 +113,7 @@ Specify the feed rate for the output GCode file.
 Example:
 
 ```
-$ gbr2ngc -i ../example/fet.gbr
+$ gbr2ngc -i ../example/fet.gbr -f 112
 ( union path size 5 )
 g21
 g90
