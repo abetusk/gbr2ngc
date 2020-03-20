@@ -403,12 +403,11 @@ void process_command_line_options(int argc, char **argv) {
         // long option
         //
         break;
-      case 'v':
+      case 'N':
         show_version(stdout);
         exit(0);
         break;
 
-      case 'N':
       case 'h':
         show_help(stdout);
         exit(0);
