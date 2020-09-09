@@ -92,7 +92,7 @@ struct option gLongOption[] = {
 
 char gOptionDescription[][1024] =
 {
-  "radius (default 0)",
+  "radius (default 0) (units in inches)",
   "radius to be used for fill pattern (default to radius above)",
 
   "input file",
@@ -110,8 +110,8 @@ char gOptionDescription[][1024] =
 
   "minimum segment length",
 
-  "units in metric",
-  "units in inches",
+  "output units in metric",
+  "output units in inches (default)",
 
   "do not show comments",
   "machine readable (uppercase, no spaces in gcode)",
@@ -1012,7 +1012,7 @@ int main(int argc, char **argv) {
 
   k = gerber_state_load_file(&gs, gInputFilename);
   if (k < 0) {
-    perror(argv[1]);
+    perror(gInputFilename);
     exit(errno);
   }
 

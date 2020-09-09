@@ -21,13 +21,13 @@ CXXLIB = -lstdc++ -lboost_thread -lm
 CCFN = $(wildcard *.c)
 CPPFN = $(wildcard *.cpp)
 
-%.o: %.c
+%.o: %.c %.h
 	$(CC) $(COPT) -c $< -o $@ -lm
 
-%.o: %.cpp
+%.o: %.cpp %.hpp
 	$(CXX) $(CXXOPT) -c $< -o $@
 
-%.o: %.cxx
+%.o: %.cxx %.hxx
 	$(CC) $(COPT) -c $< -o $@ -lm
 
 gbr2ngc: $(obj) $(hdr)
