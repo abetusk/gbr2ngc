@@ -29,20 +29,27 @@ command line options
 ---
 
 ```
-$ ./gbr2ngc -h
+$ gbr2ngc -h
 
 gbr2ngc: A gerber to gcode converter
-Version 0.8.0
-  -r, --radius radius                 radius (default 0)
+version 0.8.3
+
+  usage: gbr2ngc [<options>] [<input_Gerber>] [-o <output_GCode_file>]
+
+  -r, --radius radius                 radius (default 0) (units in inches)
   -F, --fillradius fillradius         radius to be used for fill pattern (default to radius above)
   -i, --input input                   input file
   -o, --output output                 output file (default stdout)
+  -c, --config-file config-file       configuration file (default ./gbr2ngc.ini)
   -f, --feed feed                     feed rate (default 10)
   -s, --seek seek                     seek rate (default 100)
   -z, --zsafe zsafe                   z safe height (default 0.1 inches)
   -Z, --zcut zcut                     z cut height (default -0.05 inches)
-  -M, --metric                        units in metric
-  -I, --inches                        units in inches (default)
+  -2, --gcode-header gcode-header     prepend custom G-code to the beginning of the program
+  -3, --gcode-footer gcode-footer     append custom G-code to the end of the program
+  -l, --segment-length segment-length minimum segment length
+  -M, --metric                        output units in metric
+  -I, --inches                        output units in inches (default)
   -C, --no-comment                    do not show comments
   -R, --machine-readable              machine readable (uppercase, no spaces in gcode)
   -H, --horizontal                    route out blank areas with a horizontal scan line technique
@@ -52,6 +59,8 @@ Version 0.8.0
   --invertfill                        invert the fill pattern (experimental)
   --simple-infill                     infill copper polygons with pattern (currently only -H and -V supported)
   --no-outline                        do not route out outline when doing infill
+  --height-file height-file           height file to use for height offseting
+  --height-algorithm height-algorithm height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square)
   -v, --verbose                       verbose
   -N, --version                       display version information
   -h, --help                          help (this screen)
