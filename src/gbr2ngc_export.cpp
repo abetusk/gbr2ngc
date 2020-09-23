@@ -81,6 +81,54 @@ void cut(FILE* file, const char* axes, double one, double two=0, double three=0)
   fprintf(file, "\n");
 }
 
+int export_paths_to_polygon_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, int dst_units_0in_1mm, double ds) {
+  int i, j, n, m;
+
+  double x, y, start_x, start_y;
+  double _ds;
+
+  double (*f)(double);
+
+  _ds = ds;
+  if (_ds == 0.0) {
+    _ds = ( dst_units_0in_1mm ? 0.125 : 1.0/1024.0 );
+  }
+
+  f = unit_identity;
+  if (src_units_0in_1mm != dst_units_0in_1mm) {
+    if ((src_units_0in_1mm == 1) && (dst_units_0in_1mm == 0)) {
+      f = unit_mm2in;
+    }
+    else {
+      f = unit_in2mm;
+    }
+  }
+
+  n = paths.size();
+  for (i=0; i<n; i++) {
+
+    fprintf(ofp, "\n");
+
+    if (gShowComments)  { fprintf(ofp, "( path %i )\n", i); }
+
+    m = paths[i].size();
+
+    if (m<1) { continue; }
+    start_x = f(ctod( paths[i][0].X ));
+    start_y = f(ctod( paths[i][0].Y ));
+
+    for (j=0; j<m; j++) {
+      x = f(ctod( paths[i][j].X ));
+      y = f(ctod( paths[i][j].Y ));
+
+      fprintf(ofp, "%0.8f %0.8f\n", x, y);
+    }
+
+    fprintf(ofp,  "%0.8f %0.8f\n", start_x, start_y);
+  }
+
+  return 0;
+}
 
 int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, int dst_units_0in_1mm, double ds) {
   int i, j, n, m, n_t;

@@ -1030,11 +1030,6 @@ int main(int argc, char **argv) {
   //
   setup_aperture_blocks(&gs);
 
-  if (gPrintPolygon) {
-    //print_polygon_set(&gs);
-    exit(0);
-  }
-
   // If units haven't been specified on the command line,
   // inherit units from the Gerber file.
   //
@@ -1059,10 +1054,12 @@ int main(int argc, char **argv) {
   // G20 - inch
   // G21 - mm
   //
-  if (gHumanReadable) {
-    fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
-  } else {
-    fprintf( gOutStream, "%s\nG90\n", ( gMetricUnits ? "G21" : "G20" ) );
+  if (!gPrintPolygon) {
+    if (gHumanReadable) {
+      fprintf( gOutStream, "%s\ng90\n", ( gMetricUnits ? "g21" : "g20" ) );
+    } else {
+      fprintf( gOutStream, "%s\nG90\n", ( gMetricUnits ? "G21" : "G20" ) );
+    }
   }
 
   if ((gSimpleInfill>0) && (gFillRadius > eps)) {
@@ -1101,10 +1098,20 @@ int main(int argc, char **argv) {
 
     }
 
-    export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
+    if (gPrintPolygon) {
+      export_paths_to_polygon_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
+    }
+    else {
+      export_paths_to_gcode_unit(gOutStream, offset_polygons, gs.units_metric, gMetricUnits);
+    }
   }
   else {
-    ret = export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    if (gPrintPolygon) {
+      ret = export_paths_to_polygon_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    }
+    else {
+      ret = export_paths_to_gcode_unit(gOutStream, pgn_union, gs.units_metric, gMetricUnits);
+    }
     if (ret < 0) { fprintf(stderr, "got %i\n", ret); }
   }
 

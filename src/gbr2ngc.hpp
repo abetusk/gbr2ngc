@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.8.3"
+#define GBL2NGC_VERSION "0.8.4"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -221,6 +221,7 @@ int join_polygon_set(Paths &result, gerber_state_t *gs);
 
 int export_paths_to_gcode( FILE *ofp, Paths &paths);
 int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in, double ds=0.0);
+int export_paths_to_polygon_unit( FILE *ofp, Paths &paths, int src_unit_0mm_1in, int dst_unit_0mm_1in, double ds=0.0);
 
 //int _expose_bit(int local_exposure, int global_exposure = 1);
 int _expose_bit(int local_exposure, int global_exposure = 1);
