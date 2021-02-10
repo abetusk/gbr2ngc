@@ -14,9 +14,9 @@ COPT2=-g -lm -DGERBER_TEST
 #COPT2=-O3 -lm -DGERBER_TEST
 
 CXX=g++
-CXXOPT = -g --std=c++11
-#CXXOPT = -O3 --std=c++11
-CXXLIB = -lstdc++ -lboost_thread -lm
+CXXOPT=-g --std=c++11
+#CXXOPT=-O3 --std=c++11
+CXXLIB=-lstdc++ -lboost_thread -lm
 
 CCFN = $(wildcard *.c)
 CPPFN = $(wildcard *.cpp)
@@ -24,7 +24,13 @@ CPPFN = $(wildcard *.cpp)
 %.o: %.c %.h
 	$(CC) $(COPT) -c $< -o $@ -lm
 
+%.o: %.c
+	$(CC) $(COPT) -c $< -o $@ -lm
+
 %.o: %.cpp %.hpp
+	$(CXX) $(CXXOPT) -c $< -o $@
+
+%.o: %.cpp
 	$(CXX) $(CXXOPT) -c $< -o $@
 
 %.o: %.cxx %.hxx

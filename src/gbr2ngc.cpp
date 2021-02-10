@@ -243,6 +243,7 @@ bool set_option(const char option_char, const char* optarg) {
       gFillRadius = atof(optarg);
       break;
     case 's':
+      gSeekRateSet = 1;
       gSeekRate = atoi(optarg);
       break;
     case 'z':
@@ -873,7 +874,7 @@ void dump_options() {
   printf("fillradius = %f\n", gFillRadius);
 
   printf("feed = %d\n", gFeedRate);
-  printf("seek = %d\n", gSeekRate);
+  printf("seek = %d (%i)\n", gSeekRate, gSeekRateSet);
 
   printf("zsafe = %f\n", gZSafe);
   printf("zcut = %f\n", gZCut);

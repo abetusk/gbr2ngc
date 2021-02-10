@@ -161,6 +161,7 @@ extern char *gGCodeFooter;
 
 extern int gFeedRate;
 extern int gSeekRate;
+extern int gSeekRateSet;
 
 extern int gShowComments;
 extern int gHumanReadable;

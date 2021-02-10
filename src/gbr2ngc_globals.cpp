@@ -34,6 +34,7 @@ char *gGCodeFooter = NULL;
 
 int gFeedRate = 10;
 int gSeekRate = 100;
+int gSeekRateSet = 0;
 
 int gShowComments = 1;
 int gHumanReadable = 1;

@@ -164,10 +164,15 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
   if (gHumanReadable) { fprintf(ofp, "f%i\n", gFeedRate); }
   else                { fprintf(ofp, "F%i\n", gFeedRate); }
 
+  if (gSeekRateSet) {
+    if (gHumanReadable) { fprintf(ofp, "g0 f%i\n", gSeekRate); }
+    else                { fprintf(ofp, "G0 F%i\n", gSeekRate); }
+  }
+
   cut(ofp, "z", gZSafe);
 
   if (gHumanReadable) { fprintf(ofp, "\n"); }
-  if (gShowComments)  { fprintf(ofp, "\n( feed %i zsafe %f, zcut %f )\n", gFeedRate, gZSafe, gZCut ); }
+  if (gShowComments)  { fprintf(ofp, "\n( feed %i seek %i zsafe %f, zcut %f )\n", gFeedRate, gSeekRate, gZSafe, gZCut ); }
 
   n = paths.size();
   for (i=0; i<n; i++) {
