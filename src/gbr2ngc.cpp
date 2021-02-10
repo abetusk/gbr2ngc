@@ -100,7 +100,7 @@ char gOptionDescription[][1024] =
   "configuration file (default ./gbr2ngc.ini)",
 
   "feed rate (default 10)",
-  "seek rate (default 100)",
+  "seek rate (add 'g0 f<rate>' to header if set)",
 
   "z safe height (default 0.1 inches)",
   "z cut height (default -0.05 inches)",
