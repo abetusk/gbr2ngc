@@ -42,7 +42,7 @@ version 0.8.3
   -o, --output output                 output file (default stdout)
   -c, --config-file config-file       configuration file (default ./gbr2ngc.ini)
   -f, --feed feed                     feed rate (default 10)
-  -s, --seek seek                     seek rate (default 100)
+  -s, --seek seek                     seek rate (default 100; currently ignored)
   -z, --zsafe zsafe                   z safe height (default 0.1 inches)
   -Z, --zcut zcut                     z cut height (default -0.05 inches)
   -2, --gcode-header gcode-header     prepend custom G-code to the beginning of the program
