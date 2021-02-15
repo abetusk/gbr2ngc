@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.8.4"
+#define GBL2NGC_VERSION "0.8.5"
 
 extern "C" {
   #include "gerber_interpreter.h"
@@ -160,6 +160,7 @@ extern char *gGCodeHeader;
 extern char *gGCodeFooter;
 
 extern int gFeedRate;
+extern int gFeedRateSet;
 extern int gSeekRate;
 extern int gSeekRateSet;
 

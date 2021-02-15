@@ -33,6 +33,7 @@ char *gGCodeHeader = NULL;
 char *gGCodeFooter = NULL;
 
 int gFeedRate = 10;
+int gFeedRateSet = 0;
 int gSeekRate = 100;
 int gSeekRateSet = 0;
 

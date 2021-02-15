@@ -57,6 +57,15 @@ void rapid(FILE* file, const char* axes, double one, double two=0, double three=
     }
   }
 
+  if (gSeekRateSet) {
+    if (gHumanReadable) {
+      fprintf(file, " f%" GCODE_LENGTH_PRECISION "f", (double)gSeekRate);
+    }
+    else {
+      fprintf(file, " F%" GCODE_LENGTH_PRECISION "f", (double)gSeekRate);
+    }
+  }
+
   fprintf(file, "\n");
 }
 
@@ -77,6 +86,16 @@ void cut(FILE* file, const char* axes, double one, double two=0, double three=0)
       fprintf(file, "%c%." GCODE_LENGTH_PRECISION "f", toupper(axes[i]), coords[i]);
     }
   }
+
+  if (gFeedRateSet) {
+    if (gHumanReadable) {
+      fprintf(file, " f%" GCODE_LENGTH_PRECISION "f", (double)gFeedRate);
+    }
+    else {
+      fprintf(file, " F%" GCODE_LENGTH_PRECISION "f", (double)gFeedRate);
+    }
+  }
+
 
   fprintf(file, "\n");
 }
@@ -161,6 +180,8 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
   }
 
   if (gGCodeHeader)   { fprintf(ofp, "%s\n", gGCodeHeader); }
+
+  /*
   if (gHumanReadable) { fprintf(ofp, "f%i\n", gFeedRate); }
   else                { fprintf(ofp, "F%i\n", gFeedRate); }
 
@@ -168,6 +189,7 @@ int export_paths_to_gcode_unit( FILE *ofp, Paths &paths, int src_units_0in_1mm, 
     if (gHumanReadable) { fprintf(ofp, "g0 f%i\n", gSeekRate); }
     else                { fprintf(ofp, "G0 F%i\n", gSeekRate); }
   }
+  */
 
   cut(ofp, "z", gZSafe);
 

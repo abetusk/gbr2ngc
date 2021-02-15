@@ -254,6 +254,7 @@ bool set_option(const char option_char, const char* optarg) {
       break;
     case 'f':
       gFeedRate = atoi(optarg);
+      gFeedRateSet = 1;
       break;
 
     case ARG_GCODE_HEADER:
