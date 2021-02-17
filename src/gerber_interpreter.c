@@ -2390,7 +2390,7 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
     }
 
     else if (*chp == 'J') {
-      if (state & 16) parse_error("multiple 'I' tokens found", gs->line_no, NULL);
+      if (state & 16) parse_error("multiple 'J' tokens found", gs->line_no, NULL);
       state |= 16;
       chp = parse_single_coord(gs, &(gs->cur_j), gs->fs_j_int, gs->fs_j_real, chp);
     }
@@ -2588,8 +2588,22 @@ void parse_g01(gerber_state_t *gs, char *linebuf_orig) {
 
 // clockwise circular interpolation
 //
-void parse_g02(gerber_state_t *gs, char *linebuf) {
+void parse_g02(gerber_state_t *gs, char *linebuf_orig) {
   gerber_item_ll_t *item_nod;
+  double prev_x, prev_y;
+  char *chp, *linebuf;
+
+  prev_x = gs->cur_x;
+  prev_y = gs->cur_y;
+
+  linebuf = strdup(linebuf_orig);
+
+  chp = linebuf + 1;
+  gs->g_state = 1;
+
+  if (chp[0] == '2') { chp++; }
+  else if ((chp[0] == '0') && (chp[1] == '2')) { chp+=2; }
+  else { parse_error("invalid g02 code", gs->line_no, linebuf); }
 
   gs->interpolation_mode = INTERPOLATION_MODE_CW;
 
@@ -2608,14 +2622,33 @@ void parse_g02(gerber_state_t *gs, char *linebuf) {
     gerber_state_add_item(gs, item_nod);
   }
 
+  parse_data_block(gs, chp);
+
+  free(linebuf);
+  return;
 }
 
 //------------------------
 
 // counter-clockwise circular interpolation
 //
-void parse_g03(gerber_state_t *gs, char *linebuf) {
+void parse_g03(gerber_state_t *gs, char *linebuf_orig) {
   gerber_item_ll_t *item_nod;
+  double prev_x, prev_y;
+  char *chp, *linebuf;
+
+  prev_x = gs->cur_x;
+  prev_y = gs->cur_y;
+
+  linebuf = strdup(linebuf_orig);
+
+  chp = linebuf + 1;
+  gs->g_state = 1;
+
+  if (chp[0] == '3') { chp++; }
+  else if ((chp[0] == '0') && (chp[1] == '3')) { chp+=2; }
+  else { parse_error("invalid g02 code", gs->line_no, linebuf); }
+
 
   gs->interpolation_mode = INTERPOLATION_MODE_CCW;
 
@@ -2634,6 +2667,10 @@ void parse_g03(gerber_state_t *gs, char *linebuf) {
     gerber_state_add_item(gs, item_nod);
   }
 
+  parse_data_block(gs, chp);
+
+  free(linebuf);
+  return;
 }
 
 //------------------------
