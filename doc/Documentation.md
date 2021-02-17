@@ -9,20 +9,27 @@ converter.
 ```
 $ ./gbr2ngc -h
 
-gbr2ngc: A Gerber to GCode converter
-Version 0.7.0
-  -r, --radius radius                 radius (default 0)
+gbr2ngc: A gerber to gcode converter
+version 0.8.7
+
+  usage: gbr2ngc [<options>] [<input_Gerber>] [-o <output_GCode_file>]
+
+  -r, --radius radius                 radius (default 0) (units in inches)
   -F, --fillradius fillradius         radius to be used for fill pattern (default to radius above)
   -i, --input input                   input file
   -o, --output output                 output file (default stdout)
+  -c, --config-file config-file       configuration file (default ./gbr2ngc.ini)
   -f, --feed feed                     feed rate (default 10)
-  -s, --seek seek                     seek rate (default 100)
+  -s, --seek seek                     seek rate (add 'g0 f<rate>' to header if set)
   -z, --zsafe zsafe                   z safe height (default 0.1 inches)
   -Z, --zcut zcut                     z cut height (default -0.05 inches)
-  -M, --metric                        units in metric
-  -I, --inches                        units in inches
+  -2, --gcode-header gcode-header     prepend custom G-code to the beginning of the program
+  -3, --gcode-footer gcode-footer     append custom G-code to the end of the program
+  -l, --segment-length segment-length minimum segment length
+  -M, --metric                        output units in metric
+  -I, --inches                        output units in inches (default)
   -C, --no-comment                    do not show comments
-  -R, --machine-readable              machine readable (uppercase, no spaces in GCode)
+  -R, --machine-readable              machine readable (uppercase, no spaces in gcode)
   -H, --horizontal                    route out blank areas with a horizontal scan line technique
   -V, --vertical                      route out blank areas with a vertical scan line technique
   -G, --zengarden                     route out blank areas with a 'zen garden' technique
@@ -30,9 +37,12 @@ Version 0.7.0
   --invertfill                        invert the fill pattern (experimental)
   --simple-infill                     infill copper polygons with pattern (currently only -H and -V supported)
   --no-outline                        do not route out outline when doing infill
+  --height-file height-file           height file to use for height offseting
+  --height-algorithm height-algorithm height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square, delaunay-linear)
   -v, --verbose                       verbose
   -N, --version                       display version information
   -h, --help                          help (this screen)
+
 ```
 
 ## Quick Guide
@@ -58,6 +68,8 @@ Version 0.7.0
 | [`--invertfill`](#--invertfill) | Invert fill and non-fill areas |
 | [`--simple-infill`](#--simple-infill) | Route out used copper material using the specified pattern (instead of routing out unused copper material) |
 | [`--no-outline`](#--no-outline) | Do not route out outline when doing infill |
+| [`--height-file heightfile`](#--height-file) | Use `heightfile` for Z interpolation |
+| [`--height-algorithm height-algorithm`](#--height-algorithm) | Height interpolation algorithm (default Catmull-Rom) (options are `catmull-rom`, `inverse-square`, `delaunay-linear`) |
 | [`-v`](#-v-1) | Verbose mode. |
 | [`-N`](#-n) | Show version information. |
 | [`-h`](#-h-1) | Show help. |
@@ -386,6 +398,46 @@ $ gbr2ngc -F 0.05 --no-outline --simple-infill  -H -i ../example/fet.gbr
 ```
 
 ![infill, no outline](../img/hinfill_nooutline.png)
+
+### `--height-file`
+
+Use the `heightfile` specified to do Z interpolation.
+
+The `heightfile` is in "gnuplot" format.
+Each line represents an `x y z` coordinate, one coordinate per line.
+
+Blank lines are ignored and lines that start with a `#` are ignored.
+
+See the [test height map file](../tests/height-offset/height-map.gp) for an example.
+
+Here are the first few lines of the test file:
+
+```
+1.0 -5.0 0.103683567899
+1.0 -4.55 -0.0395941699763
+1.0 -4.1 0.105046479977
+1.0 -3.65 -0.0804195838274
+1.0 -3.2 -0.0460371193185
+1.0 -2.75 0.0333288983645
+1.0 -2.3 0.0434222152031
+```
+
+Note that coordinates will be sorted if need be so the input need not be sorted.
+
+### `--height-algorithm`
+
+One of `catmull-rom`, `inverse-square` or `delaunay-linear`.
+
+The default is `catmull-rom`.
+
+The [Catmull Rom](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline) algorithm assumes a uniform grid.
+
+The inverse square algorithm does an inverse square weighting of the neighboring sensed heights to find the interpolated Z coordinate.
+
+The Delaunay-Linear algorithm attempts a (Delaunay triangulation)[https://en.wikipedia.org/wiki/Delaunay_triangulation) of the coordinates
+and then does a linear interpolation on the triangle the coordinate is on to find the Z interpolated point.
+
+Interpolating coordinates outside of the height sensed area is undefined.
 
 ### `-v`
 

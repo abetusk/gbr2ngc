@@ -126,8 +126,8 @@ char gOptionDescription[][1024] =
   "infill copper polygons with pattern (currently only -H and -V supported)",
   "do not route out outline when doing infill",
 
-  "height file to use for height offseting",
-  "height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square)",
+  "height file to use for height offseting (each coord on it's own line in '<x> <y> <z>' format)",
+  "height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square, delaunay-linear)",
 
   "verbose",
   "display version information",

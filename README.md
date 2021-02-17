@@ -12,12 +12,6 @@ from a Gerber file like this:
 ![Gerber example](/example/gerbExample.png)
 
 
-to compile:
------------
-
-    cd src
-    make
-
 example usage:
 --------------
 
@@ -32,7 +26,7 @@ command line options
 $ gbr2ngc -h
 
 gbr2ngc: A gerber to gcode converter
-version 0.8.3
+version 0.8.7
 
   usage: gbr2ngc [<options>] [<input_Gerber>] [-o <output_GCode_file>]
 
@@ -42,7 +36,7 @@ version 0.8.3
   -o, --output output                 output file (default stdout)
   -c, --config-file config-file       configuration file (default ./gbr2ngc.ini)
   -f, --feed feed                     feed rate (default 10)
-  -s, --seek seek                     seek rate (default 100)
+  -s, --seek seek                     seek rate (add 'g0 f<rate>' to header if set)
   -z, --zsafe zsafe                   z safe height (default 0.1 inches)
   -Z, --zcut zcut                     z cut height (default -0.05 inches)
   -2, --gcode-header gcode-header     prepend custom G-code to the beginning of the program
@@ -60,13 +54,27 @@ version 0.8.3
   --simple-infill                     infill copper polygons with pattern (currently only -H and -V supported)
   --no-outline                        do not route out outline when doing infill
   --height-file height-file           height file to use for height offseting
-  --height-algorithm height-algorithm height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square)
+  --height-algorithm height-algorithm height algorithm to use (default Catmull-Rom) (options: catmull-rom, inverse-square, delaunay-linear)
   -v, --verbose                       verbose
   -N, --version                       display version information
   -h, --help                          help (this screen)
+
 ```
 
 See the [documentation](doc/Documentation.md) for a more detailed description of each of the options.
+
+Documentation
+---
+
+* [Usage documenation](doc/Documentation.md)
+* [Developer documenation](doc/Developer-Documentation.md)
+
+Compilation
+---
+
+    cd src
+    make
+
 
 Features
 ---

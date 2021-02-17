@@ -30,7 +30,7 @@
 
 #include <math.h>
 
-#define GBL2NGC_VERSION "0.8.6"
+#define GBL2NGC_VERSION "0.8.7"
 
 extern "C" {
   #include "gerber_interpreter.h"
