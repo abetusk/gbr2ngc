@@ -434,7 +434,7 @@ The [Catmull Rom](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_
 
 The inverse square algorithm does an inverse square weighting of the neighboring sensed heights to find the interpolated Z coordinate.
 
-The Delaunay-Linear algorithm attempts a (Delaunay triangulation)[https://en.wikipedia.org/wiki/Delaunay_triangulation) of the coordinates
+The Delaunay-Linear algorithm attempts a [Delaunay triangulation](https://en.wikipedia.org/wiki/Delaunay_triangulation) of the coordinates
 and then does a linear interpolation on the triangle the coordinate is on to find the Z interpolated point.
 
 Interpolating coordinates outside of the height sensed area is undefined.
