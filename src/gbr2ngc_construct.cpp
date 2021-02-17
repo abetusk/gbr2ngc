@@ -538,12 +538,6 @@ int join_polygon_set_r(Paths &result, Clipper &clip, gerber_state_t *gs, double 
       temp_pwh_vec.clear();
       construct_contour_region(gs, temp_pwh_vec, item_nod->region_head);
 
-      /*
-      for (i=0; i<temp_pwh_vec.size(); i++) {
-        clip.AddPaths( temp_pwh_vec[i], ptSubject, true );
-      }
-      */
-
       if ( ! _expose_bit(polarity) ) {
 
         for (i=0; i<temp_pwh_vec.size(); i++) {

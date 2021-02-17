@@ -2123,7 +2123,7 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
     deps = (double)(1 << (gs->fs_x_int + gs->fs_x_real));
     if (deps > 0.0) { deps = 1.0 / deps; }
 
-    // Single quadrent mode only allows th arcs to have a maximum arc angle of 90 deg (pi/2) .
+    // Single quadrent mode only allows the arcs to have a maximum arc angle of 90 deg (pi/2) .
     // The arc is defined by specifying the start and end point of the arc and the center
     // of where the arc should trace.
     // The center has to be guessed at by considerin the four possible centers of (x+-i, y+-j)
@@ -2141,10 +2141,6 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
     if (gs->quadrent_mode == QUADRENT_MODE_SINGLE) {
 
       item_nod->type = ((item_nod->type == GERBER_SEGMENT) ? GERBER_SEGMENT_ARC : GERBER_REGION_SEGMENT_ARC );
-
-      //DEBUG
-      //printf("( quad single, type %i )\n", item_nod->type);
-
 
       c[2*0] = prev_x + cur_i; c[2*0 + 1] = prev_y + cur_j;
       c[2*1] = prev_x - cur_i; c[2*1 + 1] = prev_y + cur_j;
@@ -2197,20 +2193,6 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
         item_nod->arc_ang_rad_del -= 2.0*M_PI;
       }
 
-      //DEBUG
-      /*
-      printf("( added arc single r%f+%f x%f,y%f a%f+%f ... orig x%f,y%f x%f,y%f i%f,j%f %s )\n",
-          item_nod->arc_r,
-          item_nod->arc_r_deviation,
-          item_nod->arc_center_x,
-          item_nod->arc_center_y,
-          item_nod->arc_ang_rad_beg,
-          item_nod->arc_ang_rad_del,
-          prev_x, prev_y, cur_x, cur_y, cur_i, cur_j,
-          ( gs->interpolation_mode == INTERPOLATION_MODE_CCW) ? "ccw" : "cw"
-          );
-          */
-
     }
 
     // multi quadrent mode is simpler but could lead to unstable results
@@ -2218,9 +2200,6 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
     else if (gs->quadrent_mode == QUADRENT_MODE_MULTI) {
 
       item_nod->type = ((item_nod->type == GERBER_SEGMENT) ? GERBER_SEGMENT_ARC : GERBER_REGION_SEGMENT_ARC );
-
-      //DEBUG
-      //printf("( quad multi, type %i )\n", item_nod->type);
 
       tx = prev_x + cur_i;
       ty = prev_y + cur_j;
@@ -2255,20 +2234,6 @@ void segment_update_arc_info(gerber_state_t *gs, gerber_item_ll_t *item_nod,
         if (gs->interpolation_mode == INTERPOLATION_MODE_CCW) { item_nod->arc_ang_rad_del = -2.0*M_PI; }
         if (gs->interpolation_mode == INTERPOLATION_MODE_CW)  { item_nod->arc_ang_rad_del =  2.0*M_PI; }
       }
-
-      //DEBUG
-      /*
-      printf("( added arc multi r%f+%f x%f,y%f a%f+%f .... orig x%f,y%f x%f,y%f i%f,j%f %s )\n",
-          item_nod->arc_r,
-          item_nod->arc_r_deviation,
-          item_nod->arc_center_x,
-          item_nod->arc_center_y,
-          item_nod->arc_ang_rad_beg,
-          item_nod->arc_ang_rad_del,
-          prev_x, prev_y, cur_x, cur_y, cur_i, cur_j,
-          ( gs->interpolation_mode == INTERPOLATION_MODE_CCW) ? "ccw" : "cw");
-          */
-
 
     }
 
@@ -2464,18 +2429,6 @@ void parse_data_block(gerber_state_t *gs, char *linebuf) {
       region_nod->j = gs->cur_j;
 
       segment_update_arc_info(gs, region_nod, prev_x, prev_y, gs->cur_x, gs->cur_y, gs->cur_i, gs->cur_j);
-
-      //DEBUG
-      /*
-      if (region_nod->type == GERBER_REGION_SEGMENT_ARC) {
-        printf("( added region arc r%f, x%f,y%f a%f+%f )\n",
-            (float)region_nod->arc_r,
-            (float)region_nod->arc_center_x,
-            (float)region_nod->arc_center_y,
-            (float)region_nod->arc_ang_rad_beg,
-            (float)region_nod->arc_ang_rad_del);
-      }
-      */
 
       gerber_region_add_item(item_nod, region_nod);
 
@@ -2675,7 +2628,7 @@ void parse_g03(gerber_state_t *gs, char *linebuf_orig) {
 
 //------------------------
 
-// comment
+// comment (ignore)
 //
 void parse_g04(gerber_state_t *gs, char *linebuf) {
 }
